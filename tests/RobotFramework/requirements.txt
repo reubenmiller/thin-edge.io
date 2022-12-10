@@ -1,0 +1,7 @@
+robotframework==6.0.1
+robotframework-browser==14.3.0
+robotframework-crypto==0.3.0
+robotframework-metrics==3.3.3
+robotframework-mqttlibrary==0.7.1.post3
+robotframework-sshlibrary==3.8.0
+robotframework-csvlibrary==0.0.5
