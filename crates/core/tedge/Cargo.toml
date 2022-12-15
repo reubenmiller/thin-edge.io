@@ -14,6 +14,11 @@ repository = "https://github.com/thin-edge/thin-edge.io"
 recommends = "mosquitto"
 maintainer-scripts = "../../../configuration/debian/tedge"
 
+[package.metadata.release]
+pre-release-replacements = [
+  {file="../../../get-thin-edge_io.sh", search="DEFAULT_VERSION=[a-z0-9\\.-]+", replace="DEFAULT_VERSION={{version}}", exactly=1} ,
+]
+
 [dependencies]
 anyhow = "1.0"
 base64 = "0.13"
