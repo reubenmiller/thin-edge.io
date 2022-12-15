@@ -1,6 +1,6 @@
 # thin-edge-cli
 
-tedge 0.1.0
+tedge
 
 USAGE:
 

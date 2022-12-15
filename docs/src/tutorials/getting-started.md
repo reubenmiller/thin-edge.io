@@ -80,7 +80,7 @@ sudo tedge -h
 ```
 
 ```
-tedge 0.8.1
+tedge
 tedge is the cli tool for thin-edge.io
 
 USAGE:

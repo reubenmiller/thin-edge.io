@@ -269,7 +269,7 @@ c8y-configuration-plugin --help
 ```
 
 ```
-c8y-configuration-plugin 0.9.0
+c8y-configuration-plugin
 
 Thin-edge device configuration management for Cumulocity
 
