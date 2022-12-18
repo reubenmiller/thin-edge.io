@@ -1,0 +1,14 @@
+python-dotenv>=0.20.0
+inquirer>=3.0.0
+
+# Robot
+robotframework~=6.0.0
+robotframework-c8y @ git+https://github.com/reubenmiller/robotframework-c8y.git@0.0.8
+robotframework-devicelibrary @ git+https://github.com/reubenmiller/robotframework-devicelibrary.git@0.0.2
+
+robotframework-crypto~=0.3.0
+robotframework-debuglibrary>=2.3.0
+robotframework-jsonlibrary==0.5
+robotframework-mqttlibrary~=0.7.1
+robotframework-requests==0.9.4
+robotframework-sshlibrary==3.8.0
