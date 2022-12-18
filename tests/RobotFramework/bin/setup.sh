@@ -3,6 +3,9 @@
 # Configure python virtual environment
 # * Add workspace path to site-packages so the roo
 #
+
+set -e
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 pushd "$SCRIPT_DIR/.." >/dev/null || exit 1
 

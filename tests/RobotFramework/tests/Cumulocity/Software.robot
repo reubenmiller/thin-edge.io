@@ -7,9 +7,9 @@ Test Teardown    Get Device Logs
 
 *** Test Cases ***
 Software list should be populated during startup
-    ${DEVICE_SN}=                                Setup Device
-    Then Device Should Exist                     ${DEVICE_SN}
-    And Device Should Have Installed Software    tedge
+    ${DEVICE_SN}=                            Setup Device
+    Device Should Exist                      ${DEVICE_SN}
+    Device Should Have Installed Software    tedge
 
 Install software via Cumulocity
     ${DEVICE_SN}=                            Setup Device
