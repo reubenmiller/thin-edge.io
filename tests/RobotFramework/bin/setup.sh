@@ -40,7 +40,7 @@ if [ ! -f "$DOTENV_FILE" ]; then
     echo "Creating the .env file from the template"
     cp "$DOTENV_TEMPLATE" "$DOTENV_FILE"
     show_dotenv_help
-elif grep -v "# Testing" "$DOTENV_FILE" >/dev/null; then
+elif ! grep "# Testing" "$DOTENV_FILE" >/dev/null; then
     echo "Adding required Testing variables to your existing .env file"
     cat "$DOTENV_TEMPLATE" >> "$DOTENV_FILE"
     show_dotenv_help
