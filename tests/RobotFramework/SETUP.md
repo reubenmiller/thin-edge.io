@@ -32,7 +32,28 @@
     robot tests
     ```
 
+# Viewing the test reports and logs
+
+The reports and logs are best viewed using a web browser. This can be easily done setting up a quick local webserver using the following instructions.
+
+1. Open a console from the root folder of the project, then execute
+
+    ```sh
+    python -m http.server 9000
+    ```
+
+    Or using the task (though you need to be in the `cd tests/RobotFramework` folder)
+
+    ```sh
+    invoke start-server
+    ```
+
+2. Then open up [http://localhost:9000/log.html](http://localhost:9000/log.html) in your browser
+
+
 # TODO
+
+The current TODO list for desired features and functionality gap related to the test frameworks.
 
 * [ ] Cumulocity
     * [x] Check parent child relationship

@@ -6,7 +6,8 @@ from invoke import task
 
 from dotenv import load_dotenv
 
-project_dotenv = Path(__file__).parent.parent.parent.joinpath(".env")
+project_dir = Path(__file__).parent.parent.parent
+project_dotenv = project_dir.joinpath(".env")
 
 load_dotenv(project_dotenv, ".env")
 load_dotenv(".env")
@@ -26,13 +27,22 @@ def formatcode(c):
     c.run(f"{sys.executable} -m black libraries")
 
 
+@task(name="start-server")
+def start_server(c, port=9000):
+    """Start simple webserver used to display the test reports"""
+    print("Starting local webserver: \n\n", file=sys.stderr)
+    print(
+        f"   Go to the reports in your browser: http://localhost:{port}/log.html\n\n",
+        file=sys.stderr,
+    )
+    c.run(f"{sys.executable} -m http.server {port} --directory '{str(project_dir)}'")
+
+
 @task(name="build")
 def build(c, name="debian-systemd"):
     """Build the docker integration test image"""
     context = "../images/debian-systemd"
-    c.run(
-        f"docker build -t {name} -f {context}/debian-systemd.dockerfile {context}"
-    )
+    c.run(f"docker build -t {name} -f {context}/debian-systemd.dockerfile {context}")
 
 
 @task(

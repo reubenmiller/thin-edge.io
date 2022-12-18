@@ -59,7 +59,7 @@ class ThinEdgeIO(DeviceLibrary):
         self.remove_certificate_and_device()
         super().end_test(_data, result)
 
-    @keyword("Get Device Logs")
+    @keyword("Get Logs")
     def get_logs(self, name: str = None):
         """Get device logs (override base class method to add additional debug info)
 
@@ -80,7 +80,7 @@ class ThinEdgeIO(DeviceLibrary):
                 "tail -n +1 /var/log/tedge/agent/* 2>/dev/null || true",
                 shell=True,
             )
-        except Exception as ex: # pylint: disable=broad-except
+        except Exception as ex:  # pylint: disable=broad-except
             logger.warning("Failed to get device managed object. %s", ex)
         super().get_logs(name)
 
@@ -102,7 +102,8 @@ class ThinEdgeIO(DeviceLibrary):
                 # as errors (as FAILED might be intended in a few test cases)
                 log_method = (
                     logger.info
-                    if operation.status in (operation.Status.SUCCESSFUL, operation.Status.FAILED)
+                    if operation.status
+                    in (operation.Status.SUCCESSFUL, operation.Status.FAILED)
                     else logger.warning
                 )
                 log_method(
@@ -116,12 +117,9 @@ class ThinEdgeIO(DeviceLibrary):
 
     def remove_certificate_and_device(self):
         """Remove trusted certificate"""
-        fingerprint = (
-            self.execute_command(
-                "tedge cert show | grep '^Thumbprint:' | cut -d' ' -f2 | tr A-Z a-z",
-            )
-            .strip()
-        )
+        fingerprint = self.execute_command(
+            "tedge cert show | grep '^Thumbprint:' | cut -d' ' -f2 | tr A-Z a-z",
+        ).strip()
         if fingerprint:
             c8y_lib.trusted_certificate_delete(fingerprint)
 
@@ -129,7 +127,9 @@ class ThinEdgeIO(DeviceLibrary):
             if device_sn:
                 c8y_lib.delete_managed_object(device_sn)
             else:
-                log.info("Device serial number is empty, so nothing to delete from Cumulocity")
+                log.info(
+                    "Device serial number is empty, so nothing to delete from Cumulocity"
+                )
 
     @keyword("Download From GitHub")
     def download_from_github(self, *run_id: str, arch: str = "aarch64"):
@@ -180,7 +180,7 @@ class ThinEdgeIO(DeviceLibrary):
         """
         return self.execute_command(f"tedge config set {name} {value}")
 
-    @keyword("Tedge Connect")
+    @keyword("Connect Mapper")
     def tedge_connect(self, mapper: str = "c8y") -> str:
         """Tedge connect a cloud
 
@@ -192,7 +192,7 @@ class ThinEdgeIO(DeviceLibrary):
         """
         return self.execute_command(f"tedge connect {mapper}")
 
-    @keyword("Tedge Disonnect")
+    @keyword("Disonnect Mapper")
     def tedge_disconnect(self, mapper: str = "c8y") -> str:
         """Tedge connect a cloud
 
@@ -204,7 +204,7 @@ class ThinEdgeIO(DeviceLibrary):
         """
         return self.execute_command(f"tedge disconnect {mapper}")
 
-    @keyword("Tedge Disconnect Then Connect")
+    @keyword("Disconnect Then Connect Mapper")
     def tedge_disconnect_connect(self, mapper: str = "c8y", sleep: float = 0.0):
         """Tedge disconnect the connect a cloud
 
