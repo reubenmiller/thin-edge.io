@@ -120,7 +120,6 @@ class ThinEdgeIO(DeviceLibrary):
             self.execute_command(
                 "tedge cert show | grep '^Thumbprint:' | cut -d' ' -f2 | tr A-Z a-z",
             )
-            .decode("utf8")
             .strip()
         )
         if fingerprint:
