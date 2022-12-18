@@ -134,7 +134,10 @@ class ThinEdgeIO(DeviceLibrary):
             c8y_lib.trusted_certificate_delete(fingerprint)
 
             device_sn = self.current.get_id()
-            c8y_lib.delete_managed_object(device_sn)
+            if device_sn:
+                c8y_lib.delete_managed_object(device_sn)
+            else:
+                log.info("Device serial number is empty, so nothing to delete from Cumulocity")
 
     @keyword("Download From GitHub")
     def download_from_github(self, *run_id: str, arch: str = "aarch64"):
