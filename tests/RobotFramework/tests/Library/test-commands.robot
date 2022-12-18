@@ -16,7 +16,6 @@ Supports disconnect then connect
     Device Should Exist                  ${DEVICE_SN}
     Tedge Disonnect
     Tedge Connect
-    Tedge Connect    
 
 Update unknown setting
     ${DEVICE_SN}                         Setup Device
