@@ -10,7 +10,6 @@ import json
 from typing import Any
 import time
 
-from c8y_test_core.utils import RandomNameGenerator
 from robot.api.deco import keyword, library
 from DeviceLibrary import DeviceLibrary
 from Cumulocity import Cumulocity
@@ -28,12 +27,6 @@ logger = logging.getLogger(__name__)
 
 __version__ = "0.0.1"
 __author__ = "Reuben Miller"
-
-
-def generate_name(prefix: str = "STC") -> str:
-    """Generate a random name"""
-    generator = RandomNameGenerator()
-    return "-".join([prefix, generator.random_name()])
 
 
 @library(scope="GLOBAL", auto_keywords=False)
