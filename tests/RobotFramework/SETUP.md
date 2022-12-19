@@ -65,6 +65,10 @@ Checkout the [dev container instructions](./docs/DEV_CONTAINER.md) for more deta
 
 3. Follow the console instructions and edit the `.env` file which was created by the `./bin/setup.sh` script
 
+    **Tip for MacOS colima users**
+
+    Uncomment the `DOCKER_HOST` variable and replace the `<username>` with your username. This is required to inorder for the runner to find docker.
+
 4. Switch to the new interpreter in VS Code (the one with `venv` in the name)
 
     **Note: VSCode users**
