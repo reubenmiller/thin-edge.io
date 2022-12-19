@@ -69,7 +69,23 @@ Checkout the [dev container instructions](./docs/DEV_CONTAINER.md) for more deta
 
     **Note: VSCode users**
     
-    You will have to open up a python file before VSCode will show the python settings. Sometimes reloading the window helps if you are having problems.
+    Open the `tasks.py` file, then select the python interpretter in the bottom right hand corner. Then enter the following location of python:
+
+    ```sh
+    tests/RobotFramework/env/python3
+    ```
+
+    If you are not using a devcontainer then add the following to your workspace settings `.vscode/settings.json` file.
+
+    ```json
+    {
+        "python.defaultInterpreterPath": "${workspaceFolder}/tests/RobotFramework/env/bin/python3",
+        "robot.python.executable": "${workspaceFolder}/tests/RobotFramework/env/bin/python3",
+        "python.envFile": "${workspaceFolder}/.env"
+    }
+    ```
+
+    Afterwards it is worthwhile reloading the Windows via the `Developer: Reload Window` command from the Command Pallet
 
 5. On the console, activate the environment
 

@@ -31,11 +31,6 @@ $PROJECT_DIR/tests/RobotFramework
 $PROJECT_DIR/tests/RobotFramework/libraries
 EOT
 
-#
-# Build docker images (required for container devices)
-#
-echo "Building containerized devices images"
-invoke build
 
 #
 # Setup dotenv file
@@ -80,5 +75,11 @@ if [ ! -f .env ]; then
         ln -s "$DOTENV_FILE" ".env"
     fi
 fi
+
+#
+# Build docker images (required for container devices)
+#
+echo "Building containerized devices images"
+invoke build
 
 popd >/dev/null || exit 1
