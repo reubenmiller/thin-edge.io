@@ -1,4 +1,55 @@
-# Getting started
+# Testing Setup
+
+This page will guide you how to install the pre-requisites to run the python based system/integration tests.
+
+## Pre-requiresites
+
+Before you can run the tests you need to install the pre-requisites (mainly python3, pip and nodejs).
+
+It is assumed that you are running on either MacOS or Linux. If you are a Windows users then use WSL 2 and follow the **Debian/Ubuntu** instructions, or just use the dev container option (which requries docker which again can be run under WSL 2).
+
+### Option 1: Installing the dependencies yourself
+
+1. Install python3 (>= 3.8)
+    
+    Follow the [python instructions](https://www.python.org/downloads/), or
+
+    **MacOS (using homebrew)**
+
+    ```sh
+    brew install python@3.10
+    ```
+
+    **Debian/Ubuntu**
+
+    ```sh
+    sudo apt-get install python3 python3-pip python3-venv
+    ```
+
+2. Install nodejs (>=17)
+
+    Follow the [nodejs instructions](https://nodejs.org/en/), or
+
+    **MacOS (using homebrew)**
+
+    ```sh
+    brew install nodejs
+    ```
+
+    **Debian/Ubuntu**
+
+    ```
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs
+    ```
+
+### Option 2: Using the project's dev container
+
+The dev container provides an easy to use (batteries included) approach where python3 is already installed. This option does require you to have docker and docker-compose installed, however that is it.
+
+Checkout the [dev container instructions](./docs/DEV_CONTAINER.md) for more details.
+
+## Getting started
 
 1. Navigate to the Robot Framework folder
 
@@ -26,51 +77,39 @@
     source env/bin/activate
     ```
 
-6. Run your first tests
+6. Run the tests
 
     ```sh
-    robot tests
+    invoke test
+    ```
+
+    Or you can run robot directly however then you also need to load your `.env` file
+
+    ```sh
+    set -a; source .env; set +a
+    robot --outputdir output ./tests
     ```
 
 # Viewing the test reports and logs
 
 The reports and logs are best viewed using a web browser. This can be easily done setting up a quick local webserver using the following instructions.
 
-1. Open a console from the root folder of the project, then execute
+1. Change to the robot framework directory (if you have not already done so)
 
     ```sh
-    python -m http.server 9000
+    cd tests/RobotFramework
     ```
 
-    Or using the task (though you need to be in the `cd tests/RobotFramework` folder)
+2. Open a console from the root folder of the project, then execute
+
+    ```sh
+    python -m http.server 9000 --directory output
+    ```
+
+    Or using the task
 
     ```sh
     invoke start-server
     ```
 
-2. Then open up [http://localhost:9000/log.html](http://localhost:9000/log.html) in your browser
-
-
-# TODO
-
-The current TODO list for desired features and functionality gap related to the test frameworks.
-
-* [ ] Cumulocity
-    * [x] Check parent child relationship
-    * [ ] Get managed object and compare name
-    * [ ] Send configuration file to device as operation
-
-* [ ] Json comparison (however the `JsonLibrary` can be used in the meantime)
-    * [ ] Value matches pattern
-    * [ ] Value is equal (support comparing subsections of json)
-
-* [ ] Child devices
-    * [ ] Configure child device
-    * [ ] Purge child device information from the filesystem
-    * [ ] Subscribe to mqtt and then PUT to http server
-
-
-## References
-
-* https://github.com/joergschultzelutter/robotframework-demorobotlibrary
-* https://tech.bertelsmann.com/en/blog/articles/workshop-create-a-robot-framework-keyword-library-with-python
+3. Then open up [http://localhost:9000/tests/RobotFramework/output/log.html](http://localhost:9000/tests/RobotFramework/output/log.html) in your browser

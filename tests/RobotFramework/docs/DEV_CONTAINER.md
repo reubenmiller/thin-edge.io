@@ -63,7 +63,11 @@ Now that you have `docker` and `docker compose` installed you are ready to start
 
 1. Install VS Code and make sure it is up to date
 
-2. Install the Remote Development extension `ms-vscode-remote.vscode-remote-extensionpack`
+2. Install the Remote Development extension
+
+    ```
+    ms-vscode-remote.vscode-remote-extensionpack
+    ```
 
 3. Currently the project does not have a `.devcontainer` folder so you will have to follow [these instructions](https://github.com/reubenmiller/vscode-dev-containers) first on how to add custom dev container templates for a project without having the files actually in the project. Don't worry this will not be required in the future.
 

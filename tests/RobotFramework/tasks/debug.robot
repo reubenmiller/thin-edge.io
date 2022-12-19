@@ -5,7 +5,7 @@
 ###############################################################################
 
 *** Settings ***
-Resource    ../../resources/common.resource
+Resource    ../resources/common.resource
 Library    Cumulocity
 Library    ThinEdgeIO    adapter=docker
 Library    DebugLibrary
@@ -54,5 +54,5 @@ Install Locally Built Packages
     Execute Command                          apt-get update && apt-get install -y --no-install-recommends mosquitto
     Execute Command                          ${DPKG_INSTALL_SCRIPT}
     IF    "${connect}" == "yes"
-        Execute Command                          test -f /setup/bootstrap.sh && /setup/bootstrap.sh --no-install || true
+        Execute Command                      test -f /setup/bootstrap.sh && /setup/bootstrap.sh --no-install || true
     END
