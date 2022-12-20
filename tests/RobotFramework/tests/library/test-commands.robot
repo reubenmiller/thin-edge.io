@@ -15,7 +15,7 @@ Supports a reconnect
 Supports disconnect then connect
     ${DEVICE_SN}                         Setup
     Device Should Exist                  ${DEVICE_SN}
-    Disonnect Mapper
+    Disconnect Mapper
     Connect Mapper
 
 Update unknown setting

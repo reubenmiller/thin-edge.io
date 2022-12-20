@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "d1f3bbf52508cb4bc8e418533a49533570314c20c763c59c5246d7c05f6b427a"
+            "sha256": "bb0baa4d1d75338742b0ba638fb02267731c9081e054c8fe4efc569fe133f315"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -77,7 +77,7 @@
         },
         "c8y-test-core": {
             "git": "https://github.com/reubenmiller/c8y-test-core.git",
-            "ref": "f7ca393636533fe7b4eedb95744ec95c0cb9decf"
+            "ref": "f86e695232657325b53f853f1aaa58135f6b60a5"
         },
         "cachetools": {
             "hashes": [
@@ -500,7 +500,7 @@
                 "sha256:f9168790149f917ad8e3cf5047b353fefef753bd50b07c547da0bdf30bc15d91",
                 "sha256:fe44e925c68fb5e8db1334bf30ac1a1b6b963b932a19cf41d2e899cf02f36aab"
             ],
-            "markers": "python_version < '3.10'",
+            "markers": "python_version >= '3.10'",
             "version": "==1.24.0"
         },
         "overrides": {
@@ -817,7 +817,7 @@
         },
         "robotframework-c8y": {
             "git": "https://github.com/reubenmiller/robotframework-c8y.git",
-            "ref": "5defca3f49ef2591a33aa528cae7d770380b64b2"
+            "ref": "7aeebbc37d94555a38dcc8237ad93e3333d91578"
         },
         "robotframework-crypto": {
             "hashes": [
@@ -1192,14 +1192,6 @@
             ],
             "markers": "python_version >= '3.6'",
             "version": "==0.11.6"
-        },
-        "typing-extensions": {
-            "hashes": [
-                "sha256:1511434bb92bf8dd198c12b1cc812e800d4181cfcb867674e0f8279cc93087aa",
-                "sha256:16fa4864408f655d35ec496218b85f79b3437c829e93320c7c9215ccfd92489e"
-            ],
-            "markers": "python_version >= '3.7'",
-            "version": "==4.4.0"
         },
         "wrapt": {
             "hashes": [

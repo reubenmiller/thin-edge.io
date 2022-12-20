@@ -69,14 +69,14 @@ Checkout the [dev container instructions](./docs/DEV_CONTAINER.md) for more deta
 
     Uncomment the `DOCKER_HOST` variable and replace the `<username>` with your username. This is required to inorder for the runner to find docker.
 
-4. Switch to the new interpreter in VS Code (the one with `.venv` in the name)
+4. Switch to the new python interpreter (the one with `.venv` in the name)
 
     **Note: VSCode users**
     
     Open the `tasks.py` file, then select the python interpretter in the bottom right hand corner. Then enter the following location of python:
 
     ```sh
-    tests/RobotFramework/env/python3
+    tests/RobotFramework/.venv/bin/python3
     ```
 
     If you are not using a devcontainer then add the following to your workspace settings `.vscode/settings.json` file.
@@ -94,7 +94,7 @@ Checkout the [dev container instructions](./docs/DEV_CONTAINER.md) for more deta
     * `Python: Restart Language Server`
     * `Robot Framework: Clear caches and restart Robot Framework`
 
-5. On the console, activate the environment
+5. On the console, activate the environment (if it is not already activated)
 
     ```sh
     pipenv shell
