@@ -33,7 +33,7 @@ def formatcode(c):
     c.run(f"{sys.executable} -m black libraries")
 
 
-@task(name="start-server")
+@task(name="reports")
 def start_server(c, port=9000):
     """Start simple webserver used to display the test reports"""
     print("Starting local webserver: \n\n", file=sys.stderr)

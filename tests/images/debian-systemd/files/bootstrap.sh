@@ -7,6 +7,8 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CONNECT=1
 CHILDREN=0
 INSTALL=1
+INSTALL_METHOD=script
+
 while [ $# -gt 0 ]
 do
     case "$1" in
@@ -16,6 +18,12 @@ do
 
         --no-connect)
             CONNECT=0
+            ;;
+
+        --install-method)
+            # Either "apt" or "script". Unknown options will 
+            INSTALL_METHOD="$2"
+            shift
             ;;
 
         --children)
@@ -28,7 +36,7 @@ done
 
 if [ "$INSTALL" == 1 ]; then
     echo "Installing thin-edge.io"
-    "$SCRIPT_DIR/install-tedge.sh" "script"
+    "$SCRIPT_DIR/install-tedge.sh" "${INSTALL_METHOD:-script}"
 fi
 
 echo ----------------------------------------------------------
