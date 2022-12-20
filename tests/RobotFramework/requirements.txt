@@ -5,8 +5,8 @@ inquirer>=3.0.0
 robotframework~=6.0.0
 
 # Custom Libraries
-robotframework-c8y @ git+https://github.com/reubenmiller/robotframework-c8y.git@0.0.10
-robotframework-devicelibrary @ git+https://github.com/reubenmiller/robotframework-devicelibrary.git@0.1.0
+robotframework-c8y @ git+https://github.com/reubenmiller/robotframework-c8y.git@0.0.10#egg=robotframework-c8y
+robotframework-devicelibrary @ git+https://github.com/reubenmiller/robotframework-devicelibrary.git@0.1.0#egg=robotframework-devicelibrary
 
 # 3rd Party Libraries
 robotframework-browser==14.3.0

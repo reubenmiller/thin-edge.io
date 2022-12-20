@@ -192,7 +192,7 @@ class ThinEdgeIO(DeviceLibrary):
         """
         return self.execute_command(f"tedge connect {mapper}")
 
-    @keyword("Disonnect Mapper")
+    @keyword("Disconnect Mapper")
     def tedge_disconnect(self, mapper: str = "c8y") -> str:
         """Tedge connect a cloud
 
