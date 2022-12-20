@@ -23,7 +23,7 @@ It is assumed that you are running on either MacOS or Linux. If you are a Window
     **Debian/Ubuntu**
 
     ```sh
-    sudo apt-get install python3 python3-pip python3-venv
+    sudo apt-get install python3 python3-pip
     ```
 
 2. Install nodejs (>=17)
@@ -69,7 +69,7 @@ Checkout the [dev container instructions](./docs/DEV_CONTAINER.md) for more deta
 
     Uncomment the `DOCKER_HOST` variable and replace the `<username>` with your username. This is required to inorder for the runner to find docker.
 
-4. Switch to the new interpreter in VS Code (the one with `venv` in the name)
+4. Switch to the new interpreter in VS Code (the one with `.venv` in the name)
 
     **Note: VSCode users**
     
@@ -83,18 +83,21 @@ Checkout the [dev container instructions](./docs/DEV_CONTAINER.md) for more deta
 
     ```json
     {
-        "python.defaultInterpreterPath": "${workspaceFolder}/tests/RobotFramework/env/bin/python3",
-        "robot.python.executable": "${workspaceFolder}/tests/RobotFramework/env/bin/python3",
+        "python.defaultInterpreterPath": "${workspaceFolder}/tests/RobotFramework/.venv/bin/python3",
+        "robot.python.executable": "${workspaceFolder}/tests/RobotFramework/.venv/bin/python3",
         "python.envFile": "${workspaceFolder}/.env"
     }
     ```
 
-    Afterwards it is worthwhile reloading the Windows via the `Developer: Reload Window` command from the Command Pallet
+    Afterwards it is worthwhile reloading some of the VSCode extension via the Command Pallet
+
+    * `Python: Restart Language Server`
+    * `Robot Framework: Clear caches and restart Robot Framework`
 
 5. On the console, activate the environment
 
     ```sh
-    source env/bin/activate
+    pipenv shell
     ```
 
 6. Run the tests
@@ -103,10 +106,9 @@ Checkout the [dev container instructions](./docs/DEV_CONTAINER.md) for more deta
     invoke test
     ```
 
-    Or you can run robot directly however then you also need to load your `.env` file
+    Or you can run robot directly
 
     ```sh
-    set -a; source .env; set +a
     robot --outputdir output ./tests
     ```
 

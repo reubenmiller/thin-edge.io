@@ -7,30 +7,26 @@
 set -e
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+PROJECT_DIR=$( cd --  "$SCRIPT_DIR/../../../" && pwd )
 pushd "$SCRIPT_DIR/.." >/dev/null || exit 1
 
 #
 # Setup python virtual environement and install dependencies
 #
-python3 -m venv env
-
-# shellcheck source=/dev/null
-source env/bin/activate
-
 pip3 install --upgrade pip
-python3 -m pip install -r requirements.txt
-python3 -m pip install -r requirements-dev.txt
 
+if ! command -v pipenv >/dev/null 2>&1; then
+    if [[ "$(which pip3)" =~ \.venv/bin/pip3 ]]; then
+        pip3 install pipenv
+    else
+        pip3 install --user pipenv
+    fi
+fi
 
-SITE_LIB=$(python3 -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
-PROJECT_DIR=$( cd --  "$SCRIPT_DIR/../../../" && pwd )
-
-echo "Creating .pth file for workspace: $SITE_LIB/workspace.pth"
-# Add one path per line
-cat << EOT > "$SITE_LIB/workspace.pth"
-$PROJECT_DIR/tests/RobotFramework
-$PROJECT_DIR/tests/RobotFramework/libraries
-EOT
+# Install all dependences (including develop)
+export PIPENV_VENV_IN_PROJECT=1
+export PIPENV_IGNORE_VIRTUALENVS=1
+pipenv install --dev --python "$(which python3)"
 
 
 #
