@@ -27,6 +27,7 @@ fi
 export PIPENV_VENV_IN_PROJECT=1
 export PIPENV_IGNORE_VIRTUALENVS=1
 pipenv install --dev --python "$(which python3)"
+PIPENV_IGNORE_VIRTUALENVS=1 pipenv run addpath
 
 
 #

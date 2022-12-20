@@ -3,6 +3,9 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
+[scripts]
+addpath = "python \"bin/appendpath.py\""
+
 [packages]
 python-dotenv = ">=0.20.0"
 inquirer = ">=3.0.0"
