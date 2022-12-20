@@ -10,7 +10,6 @@ addpath = "python \"bin/appendpath.py\""
 python-dotenv = ">=0.20.0"
 inquirer = ">=3.0.0"
 robotframework = "~=6.0.0"
-robotframework-devicelibrary = {ref = "0.1.0", git = "https://github.com/reubenmiller/robotframework-devicelibrary.git"}
 robotframework-browser = "==14.3.0"
 robotframework-crypto = "==0.3.0"
 robotframework-debuglibrary = ">=2.3.0"
@@ -21,6 +20,7 @@ robotframework-requests = "==0.9.4"
 robotframework-sshlibrary = "==3.8.0"
 restinstance = "==1.3.0"
 robotframework-c8y = {ref = "0.0.12", git = "https://github.com/reubenmiller/robotframework-c8y.git"}
+robotframework-devicelibrary = {ref = "0.1.1", git = "https://github.com/reubenmiller/robotframework-devicelibrary.git"}
 
 [dev-packages]
 black = ">=22.12.0"

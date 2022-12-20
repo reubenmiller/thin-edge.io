@@ -8,6 +8,7 @@ CONNECT=1
 CHILDREN=0
 INSTALL=1
 INSTALL_METHOD=script
+MAX_CONNECT_ATTEMPTS=2
 
 while [ $# -gt 0 ]
 do
@@ -91,6 +92,9 @@ if ! tedge cert show >/dev/null 2>&1; then
     if [ -n "$C8Y_PASSWORD" ]; then
         echo "Uploading certificate to Cumulocity using tedge"
         C8YPASS="$C8Y_PASSWORD" tedge cert upload c8y --user "$C8Y_USER"
+
+        # Grace period for the server to process the certificate
+        sleep 1
     fi
 else
     echo "Certificate already exists"
@@ -119,7 +123,22 @@ fi
 
 
 if [[ "$CONNECT" == 1 ]]; then
-    tedge connect c8y
+    # retry connection attempts
+    CONNECT_ATTEMPT=0
+    while true; do
+        CONNECT_ATTEMPT=$((CONNECT_ATTEMPT++))
+        if tedge connect c8y; then
+            break
+        else
+            if [ "$CONNECT_ATTEMPT" -ge "$MAX_CONNECT_ATTEMPTS" ]; then
+                echo "Failed after $CONNECT_ATTEMPT connection attempts. Giving up"
+                exit 2
+            fi
+        fi
+
+        echo "WARNING: Connection attempt failed! Retring to connect in 2s"
+        sleep 2
+    done
 fi
 
 # Add additional tools

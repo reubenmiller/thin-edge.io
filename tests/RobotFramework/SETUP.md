@@ -84,6 +84,7 @@ Checkout the [dev container instructions](./docs/DEV_CONTAINER.md) for more deta
     ```json
     {
         "python.defaultInterpreterPath": "${workspaceFolder}/tests/RobotFramework/.venv/bin/python3",
+        "robot.language-server.python": "${workspaceFolder}/tests/RobotFramework/.venv/bin/python3",
         "robot.python.executable": "${workspaceFolder}/tests/RobotFramework/.venv/bin/python3",
         "python.envFile": "${workspaceFolder}/.env"
     }
