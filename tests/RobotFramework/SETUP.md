@@ -131,7 +131,7 @@ The reports and logs are best viewed using a web browser. This can be easily don
     Or using the task
 
     ```sh
-    invoke start-server
+    invoke reports
     ```
 
 3. Then open up [http://localhost:9000/tests/RobotFramework/output/log.html](http://localhost:9000/tests/RobotFramework/output/log.html) in your browser
