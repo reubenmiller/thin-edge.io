@@ -1,7 +1,3 @@
-*** Settings ***
-# Library    Cumulocity
-# Library    ThinEdgeIO
-
 *** Variables ***
 
 # Adapter settings

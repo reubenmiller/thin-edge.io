@@ -17,3 +17,9 @@ Install software via Cumulocity
     ${OPERATION}=    Install Software        c8y-remoteaccess-plugin
     Operation Should Be SUCCESSFUL           ${OPERATION}
     Device Should Have Installed Software    c8y-remoteaccess-plugin
+
+Software list should only show currently installed software and not candidates
+    ${DEVICE_SN}=                            Setup
+    Device Should Exist                      ${DEVICE_SN}
+    ${EXPECTED_VERSION}=    Execute Command    dpkg -s tedge | grep "^Version: " | cut -d' ' -f2
+    Device Should Have Installed Software    tedge,^${EXPECTED_VERSION.strip()}::apt$

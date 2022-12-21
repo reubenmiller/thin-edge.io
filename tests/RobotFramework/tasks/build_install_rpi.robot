@@ -2,7 +2,6 @@
 *** Settings ***
 Library    Browser
 Library    OperatingSystem
-Library    Dialogs
 Library    SSHLibrary
 Library    DateTime
 Library    CryptoLibrary    variable_decryption=True

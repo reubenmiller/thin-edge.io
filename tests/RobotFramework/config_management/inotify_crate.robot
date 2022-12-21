@@ -4,7 +4,6 @@
 Library    Browser
 Library    SSHLibrary 
 Library    CryptoLibrary    variable_decryption=True
-Library    Dialogs
 Suite Setup            Open Connection And Log In
 Suite Teardown         Close All Connections
 

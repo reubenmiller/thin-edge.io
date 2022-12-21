@@ -5,7 +5,6 @@ Documentation    Run connection test while being connected and check the positiv
 
 Library    SSHLibrary
 Library    CryptoLibrary    variable_decryption=True
-Library    Dialogs
 
 Suite Setup            Open Connection And Log In
 Suite Teardown         SSHLibrary.Close All Connections
