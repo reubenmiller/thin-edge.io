@@ -3,46 +3,31 @@ Documentation    Run connection test while being connected and check the positiv
 ...              disconnect the device from cloud and check the negative message in stderr
 ...              Run sudo tedge connect c8y and check 
 
-Library    SSHLibrary
-Library    CryptoLibrary    variable_decryption=True
+Resource    ../resources/common.resource
+Library    ThinEdgeIO
 
-Suite Setup            Open Connection And Log In
-Suite Teardown         SSHLibrary.Close All Connections
+Suite Setup            Setup
+Suite Teardown         Get Logs
 
-
-*** Variables ***
-${HOST}           
-${USERNAME}       pi    
-${PASSWORD}       crypt:LO3wCxZPltyviM8gEyBkRylToqtWm+hvq9mMVEPxtn0BXB65v/5wxUu7EqicpOgGhgNZVgFjY0o=
-
-*** Tasks ***
+*** Test Cases ***
 tedge_connect_test_positive
-    Execute Command    sudo tedge connect c8y    #Connecting to Cumulocity IoT
-    ${stdout}=    Execute Command    sudo tedge connect c8y --test    #Testing the status of the connection
-    Should Contain    ${stdout}    Connection check to c8y cloud is successful.    #Expected message
-    Log    ${stdout}
+    Execute Command    sudo tedge connect c8y || true    # Connect but don't fail if already connected
+    ${output}=    Execute Command    sudo tedge connect c8y --test
+    Should Contain    ${output}    Connection check to c8y cloud is successful.
 
 tedge_connect_test_negative
-    Execute Command    sudo tedge disconnect c8y    #Disonnecting from Cumulocity IoT
-    ${stdout}    ${stderr}=    Execute Command    sudo tedge connect c8y --test    return_stderr=True    #Testing the status of the connection
-    Should Contain    ${stderr}    Error: failed to test connection to Cumulocity cloud.    #Expected message
-    Log    ${stderr}
+    Execute Command    sudo tedge disconnect c8y
+    ${output}=    Execute Command    sudo tedge connect c8y --test    exp_exit_code=1
+    Should Contain    ${output}    Error: failed to test connection to Cumulocity cloud.
 
 tedge_connect_test_sm_services
-    ${stdout}    Execute Command    sudo tedge connect c8y    #Connecting to Cumulocity IoT
-    Should Contain    ${stdout}    Successfully created bridge connection!    #Expected message
-    Should Contain    ${stdout}    tedge-agent service successfully started and enabled!    #Expected message
-    Should Contain    ${stdout}    tedge-mapper-c8y service successfully started and enabled!    #Expected message
-    Log    ${stdout}
-tedge_disconnect_test_sm_services
-    ${stdout}    Execute Command    sudo tedge disconnect c8y    #Disonnecting from Cumulocity IoT
-    Should Contain    ${stdout}    Cumulocity Bridge successfully disconnected!    #Expected message
-    Should Contain    ${stdout}    tedge-agent service successfully stopped and disabled!    #Expected message
-    Should Contain    ${stdout}    tedge-mapper-c8y service successfully stopped and disabled!    #Expected message
-    Log    ${stdout}
+    ${output}=    Execute Command    sudo tedge connect c8y
+    Should Contain    ${output}    Successfully created bridge connection!
+    Should Contain    ${output}    tedge-agent service successfully started and enabled!
+    Should Contain    ${output}    tedge-mapper-c8y service successfully started and enabled!
 
-*** Keywords ***
-Open Connection And Log In
-   
-    SSHLibrary.Open Connection     ${HOST}
-    SSHLibrary.Login               ${USERNAME}        ${PASSWORD}
+tedge_disconnect_test_sm_services
+    ${output}=    Execute Command    sudo tedge disconnect c8y
+    Should Contain    ${output}    Cumulocity Bridge successfully disconnected!
+    Should Contain    ${output}    tedge-agent service successfully stopped and disabled!
+    Should Contain    ${output}    tedge-mapper-c8y service successfully stopped and disabled!
