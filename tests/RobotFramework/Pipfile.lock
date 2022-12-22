@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "fc2789638a8df08eb15e51f20f1f972e9e8e8e32d5f43da88abfdcd74b130f33"
+            "sha256": "c38f11c45a26f1a7d11d0a72e0cad79bbb34af6f427951e862dac41303cd40ba"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -230,7 +230,7 @@
         },
         "device-test-core": {
             "git": "https://github.com/reubenmiller/device-test-core.git",
-            "ref": "80ad53da71a74b344d7efc41ad1b836c1f51db75"
+            "ref": "5cbf2bac2aa5a1e70100d8101e7dda2469d7e202"
         },
         "docker": {
             "hashes": [
@@ -845,7 +845,7 @@
         },
         "robotframework-devicelibrary": {
             "git": "https://github.com/reubenmiller/robotframework-devicelibrary.git",
-            "ref": "9b8729f9691579d747a6778cd2537b46ea2b4cf1"
+            "ref": "2a6f19811f1237753d9c5b08a1fec1128b4a388a"
         },
         "robotframework-jsonlibrary": {
             "hashes": [

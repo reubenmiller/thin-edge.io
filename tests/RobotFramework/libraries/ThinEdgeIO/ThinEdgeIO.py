@@ -175,6 +175,14 @@ class ThinEdgeIO(DeviceLibrary):
         # Also support providing values via csv (e.g. when set from variables)
         for i_run_id in run_id:
             run_ids.extend(i_run_id.split(","))
+        
+        # Support mapping debian architecture names to the rust (e.g. arm64 -> aarch64)
+        arch_mapping = {
+            # TODO: Extend to include all supported types, e.g. amd64 etc. Check what to do about armv6l
+            "armhf": "armv7",
+            "arm64": "aarch64",
+        }
+        arch = arch_mapping.get(arch, arch)
 
         for i_run_id in run_ids:
             self.execute_command(
