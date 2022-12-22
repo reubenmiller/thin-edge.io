@@ -11,10 +11,9 @@ from typing import Any
 import time
 
 from robot.api.deco import keyword, library
-from DeviceLibrary import DeviceLibrary
+from DeviceLibrary import DeviceLibrary, DeviceAdapter
 from Cumulocity import Cumulocity
 
-log = logging.getLogger()
 
 devices_lib = DeviceLibrary()
 c8y_lib = Cumulocity()
@@ -23,7 +22,7 @@ c8y_lib = Cumulocity()
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s %(module)s -%(levelname)s- %(message)s"
 )
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 __version__ = "0.0.1"
 __author__ = "Reuben Miller"
@@ -41,7 +40,13 @@ class ThinEdgeIO(DeviceLibrary):
             _data (Any): Test data
             result (Any): Test details
         """
-        logger.info("Suite %s (%s) ending", result.name, result.message)
+        log.info("Suite %s (%s) ending", result.name, result.message)
+
+        for device in self.devices.values():
+            if isinstance(device, DeviceAdapter):
+                if device.should_cleanup:
+                    self.remove_certificate_and_device(device)
+
         super().end_suite(_data, result)
 
     def end_test(self, _data: Any, result: Any):
@@ -52,11 +57,12 @@ class ThinEdgeIO(DeviceLibrary):
             _data (Any): Test data
             result (Any): Test details
         """
-        logger.info("Listener: detected end of test")
+        log.info("Listener: detected end of test")
         if not result.passed:
-            logger.info("Test '%s' failed: %s", result.name, result.message)
+            log.info("Test '%s' failed: %s", result.name, result.message)
 
-        self.remove_certificate_and_device()
+        # TODO: Only cleanup on the suite?
+        # self.remove_certificate_and_device(self.current)
         super().end_test(_data, result)
 
     @keyword("Get Logs")
@@ -68,20 +74,25 @@ class ThinEdgeIO(DeviceLibrary):
         """
         device_sn = name or self.current.get_id()
         try:
-            managed_object = c8y_lib.device_mgmt.identity.assert_exists(device_sn)
-            logger.info(
+            # TODO: optionally check if the device was registered or not, if no, then skip this step
+            managed_object = c8y_lib.device_mgmt.identity.assert_exists(device_sn, timeout=5)
+            log.info(
                 "Managed Object\n%s", json.dumps(managed_object.to_json(), indent=2)
             )
             self.log_operations(managed_object.id)
-
+        except Exception as ex:  # pylint: disable=broad-except
+            log.warning("Failed to get device managed object. %s", ex)
+        
+        try:
             # Get agent log files (if they exist)
-            logger.info("tedge agent logs: /var/log/tedge/agent/*")
+            log.info("tedge agent logs: /var/log/tedge/agent/*")
             self.current.execute_command(
                 "tail -n +1 /var/log/tedge/agent/* 2>/dev/null || true",
                 shell=True,
             )
-        except Exception as ex:  # pylint: disable=broad-except
-            logger.warning("Failed to get device managed object. %s", ex)
+        except Exception as ex:
+            log.warning("Failed to retrieve logs. %s", ex, exc_info=True)
+
         super().get_logs(name)
 
     def log_operations(self, mo_id: str, status: str = None):
@@ -96,15 +107,15 @@ class ThinEdgeIO(DeviceLibrary):
         )
 
         if operations:
-            logger.info("%s operations", status or "ALL")
+            log.info("%s operations", status or "ALL")
             for i, operation in enumerate(operations):
                 # Only treat operations which did not finish
                 # as errors (as FAILED might be intended in a few test cases)
                 log_method = (
-                    logger.info
+                    log.info
                     if operation.status
                     in (operation.Status.SUCCESSFUL, operation.Status.FAILED)
-                    else logger.warning
+                    else log.warning
                 )
                 log_method(
                     "Operation %d: (status=%s)\n%s",
@@ -113,17 +124,25 @@ class ThinEdgeIO(DeviceLibrary):
                     json.dumps(operation.to_json(), indent=2),
                 )
         else:
-            logger.info("No operations found")
+            log.info("No operations found")
 
-    def remove_certificate_and_device(self):
+    def remove_certificate_and_device(self, device: DeviceAdapter = None):
         """Remove trusted certificate"""
-        fingerprint = self.execute_command(
+        if device is None:
+            device = self.current
+
+        if not device:
+            log.info(f"No certificate to remove as the device as not been set")
+            return
+
+        _, fingerprint = device.execute_command(
             "tedge cert show | grep '^Thumbprint:' | cut -d' ' -f2 | tr A-Z a-z",
-        ).strip()
+        )
+        fingerprint = fingerprint.decode("utf8").strip()
         if fingerprint:
             c8y_lib.trusted_certificate_delete(fingerprint)
 
-            device_sn = self.current.get_id()
+            device_sn = device.get_id()
             if device_sn:
                 c8y_lib.delete_managed_object(device_sn)
             else:
