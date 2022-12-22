@@ -1,40 +1,25 @@
 #Command to execute:    robot -d \results --timestampoutputs --log log_path_config.html --report NONE --variable HOST:192.168.1.120 /thin-edge.io/tests/RobotFramework/customizinglog_path_config.robot
 
 *** Settings ***
-Library    SSHLibrary 
-Library    MQTTLibrary
-Library    CryptoLibrary    variable_decryption=True
-Suite Setup            Open Connection And Log In
-Suite Teardown         SSHLibrary.Close All Connections
+Resource    ../resources/common.resource
+Library    ThinEdgeIO
 
-*** Variables ***
-${HOST}           
-${USERNAME}       pi
-${PASSWORD}       crypt:LO3wCxZPltyviM8gEyBkRylToqtWm+hvq9mMVEPxtn0BXB65v/5wxUu7EqicpOgGhgNZVgFjY0o=
-
+Suite Setup            Setup
+Suite Teardown         Get Logs
 
 *** Tasks ***
 Stop tedge-agent service
-    ${rc}=    Execute Command    sudo systemctl stop tedge-agent.service    return_stdout=False    return_rc=True
-    Should Be Equal    ${rc}    ${0}
+    Execute Command    sudo systemctl stop tedge-agent.service
+    Execute Command    sudo rm -f /run/lock/tedge*agent.lock    # BUG?: Stopping the service does not delete the file, so if starting tedge_agent as a different user causes problems!
 
 Customize the log path
-    ${rc}=    Execute Command    sudo tedge config set logs.path /test    return_stdout=False    return_rc=True
-    Should Be Equal    ${rc}    ${0}
+    Execute Command    sudo tedge config set logs.path /test
 
 Initialize tedge-agent
-    ${rc}=    Execute Command    sudo tedge-agent --init    return_stdout=False    return_rc=True
-    Should Be Equal    ${rc}    ${0}
+    Execute Command    sudo tedge_agent --init
 
 Check created folders
-    ${rc}=    Execute Command    cd /test/tedge/agent    return_stdout=False    return_rc=True
-    Should Be Equal    ${rc}    ${0}
+    Directory Should Exist    /test/tedge/agent
 
 Remove created custom folders
-    ${rc}=    Execute Command    sudo rm -rf /test    return_stdout=False    return_rc=True
-    Should Be Equal    ${rc}    ${0}
-
-*** Keywords ***
-Open Connection And Log In
-   Open Connection     ${HOST}
-   Login               ${USERNAME}        ${PASSWORD}
+    Execute Command    sudo rm -rf /test
