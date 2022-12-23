@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "c38f11c45a26f1a7d11d0a72e0cad79bbb34af6f427951e862dac41303cd40ba"
+            "sha256": "887e97c90bfac4fa4c1282f3777b8586d3e2c349581e1c75e53f8495dc87e542"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -77,7 +77,7 @@
         },
         "c8y-test-core": {
             "git": "https://github.com/reubenmiller/c8y-test-core.git",
-            "ref": "f86e695232657325b53f853f1aaa58135f6b60a5"
+            "ref": "87945ced6d23ba0bec5d8404ac4b18c2c6f2b9bc"
         },
         "cachetools": {
             "hashes": [
@@ -817,7 +817,7 @@
         },
         "robotframework-c8y": {
             "git": "https://github.com/reubenmiller/robotframework-c8y.git",
-            "ref": "7aeebbc37d94555a38dcc8237ad93e3333d91578"
+            "ref": "4d286f57914f078619f3eee2e1f3e065e84d5186"
         },
         "robotframework-crypto": {
             "hashes": [
