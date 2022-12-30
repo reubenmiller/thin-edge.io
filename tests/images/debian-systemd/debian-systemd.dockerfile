@@ -11,6 +11,7 @@ RUN apt-get -y update \
         ca-certificates \
         systemd \
         ssh \
+        mosquitto-clients \
         vim.tiny
 
 # Remove unnecessary systemd services
@@ -28,6 +29,9 @@ COPY files/install-tedge.sh .
 COPY files/bootstrap.sh .
 COPY files/system.toml /etc/tedge/
 COPY files/c8y-configuration-plugin.toml /etc/tedge/c8y/
+
+COPY files/mqtt-logger.service /etc/systemd/system/
+RUN systemctl enable mqtt-logger.service
 
 # Custom mosquitto config
 COPY files/mosquitto.conf /etc/mosquitto/conf.d/

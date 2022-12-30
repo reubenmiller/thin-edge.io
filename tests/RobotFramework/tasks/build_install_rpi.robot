@@ -137,8 +137,3 @@ armv7
     ${FILENAME}    Set Variable    debian-packages-armv7-unknown-linux-gnueabihf
     Log    ${FILENAME}
     Set Global Variable    ${FILENAME}
-    
-
-
-
-

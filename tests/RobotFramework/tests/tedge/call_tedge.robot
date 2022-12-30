@@ -6,11 +6,11 @@ Documentation    Purpose of this test is to verify that the proper version numbe
 ...              By executing the tedge -h -V command combination of both previous
 ...              commands will be shown
 
-Resource    ../resources/common.resource
+Resource    ../../resources/common.resource
 Library    ThinEdgeIO
 Library    String
 
-Suite Setup            Setup
+Suite Setup            Custom Setup
 Suite Teardown         Get Logs
 
 *** Variables ***
@@ -45,3 +45,9 @@ call tedge help
     Should Contain    ${output}    USAGE:
     Should Contain    ${output}    OPTIONS:
     Should Contain    ${output}    SUBCOMMANDS:
+
+*** Keywords ***
+
+Custom Setup
+    Setup    skip_bootstrap=True
+    Execute Command    rm -f /etc/tedge/system.toml

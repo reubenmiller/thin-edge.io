@@ -14,7 +14,7 @@ Documentation    Purpose of this test is to verify that the tedge config list an
 ...              Set new logs.path and return to default value
 ...              Set new run.path and return to default value
 
-Resource    ../resources/common.resource
+Resource    ../../resources/common.resource
 Library    ThinEdgeIO
 
 Suite Setup            Setup

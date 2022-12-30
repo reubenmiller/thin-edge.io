@@ -20,8 +20,9 @@ robotframework-requests = "==0.9.4"
 robotframework-sshlibrary = "==3.8.0"
 restinstance = "==1.3.0"
 robotframework-csvlibrary = "==0.0.5"
-robotframework-devicelibrary = {ref = "0.3.0", git = "https://github.com/reubenmiller/robotframework-devicelibrary.git"}
-robotframework-c8y = {ref = "0.1.3", git = "https://github.com/reubenmiller/robotframework-c8y.git"}
+dateparser = "*"
+robotframework-devicelibrary = {ref = "0.10.2", git = "https://github.com/reubenmiller/robotframework-devicelibrary.git"}
+robotframework-c8y = {ref = "0.7.1", git = "https://github.com/reubenmiller/robotframework-c8y.git"}
 
 [dev-packages]
 black = ">=22.12.0"

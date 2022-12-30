@@ -136,3 +136,41 @@ The reports and logs are best viewed using a web browser. This can be easily don
     ```
 
 3. Then open up [http://localhost:9000/tests/RobotFramework/output/log.html](http://localhost:9000/tests/RobotFramework/output/log.html) in your browser
+
+## TODO
+
+* Execute Command
+    * Support return stdout and stderr in independent streams (optional arguments which shapes the return value)
+
+* How to run a setup script for ssh
+    * Confirm
+        * All components removed / purged (clean state)
+        * tedge already installed and connected
+
+* Docker
+    * How to speed up the image process by at least installing tedge (and just using the specially built image for the base, and only doing bootstrapp)
+    * How to cleanup after each tests (but also support using 1 image for the suite)
+
+* Setup
+    * Should have an adapter option so you can control for individual calls to Setup which end device is used
+
+* New commands
+    * Convert to Debian arch: arm64 -> aarch64
+    * Convert to Rust arch: aarch64 -> arm64
+    * Transfer to Device
+        * Support a text option, where normal text can be provided instead of a file
+            - Save encoding/escaping problems when using printf etc.
+    
+    * `Device Should Not Exist` - Check that a device with the serial number does not exist (but reference by identity/type)
+    * `Execute Command` support setting environment variables for individual commands and these should not be logged
+
+* How to get ssh credentials for a second device
+    * What are the environment variables called? are they indexed, `SSH_CONFIG_1_HOSTNAME` etc..
+
+* Hide sensitive information from the logs (Generic python log filter?)
+
+
+### Limitation?
+
+How to enter text at a prompt launched via `docker exec` or `ssh`?
+    * `ssh` seems to support it as the SSHLibrary has the `Write` keyword, but would docker exec work like this?

@@ -1,7 +1,7 @@
 #Command to execute:    robot -d \results --timestampoutputs --log inotify_crate.html --report NONE --variable HOST:192.168.1.130 /thin-edge.io/tests/RobotFramework/config_management/inotify_crate.robot
 
 *** Settings ***
-Resource    ../resources/common.resource
+Resource    ../../resources/common.resource
 Library    ThinEdgeIO
 Library    Cumulocity
 Library    Collections

@@ -7,7 +7,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CONNECT=1
 CHILDREN=0
 INSTALL=1
-INSTALL_METHOD=script
+INSTALL_METHOD=apt
 MAX_CONNECT_ATTEMPTS=2
 
 while [ $# -gt 0 ]

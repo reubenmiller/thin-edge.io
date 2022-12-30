@@ -3,7 +3,7 @@ Documentation    Run connection test while being connected and check the positiv
 ...              disconnect the device from cloud and check the negative message in stderr
 ...              Run sudo tedge connect c8y and check 
 
-Resource    ../resources/common.resource
+Resource    ../../resources/common.resource
 Library    ThinEdgeIO
 
 Suite Setup            Setup
