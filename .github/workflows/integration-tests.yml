@@ -12,11 +12,6 @@ jobs:
   test:
     name: Build for ${{ matrix.job.arch }}
     runs-on: ubuntu-20.04
-    env:
-      C8Y_BASEURL: ${{ secrets.C8Y_BASEURL }}
-      C8Y_USER: ${{ secrets.C8Y_USER }}
-      C8Y_TENANT: ${{ secrets.C8Y_TENANT }}
-      C8Y_PASSWORD: ${{ secrets.C8Y_PASSWORD }}
     strategy:
       matrix:
         job:
@@ -26,6 +21,14 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      
+      - name: create .env file
+        run: |
+          touch .env
+          echo C8Y_BASEURL=${{ secrets.C8Y_BASEURL }} >> .env
+          echo C8Y_USER=${{ secrets.C8Y_USER }} >> .env
+          echo C8Y_TENANT=${{ secrets.C8Y_TENANT }} >> .env
+          echo C8Y_PASSWORD=${{ secrets.C8Y_PASSWORD }} >> .env
 
       - uses: actions/setup-python@v4
         with:
