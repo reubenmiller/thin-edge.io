@@ -24,10 +24,10 @@ if ! command -v pipenv >/dev/null 2>&1; then
 fi
 
 # Install all dependences (including develop)
-export PIPENV_VENV_IN_PROJECT=1
-export PIPENV_IGNORE_VIRTUALENVS=1
+export PIPENV_VENV_IN_PROJECT=${PIPENV_VENV_IN_PROJECT:-1}
+export PIPENV_IGNORE_VIRTUALENVS=${PIPENV_IGNORE_VIRTUALENVS:-1}
 pipenv install --dev --python "$(which python3)"
-PIPENV_IGNORE_VIRTUALENVS=1 pipenv run addpath
+PIPENV_IGNORE_VIRTUALENVS=$PIPENV_IGNORE_VIRTUALENVS pipenv run addpath
 
 
 #

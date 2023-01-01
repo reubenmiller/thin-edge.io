@@ -37,6 +37,8 @@ jobs:
           cache: 'pipenv' # caching pip dependencies
 
       - name: Install dependencies
+        env:
+          PIPENV_VENV_IN_PROJECT: 0
         run: tests/RobotFramework/bin/setup.sh
       
       - name: Build images
