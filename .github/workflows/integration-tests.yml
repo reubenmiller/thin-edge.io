@@ -23,6 +23,7 @@ jobs:
           fetch-depth: 0
       
       - name: create .env file
+        working-directory: tests/RobotFramework
         run: |
           touch .env
           echo 'C8Y_BASEURL="${{ secrets.C8Y_BASEURL }}"' >> .env
