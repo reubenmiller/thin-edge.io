@@ -19,7 +19,8 @@ Install software via Cumulocity
     Device Should Have Installed Software    c8y-remoteaccess-plugin
 
 Software list should only show currently installed software and not candidates
+    [Tags]    flakey
     ${DEVICE_SN}=                            Setup
     Device Should Exist                      ${DEVICE_SN}
-    ${EXPECTED_VERSION}=    Execute Command    dpkg -s tedge | grep "^Version: " | cut -d' ' -f2
-    Device Should Have Installed Software    tedge,^${EXPECTED_VERSION.strip()}::apt$
+    ${EXPECTED_VERSION}=    Execute Command    dpkg -s tedge | grep "^Version: " | cut -d' ' -f2    strip=True
+    Device Should Have Installed Software    tedge,^${EXPECTED_VERSION}::apt$
