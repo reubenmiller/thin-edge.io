@@ -41,4 +41,4 @@ jobs:
 
       - name: Run tests
         working-directory: tests/RobotFramework
-        run: pipenv run robot tests --log log.html --report report.html
+        run: pipenv run robot --log log.html --report report.html tests
