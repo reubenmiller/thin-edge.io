@@ -47,4 +47,26 @@ jobs:
 
       - name: Run tests
         working-directory: tests/RobotFramework
-        run: pipenv run robot --log log.html --report report.html tests/tedge_connect
+        run: pipenv run robot --log log.html --report report.html --outputdir output tests/tedge_connect
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v1
+        if: always()
+        with:
+          name: reports
+          path: tests/RobotFramework/output
+
+  generate_report:
+    if: always()
+    needs: [test] 
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download reports
+      uses: actions/download-artifact@v1
+      with:
+        name: reports
+    - name: Send report to commit
+      uses: joonvena/robotframework-reporter-action@v2.1
+      with:
+        gh_access_token: ${{ secrets.GITHUB_TOKEN }}
