@@ -1,0 +1,44 @@
+name: integration-tests
+on:
+  push:
+    branches: [ main, add-robot-libraries ]
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Tags'
+        required: false
+        default: ''
+jobs:
+  test:
+    name: Build for ${{ matrix.job.arch }}
+    runs-on: ubuntu-20.04
+    env:
+      C8Y_BASEURL: ${{ secrets.C8Y_BASEURL }}
+      C8Y_USER: ${{ secrets.C8Y_USER }}
+      C8Y_TENANT: ${{ secrets.C8Y_TENANT }}
+      C8Y_PASSWORD: ${{ secrets.C8Y_PASSWORD }}
+    strategy:
+      matrix:
+        job:
+          - { arch: amd64 }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pipenv' # caching pip dependencies
+
+      - name: Install dependencies
+        run: tests/RobotFramework/bin/setup.sh
+      
+      - name: Build images
+        working-directory: tests/RobotFramework
+        run: pipenv run invoke build
+
+      - name: Run tests
+        working-directory: tests/RobotFramework
+        run: pipenv run robot tests --log log.html --report report.html
