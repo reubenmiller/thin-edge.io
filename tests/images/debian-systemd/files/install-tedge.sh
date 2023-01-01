@@ -22,11 +22,11 @@ install_via_apt() {
     apt-get install -y \
         tedge \
         tedge-mapper \
-        tedge-watchdog \
         tedge-agent \
         tedge-apt-plugin \
+        c8y-configuration-plugin \
         c8y-log-plugin \
-        c8y-configuration-plugin
+        tedge-watchdog
 }
 
 install_via_script() {
