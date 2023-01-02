@@ -50,12 +50,13 @@ jobs:
         working-directory: tests/RobotFramework
         run: |
           pipenv run \
-            robot \
-            --log log.html \
-            --report report.html \
-            --outputdir output \
-            --include "${{ github.event.inputs.include }}" \
-            tests
+            pabot \
+              --processes 5 \
+              --log log.html \
+              --report report.html \
+              --outputdir output \
+              --include "${{ github.event.inputs.include }}" \
+              tests
 
       - name: Upload test results
         uses: actions/upload-artifact@v1
