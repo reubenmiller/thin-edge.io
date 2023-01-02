@@ -56,11 +56,11 @@ jobs:
         run: |
           pipenv run \
             pabot \
-              --processes ${{ inputs.processes }} \
+              --processes ${{ inputs.processes || '10' }} \
               --log log.html \
               --report report.html \
               --outputdir output \
-              --include "${{ inputs.include }}" \
+              --include "${{ inputs.include || '*' }}" \
               tests
 
       - name: Upload test results
