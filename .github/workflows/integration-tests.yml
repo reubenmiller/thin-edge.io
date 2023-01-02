@@ -2,7 +2,7 @@ name: integration-tests
 on:
   push:
     branches: [ main, add-robot-libraries ]
-  workflow_dispatch:
+  workflow_call:
     inputs:
       include:
         description: 'Include Tags'
@@ -56,11 +56,11 @@ jobs:
         run: |
           pipenv run \
             pabot \
-              --processes ${{ github.event.inputs.processes }} \
+              --processes ${{ inputs.processes }} \
               --log log.html \
               --report report.html \
               --outputdir output \
-              --include "${{ github.event.inputs.include }}" \
+              --include "${{ inputs.include }}" \
               tests
 
       - name: Upload test results
