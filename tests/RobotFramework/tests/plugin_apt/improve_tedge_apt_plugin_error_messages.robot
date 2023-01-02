@@ -9,12 +9,12 @@ Suite Teardown    Get Logs
 
 *** Test Cases ***
 Wrong package name
-    ${wpn}=    Execute Command    sudo /etc/tedge/sm-plugins/apt install thinml-3964 --file ./rolldice_1.16-1build1_${ARCH}.deb    exp_exit_code=5
-    Should Contain    ${wpn}    ERROR: Validation of ./rolldice_1.16-1build1_${ARCH}.deb metadata failed, expected value for the Package is  rolldice, but provided  thinml-3964
+    ${wpn}=    Execute Command    sudo /etc/tedge/sm-plugins/apt install thinml-3964 --file "${DEB_FILE}"    exp_exit_code=5
+    Should Contain    ${wpn}    ERROR: Validation of ${DEB_FILE} metadata failed, expected value for the Package is  rolldice, but provided  thinml-3964
 
 Wrong version
-    ${wv}=    Execute Command    sudo /etc/tedge/sm-plugins/apt install thinml-3964 --file ./rolldice_1.16-1build1_${ARCH}.deb --module-version 1.0    exp_exit_code=5
-    Should Contain    ${wv}    ERROR: Validation of ./rolldice_1.16-1build1_${ARCH}.deb metadata failed, expected value for the Version is  1.16-1build1, but provided  1.0
+    ${wv}=    Execute Command    sudo /etc/tedge/sm-plugins/apt install thinml-3964 --file "${DEB_FILE}" --module-version 1.0    exp_exit_code=5
+    Should Contain    ${wv}    ERROR: Validation of ${DEB_FILE} metadata failed, expected value for the Version is  1.16-1build1, but provided  1.0
 
 Wrong type
     Execute Command    echo "Not a debian package" >/tmp/foo.deb
@@ -26,6 +26,6 @@ Wrong type
 *** Keywords ***
 Custom Setup
     Setup
-    ${ARCH}=    Get Debian Architecture
-    Set Suite Variable    ${ARCH}
-    Execute Command    wget -O rolldice_1.16-1build1_${ARCH}.deb http://ports.ubuntu.com/pool/universe/r/rolldice/rolldice_1.16-1build1_${ARCH}.deb
+    Execute Command    apt-get install --download-only rolldice
+    ${DEB_FILE}=    Execute Command    find /var/cache/apt/archives -type f -name "rolldice_*.deb"    strip=True
+    Set Suite Variable    ${DEB_FILE}
