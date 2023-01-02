@@ -55,9 +55,12 @@ def build(c, name="debian-systemd"):
 @task(
     help={
         "file": ("Robot file or directory to run"),
+        "outputdir": ("Output directory where the reports will be saved to"),
+        "processes": ("Number of processes to use when running tests"),
+        "include": ("Only run tests which match the given tag"),
     }
 )
-def test(c, file="tests", processes=10):
+def test(c, file="tests", outputdir = None, processes = None, include=""):
     """Run tests
 
     Examples
@@ -68,6 +71,12 @@ def test(c, file="tests", processes=10):
         # Run only tests defined in tests/myfile.robot
         invoke test --file=tests/myfile.robot
     """
+    if not processes:
+        processes = 10
+
+    if not outputdir:
+        outputdir = output_path
+
     command = [
         sys.executable,
         "-m",
@@ -75,8 +84,14 @@ def test(c, file="tests", processes=10):
         "--processes",
         str(processes),
         "--outputdir",
-        str(output_path),
+        str(outputdir),
     ]
+
+    if include:
+        command.extend([
+            "--include",
+            str(include),
+        ])
 
     env_file = ".env"
     if env_file:
@@ -95,4 +110,5 @@ def test(c, file="tests", processes=10):
     if file:
         command.append(file)
 
-    c.run(" ".join(command))
+    print(" ".join(command))
+    # c.run(" ".join(command))

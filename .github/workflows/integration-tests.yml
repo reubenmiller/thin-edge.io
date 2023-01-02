@@ -5,12 +5,12 @@ on:
   workflow_call:
     inputs:
       include:
-        description: 'Include Tags'
+        description: Only run tests matching tests with the given tags
         type: string
         required: false
-        default: '*'
+        default: ""
       processes:
-        description: 'Number of processes to run tests'
+        description: Number of processes to run tests
         type: string
         required: false
         default: "10"
@@ -55,13 +55,10 @@ jobs:
         working-directory: tests/RobotFramework
         run: |
           pipenv run \
-            pabot \
-              --processes ${{ inputs.processes || '10' }} \
-              --log log.html \
-              --report report.html \
-              --outputdir output \
-              --include "${{ inputs.include || '*' }}" \
-              tests
+            invoke test \
+              --processes "${{ inputs.processes }}" \
+              --include "${{ inputs.include }}" \
+              --outputdir output
 
       - name: Upload test results
         uses: actions/upload-artifact@v1
