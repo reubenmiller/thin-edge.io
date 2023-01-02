@@ -9,9 +9,14 @@ on:
         type: string
         required: false
         default: '*'
+      processes:
+        description: 'Number of processes to run tests'
+        type: string
+        required: false
+        default: "10"
 jobs:
   test:
-    name: Build for ${{ matrix.job.arch }}
+    name: Test on ${{ matrix.job.arch }}
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -51,7 +56,7 @@ jobs:
         run: |
           pipenv run \
             pabot \
-              --processes 5 \
+              --processes ${{ github.event.inputs.processes }} \
               --log log.html \
               --report report.html \
               --outputdir output \
