@@ -4,10 +4,11 @@ on:
     branches: [ main, add-robot-libraries ]
   workflow_dispatch:
     inputs:
-      tags:
-        description: 'Tags'
+      include:
+        description: 'Include Tags'
+        type: string
         required: false
-        default: ''
+        default: '*'
 jobs:
   test:
     name: Build for ${{ matrix.job.arch }}
@@ -47,7 +48,14 @@ jobs:
 
       - name: Run tests
         working-directory: tests/RobotFramework
-        run: pipenv run robot --log log.html --report report.html --outputdir output tests
+        run: |
+          pipenv run \
+            robot \
+            --log log.html \
+            --report report.html \
+            --outputdir output \
+            --include "${{ github.event.inputs.include }}" \
+            tests
 
       - name: Upload test results
         uses: actions/upload-artifact@v1
