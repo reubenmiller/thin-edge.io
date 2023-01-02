@@ -111,4 +111,4 @@ def test(c, file="tests", outputdir = None, processes = None, include=""):
         command.append(file)
 
     print(" ".join(command))
-    # c.run(" ".join(command))
+    c.run(" ".join(command))
