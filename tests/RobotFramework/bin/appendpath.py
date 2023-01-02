@@ -2,6 +2,7 @@
 import sysconfig
 from pathlib import Path
 
+
 def main():
     """Main"""
     venv_path = sysconfig.get_paths()["purelib"]
@@ -20,6 +21,7 @@ def main():
         print("\n")
 
     workspace.write_text("\n".join(paths))
+
 
 if __name__ == "__main__":
     main()

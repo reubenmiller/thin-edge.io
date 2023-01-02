@@ -53,7 +53,13 @@ class MQTTMessage:
 class ThinEdgeIO(DeviceLibrary):
     """ThinEdgeIO Library"""
 
-    def __init__(self, image: str = DeviceLibrary.DEFAULT_IMAGE, adapter: str = DeviceLibrary.DEFAULT_ADAPTER, bootstrap_script: str = DeviceLibrary.DEFAULT_BOOTSTRAP_SCRIPT, **kwargs):
+    def __init__(
+        self,
+        image: str = DeviceLibrary.DEFAULT_IMAGE,
+        adapter: str = DeviceLibrary.DEFAULT_ADAPTER,
+        bootstrap_script: str = DeviceLibrary.DEFAULT_BOOTSTRAP_SCRIPT,
+        **kwargs,
+    ):
         super().__init__(image, adapter, bootstrap_script, **kwargs)
 
         # Configure retries
@@ -110,14 +116,16 @@ class ThinEdgeIO(DeviceLibrary):
         device_sn = name or self.current.get_id()
         try:
             # TODO: optionally check if the device was registered or not, if no, then skip this step
-            managed_object = c8y_lib.device_mgmt.identity.assert_exists(device_sn, timeout=5)
+            managed_object = c8y_lib.device_mgmt.identity.assert_exists(
+                device_sn, timeout=5
+            )
             log.info(
                 "Managed Object\n%s", json.dumps(managed_object.to_json(), indent=2)
             )
             self.log_operations(managed_object.id)
         except Exception as ex:  # pylint: disable=broad-except
             log.warning("Failed to get device managed object. %s", ex)
-        
+
         try:
             # Get agent log files (if they exist)
             log.info("tedge agent logs: /var/log/tedge/agent/*")
@@ -196,7 +204,9 @@ class ThinEdgeIO(DeviceLibrary):
                         "Device serial number is empty, so nothing to delete from Cumulocity"
                     )
             except Exception as ex:
-                log.warning("Could not remove device certificate and/or device. error=%s", ex)
+                log.warning(
+                    "Could not remove device certificate and/or device. error=%s", ex
+                )
 
     @keyword("Download From GitHub")
     def download_from_github(self, *run_id: str, arch: str = "aarch64"):
@@ -223,7 +233,7 @@ class ThinEdgeIO(DeviceLibrary):
         # Also support providing values via csv (e.g. when set from variables)
         for i_run_id in run_id:
             run_ids.extend(i_run_id.split(","))
-        
+
         # Support mapping debian architecture names to the rust (e.g. arm64 -> aarch64)
         arch_mapping = {
             # TODO: Extend to include all supported types, e.g. amd64 etc. Check what to do about armv6l
@@ -297,9 +307,15 @@ class ThinEdgeIO(DeviceLibrary):
     # TODO:
     # Assert presence of a topic (with timeout)
     #
-    def mqtt_match_messages(self, topic: str, date_from: relativetime_ = None, date_to: relativetime_ = None, **kwargs) -> List[Dict[str, Any]]:
+    def mqtt_match_messages(
+        self,
+        topic: str,
+        date_from: relativetime_ = None,
+        date_to: relativetime_ = None,
+        **kwargs,
+    ) -> List[Dict[str, Any]]:
         cmd = "journalctl -u mqtt-logger.service -n 1000 --output=cat"
-        
+
         if not date_from:
             date_from = self.test_start_time
 
@@ -325,11 +341,20 @@ class ThinEdgeIO(DeviceLibrary):
         matching = [
             item
             for item in messages
-            if not topic or (topic and mqtt_topic_match(mqtt_matcher, item["message"]["topic"]))
+            if not topic
+            or (topic and mqtt_topic_match(mqtt_matcher, item["message"]["topic"]))
         ]
         return matching
-    
-    def _assert_mqtt_topic_messages(self, topic: str, date_from: relativetime_ = None, date_to: relativetime_ = None, minimum: int = 1, maximum: int = None, **kwargs) -> List[Dict[str, Any]]:
+
+    def _assert_mqtt_topic_messages(
+        self,
+        topic: str,
+        date_from: relativetime_ = None,
+        date_to: relativetime_ = None,
+        minimum: int = 1,
+        maximum: int = None,
+        **kwargs,
+    ) -> List[Dict[str, Any]]:
         # log.info("Checking mqtt messages for topic: %s", topic)
         items = self.mqtt_match_messages(topic, date_from, date_to, **kwargs)
 
@@ -340,30 +365,51 @@ class ThinEdgeIO(DeviceLibrary):
         ]
 
         if minimum is not None:
-            assert len(messages) >= minimum, f"Matching messages is less than minimum.\nwanted: {minimum}\ngot: {len(messages)}\n\nmessages:\n{messages}"
-        
+            assert (
+                len(messages) >= minimum
+            ), f"Matching messages is less than minimum.\nwanted: {minimum}\ngot: {len(messages)}\n\nmessages:\n{messages}"
+
         if maximum is not None:
-            assert len(messages) <= maximum, f"Matching messages is greater than maximum.\nwanted: {maximum}\ngot: {len(messages)}\n\nmessages:\n{messages}"
+            assert (
+                len(messages) <= maximum
+            ), f"Matching messages is greater than maximum.\nwanted: {maximum}\ngot: {len(messages)}\n\nmessages:\n{messages}"
 
         return messages
 
     @keyword("Should Have MQTT Messages")
-    def mqtt_should_have_topic(self, topic: str, date_from: relativetime_ = None, date_to: relativetime_ = None, minimum: int = 1, maximum: int = None, **kwargs) -> List[Dict[str, Any]]:
+    def mqtt_should_have_topic(
+        self,
+        topic: str,
+        date_from: relativetime_ = None,
+        date_to: relativetime_ = None,
+        minimum: int = 1,
+        maximum: int = None,
+        **kwargs,
+    ) -> List[Dict[str, Any]]:
         """
         Check for the presence of a topic
-        
+
         Examples
 
         | ${messages}= | Should Have MQTT Message | c8y/s/# | -30s | 0s |
         """
-        result = self._assert_mqtt_topic_messages(topic, date_from=date_from, date_to=date_to, minimum=minimum, maximum=maximum, **kwargs)
+        result = self._assert_mqtt_topic_messages(
+            topic,
+            date_from=date_from,
+            date_to=date_to,
+            minimum=minimum,
+            maximum=maximum,
+            **kwargs,
+        )
         return result
+
 
 def to_date(value: relativetime_) -> datetime:
     if isinstance(value, datetime):
         return value
 
     return dateparser.parse(value)
+
 
 def mqtt_topic_match(matcher, topic) -> bool:
     try:

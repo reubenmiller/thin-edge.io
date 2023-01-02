@@ -15,9 +15,9 @@ load_dotenv(project_dotenv, ".env")
 
 # pylint: disable=invalid-name
 
+
 def is_ci():
-    """Check if being run under ci
-    """
+    """Check if being run under ci"""
     return bool(os.getenv("CI"))
 
 
@@ -57,7 +57,7 @@ def build(c, name="debian-systemd"):
         "file": ("Robot file or directory to run"),
     }
 )
-def test(c, file="tests"):
+def test(c, file="tests", processes=10):
     """Run tests
 
     Examples
@@ -71,7 +71,9 @@ def test(c, file="tests"):
     command = [
         sys.executable,
         "-m",
-        "robot",
+        "pabot.pabot",
+        "--processes",
+        str(processes),
         "--outputdir",
         str(output_path),
     ]
@@ -81,10 +83,14 @@ def test(c, file="tests"):
         load_dotenv(env_file)
 
     if not is_ci():
-        command.extend([
-            "--consolecolors", "on",
-            "--consolemarkers", "on",
-        ])
+        command.extend(
+            [
+                "--consolecolors",
+                "on",
+                "--consolemarkers",
+                "on",
+            ]
+        )
 
     if file:
         command.append(file)
