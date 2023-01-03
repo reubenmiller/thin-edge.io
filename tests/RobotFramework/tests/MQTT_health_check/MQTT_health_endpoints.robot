@@ -24,6 +24,6 @@ c8y-configuration-plugin health status
    
     Sleep    1s    # TODO: It fails without this! It needs a better way of queing requests
     Execute Command    sudo tedge mqtt pub 'tedge/health-check/c8y-configuration-plugin' ''
-    @{messages}=    Should Have MQTT Messages    tedge/health/c8y-configuration-plugin    date_from=-60s    minimum=1    maximum=1
+    @{messages}=    Should Have MQTT Messages    tedge/health/c8y-configuration-plugin    minimum=1    maximum=1
     Should Contain    @{messages}    "pid":${pid}
     Should Contain    @{messages}    "status":"up"
