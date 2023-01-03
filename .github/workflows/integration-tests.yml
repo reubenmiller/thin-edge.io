@@ -51,6 +51,12 @@ jobs:
         working-directory: tests/RobotFramework
         run: pipenv run invoke build
 
+      - name: Remove docker networks
+        run: |
+          docker network rm $(docker network ls --filter "name=inttest-network" --format "{{ .ID }}") || true
+          sleep 1
+          docker network create inttest-network --driver bridge
+
       - name: Run tests
         working-directory: tests/RobotFramework
         run: |
