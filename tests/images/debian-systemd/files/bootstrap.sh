@@ -2,12 +2,12 @@
 
 set -e
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+# SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 CONNECT=1
-CHILDREN=0
 INSTALL=1
 INSTALL_METHOD=apt
+INSTALL_SOURCEDIR=${INSTALL_SOURCEDIR:-.}
 MAX_CONNECT_ATTEMPTS=2
 
 while [ $# -gt 0 ]
@@ -22,22 +22,104 @@ do
             ;;
 
         --install-method)
-            # Either "apt" or "script". Unknown options will 
+            # Either "apt", "script" or "local". Unknown options will use "script"
             INSTALL_METHOD="$2"
             shift
             ;;
 
-        --children)
-            CHILDREN="$2"
+        --install-sourcedir)
+            # Source install directory if install method "local" is used. Location of the .deb files
+            INSTALL_SOURCEDIR="$2"
             shift
             ;;
     esac
     shift
 done
 
+# ---------------------------------------
+# Install helpers
+# ---------------------------------------
+configure_repos() {
+    if [ ! -f /etc/apt/keyrings/thin-edge.io.gpg ]; then
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://thinedgeio.jfrog.io/artifactory/api/security/keypair/thin-edge/public | sudo gpg --dearmor -o /etc/apt/keyrings/thin-edge.io.gpg
+    fi
+
+    if [ ! -f /etc/apt/sources.list.d/tedge.list ]; then
+        echo 'deb [signed-by=/etc/apt/keyrings/thin-edge.io.gpg] https://thinedgeio.jfrog.io/artifactory/stable stable main' > /etc/apt/sources.list.d/tedge.list
+    fi
+
+    if [ ! -f /etc/apt/sources.list.d/tedge-main.list ]; then
+        echo 'deb [signed-by=/etc/apt/keyrings/thin-edge.io.gpg] https://thinedgeio.jfrog.io/artifactory/debian-development tedge-main main' > /etc/apt/sources.list.d/tedge-main.list
+    fi
+}
+
+install_via_apt() {
+    apt-get update
+    apt-get install -y mosquitto
+
+    apt-get install -y \
+        tedge \
+        tedge-mapper \
+        tedge-agent \
+        tedge-apt-plugin \
+        c8y-configuration-plugin \
+        c8y-log-plugin \
+        tedge-watchdog
+}
+
+install_via_script() {
+    apt-get update
+    curl -fsSL https://raw.githubusercontent.com/thin-edge/thin-edge.io/main/get-thin-edge_io.sh | sudo sh -s    
+}
+
+install_via_local_files() {
+    apt-get update
+    apt-get install -y mosquitto
+
+    find "$INSTALL_SOURCEDIR" -name "tedge_[0-9]*.deb" -exec dpkg -i {} \;
+    find "$INSTALL_SOURCEDIR" -name "tedge[_-]mapper_*.deb" -exec dpkg -i {} \;
+    find "$INSTALL_SOURCEDIR" -name "tedge[_-]agent_*.deb" -exec dpkg -i {} \;
+    find "$INSTALL_SOURCEDIR" -name "tedge[_-]apt[_-]plugin_*.deb" -exec dpkg -i {} \;
+    find "$INSTALL_SOURCEDIR" -name "c8y[_-]configuration[_-]plugin_*.deb" -exec dpkg -i {} \;
+    find "$INSTALL_SOURCEDIR" -name "c8y[_-]log[_-]plugin_*.deb" -exec dpkg -i {} \;
+    find "$INSTALL_SOURCEDIR" -name "tedge[_-]watchdog_*.deb" -exec dpkg -i {} \;
+}
+
+
+# ---------------------------------------
+# Install
+# ---------------------------------------
 if [ "$INSTALL" == 1 ]; then
-    echo "Installing thin-edge.io"
-    "$SCRIPT_DIR/install-tedge.sh" "${INSTALL_METHOD:-script}"
+    echo ----------------------------------------------------------
+    echo Installing thin-edge.io
+    echo ----------------------------------------------------------
+    echo
+    configure_repos
+
+    INSTALL_METHOD=${INSTALL_METHOD:-script}
+
+    case "$INSTALL_METHOD" in
+        apt)
+            echo "Installing thin-edge.io using apt"
+            install_via_apt
+            ;;
+
+        local)
+            if [ $# -gt 1 ]; then
+                LOCAL_PATH="$2"
+            fi
+            echo "Installing thin-edge.io using local files (from path=$LOCAL_PATH)"
+            install_via_local_files
+            ;;
+
+        *)
+            echo "Installing thin-edge.io using the 'get-thin-edge_io.sh' script"
+            # Remove system.toml as the latest official release does not support custom reboot command
+            rm -f /etc/tedge/system.toml
+            install_via_script
+            ;;
+    esac
 fi
 
 echo ----------------------------------------------------------
@@ -99,28 +181,6 @@ if ! tedge cert show >/dev/null 2>&1; then
 else
     echo "Certificate already exists"
 fi
-
-create_child() {
-    local parent="$1"
-    local name="$2"
-    local fqdn="$parent-$name"
-    local child_path="/etc/tedge/operations/c8y/$fqdn"
-    mkdir -p "$child_path"
-    touch "$child_path/c8y_Command"
-    touch "$child_path/c8y_Restart"
-}
-
-if [[ "$CHILDREN" -gt 0 ]]; then
-    echo "Adding $CHILDREN children to device"
-    parent=$(tedge config get device.id)
-
-    TOTAL_CHILDREN=0
-    while [[ "$TOTAL_CHILDREN" -lt "$CHILDREN" ]]; do
-        create_child "$parent" "child-$TOTAL_CHILDREN"
-        TOTAL_CHILDREN=$((TOTAL_CHILDREN+1))
-    done
-fi
-
 
 if [[ "$CONNECT" == 1 ]]; then
     # retry connection attempts

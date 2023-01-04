@@ -25,7 +25,6 @@ RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
 
 # Install base files to help with bootstrapping and common settings
 WORKDIR /setup
-COPY files/install-tedge.sh .
 COPY files/bootstrap.sh .
 COPY files/system.toml /etc/tedge/
 COPY files/c8y-configuration-plugin.toml /etc/tedge/c8y/
