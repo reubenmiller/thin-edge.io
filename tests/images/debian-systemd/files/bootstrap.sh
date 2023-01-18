@@ -186,7 +186,7 @@ if [[ "$CONNECT" == 1 ]]; then
     # retry connection attempts
     CONNECT_ATTEMPT=0
     while true; do
-        CONNECT_ATTEMPT=$((CONNECT_ATTEMPT++))
+        CONNECT_ATTEMPT=$((CONNECT_ATTEMPT + 1))
         if tedge connect c8y; then
             break
         else
@@ -196,7 +196,7 @@ if [[ "$CONNECT" == 1 ]]; then
             fi
         fi
 
-        echo "WARNING: Connection attempt failed! Retring to connect in 2s"
+        echo "WARNING: Connection attempt failed ($CONNECT_ATTEMPT of $MAX_CONNECT_ATTEMPTS)! Retrying to connect in 2s"
         sleep 2
     done
 fi
