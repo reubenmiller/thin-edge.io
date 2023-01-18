@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "ad7ceea79582265f5b46a7756ced34bd76080f6ff54c72ca345426071015b75d"
+            "sha256": "3eb32343685153f4acb7d6536e3fbd30d19cd318817d1fcac6f21cb506ca1804"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -939,7 +939,7 @@
         },
         "robotframework-c8y": {
             "git": "https://github.com/reubenmiller/robotframework-c8y.git",
-            "ref": "4e580e67da1ce113c91aa272e1b4ea4b696a4a29"
+            "ref": "4aebb6eef4d5f3cb58e34d4f94b9e9e83ea4bd8f"
         },
         "robotframework-crypto": {
             "hashes": [
