@@ -11,9 +11,9 @@ Suite Teardown    Get Logs
 
 c8y-log-plugin health status
     Execute Command    sudo systemctl start c8y-log-plugin.service
-    ${pid}=    Execute Command    pgrep -f "c8y[_-]log[_-]plugin"    strip=True
 
     Sleep    5s    # TODO: It fails without this! It needs a better way of queuing requests
+    ${pid}=    Execute Command    pgrep -f "c8y[_-]log[_-]plugin"    strip=True
     Execute Command    sudo tedge mqtt pub 'tedge/health-check/c8y-log-plugin' ''
     @{messages}=    Should Have MQTT Messages    tedge/health/c8y-log-plugin    minimum=1    maximum=2
     Should Contain    @{messages}    "pid":${pid}
@@ -21,9 +21,9 @@ c8y-log-plugin health status
 
 c8y-configuration-plugin health status
     Execute Command    sudo systemctl start c8y-configuration-plugin.service
-    ${pid}=    Execute Command    pgrep -f "c8y[_-]configuration[_-]plugin"    strip=True
    
     Sleep    5s    # TODO: It fails without this! It needs a better way of queuing requests
+    ${pid}=    Execute Command    pgrep -f "c8y[_-]configuration[_-]plugin"    strip=True
     Execute Command    sudo tedge mqtt pub 'tedge/health-check/c8y-configuration-plugin' ''
     @{messages}=    Should Have MQTT Messages    tedge/health/c8y-configuration-plugin    minimum=1    maximum=2
     Should Contain    @{messages}    "pid":${pid}
