@@ -65,10 +65,6 @@ Checkout the [dev container instructions](./docs/DEV_CONTAINER.md) for more deta
 
 3. Follow the console instructions and edit the `.env` file which was created by the `./bin/setup.sh` script
 
-    **Tip for MacOS colima users**
-
-    Uncomment the `DOCKER_HOST` variable and replace the `<username>` with your username. This is required to inorder for the runner to find docker.
-
 4. Switch to the new python interpreter (the one with `.venv` in the name)
 
     **Note: VSCode users**
@@ -151,9 +147,6 @@ The reports and logs are best viewed using a web browser. This can be easily don
     * How to speed up the image process by at least installing tedge (and just using the specially built image for the base, and only doing bootstrapp)
     * How to cleanup after each tests (but also support using 1 image for the suite)
 
-* Setup
-    * Should have an adapter option so you can control for individual calls to Setup which end device is used
-
 * New commands
     * Convert to Debian arch: arm64 -> aarch64
     * Convert to Rust arch: aarch64 -> arm64
@@ -162,13 +155,25 @@ The reports and logs are best viewed using a web browser. This can be easily don
             - Save encoding/escaping problems when using printf etc.
     
     * `Device Should Not Exist` - Check that a device with the serial number does not exist (but reference by identity/type)
-    * `Execute Command` support setting environment variables for individual commands and these should not be logged
 
 * How to get ssh credentials for a second device
     * What are the environment variables called? are they indexed, `SSH_CONFIG_1_HOSTNAME` etc..
 
-* Hide sensitive information from the logs (Generic python log filter?)
+* Hide sensitive information from the logs (Generic python log filter?): Though github might take care of this
 
+* Install script for using when using ssh
+    * How to include environment variables from dotenv file as the ssh environment setting is not enabled by default
+    * Need to install the mqtt monitor service to support
+    * `Execute Command` support setting environment variables for individual commands and these should not be logged
+
+* Allow docker adapter to reuse existing container (to replicate ssh device)
+
+* Allow installing list of artifacts
+    * copy files, then run install script to install manual .deb files
+
+* Create cleanup script
+
+* Export robot libraries html docs
 
 ### Limitation?
 
