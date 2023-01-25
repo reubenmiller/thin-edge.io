@@ -4,7 +4,7 @@ This page will guide you how to install the pre-requisites to run the python bas
 
 ## Pre-requiresites
 
-Before you can run the tests you need to install the pre-requisites (mainly python3, pip and nodejs).
+Before you can run the tests you need to install the pre-requisites (mainly docker, docker-compose python3, pip3 and nodejs).
 
 It is assumed that you are running on either MacOS or Linux. If you are a Windows users then use WSL 2 and follow the **Debian/Ubuntu** instructions, or just use the dev container option (which requries docker which again can be run under WSL 2).
 
