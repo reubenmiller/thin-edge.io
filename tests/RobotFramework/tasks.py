@@ -60,7 +60,7 @@ def build(c, name="debian-systemd"):
         "include": ("Only run tests which match the given tag"),
     }
 )
-def test(c, file="tests", outputdir = None, processes = None, include=""):
+def test(c, file="tests", outputdir=None, processes=None, include=""):
     """Run tests
 
     Examples
@@ -88,10 +88,12 @@ def test(c, file="tests", outputdir = None, processes = None, include=""):
     ]
 
     if include:
-        command.extend([
-            "--include",
-            str(include),
-        ])
+        command.extend(
+            [
+                "--include",
+                str(include),
+            ]
+        )
 
     env_file = ".env"
     if env_file:
