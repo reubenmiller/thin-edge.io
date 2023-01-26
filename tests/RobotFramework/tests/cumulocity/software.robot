@@ -14,6 +14,7 @@ Software list should be populated during startup
 Install software via Cumulocity
     ${DEVICE_SN}=                            Setup
     Device Should Exist                      ${DEVICE_SN}
+    Sleep    10s    reason=FIX: Wait for device to be ready for operations
     ${OPERATION}=    Install Software        c8y-remoteaccess-plugin
     Operation Should Be SUCCESSFUL           ${OPERATION}    timeout=60
     Device Should Have Installed Software    c8y-remoteaccess-plugin
