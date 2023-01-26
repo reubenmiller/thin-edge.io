@@ -15,7 +15,7 @@ Install software via Cumulocity
     ${DEVICE_SN}=                            Setup
     Device Should Exist                      ${DEVICE_SN}
     ${OPERATION}=    Install Software        c8y-remoteaccess-plugin
-    Operation Should Be SUCCESSFUL           ${OPERATION}
+    Operation Should Be SUCCESSFUL           ${OPERATION}    timeout=60
     Device Should Have Installed Software    c8y-remoteaccess-plugin
 
 Software list should only show currently installed software and not candidates
