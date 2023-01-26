@@ -19,7 +19,7 @@ ${version}
 *** Test Cases ***
 Install thin-edge.io
     ${output}=    Execute Command    curl -fsSL https://raw.githubusercontent.com/thin-edge/thin-edge.io/main/get-thin-edge_io.sh | sudo sh -s    #running the script for installing latest version of tedge
-    ${line}    Get Line    ${output}    2    # Get the version which is installed out of the log
+    ${line}    Get Line    ${output}    0    # Get the version which is installed out of the log
     ${version}    Fetch From Right    ${line}    :     # Cutting log output in order only to keep version number
     Set Suite Variable    ${version}
 
