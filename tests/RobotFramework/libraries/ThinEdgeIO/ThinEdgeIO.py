@@ -10,6 +10,7 @@ import json
 from typing import Any, Union, List, Dict
 import time
 from datetime import datetime
+import re
 
 import dateparser
 from paho.mqtt import matcher
@@ -310,10 +311,17 @@ class ThinEdgeIO(DeviceLibrary):
     def mqtt_match_messages(
         self,
         topic: str,
+        message_pattern: str = None,
         date_from: relativetime_ = None,
         date_to: relativetime_ = None,
         **kwargs,
     ) -> List[Dict[str, Any]]:
+        """Match mqtt messages using different types of filters
+
+        Args:
+            topic (str): Filter by topic
+            
+        """
         cmd = "journalctl -u mqtt-logger.service -n 1000 --output=cat"
 
         if not date_from:
@@ -327,11 +335,16 @@ class ThinEdgeIO(DeviceLibrary):
         output = self.execute_command(cmd, log_output=False)
 
         messages = []
+        message_pattern_re = None
+        if message:
+            message_pattern_re = re.compile(message_pattern, re.IGNORECASE)
+
         for line in output.splitlines():
             try:
                 message = json.loads(line)
                 if "message" in message:
-                    messages.append(message)
+                    if message_pattern_re is None or message_pattern_re.match(message):
+                        messages.append(message)
             except Exception as ex:
                 log.debug("ignoring non-json entry. %s", ex)
 
