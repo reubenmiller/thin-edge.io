@@ -19,6 +19,12 @@ echo "NAME: $NAME"
 echo "VERSION: $VERSION"
 echo "URL: $URL"
 
+if [ -f "$URL" ]; then
+    echo "URL is actually a local file path"
+else
+    echo "URL is a URL which needs to be downloaded"
+fi
+
 # Add simple error handling (to assist in unhappy path testing)
 if [ -z "$NAME" ]; then
     info "Invalid firmware name. Firmware name cannot be empty"
