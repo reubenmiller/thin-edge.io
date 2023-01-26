@@ -14,8 +14,7 @@ Successful shell command with output
     Should Be Equal    ${operation.to_json()["c8y_Command"]["result"]}    helloworld\n
 
 Execute multiline shell command
-    Skip    Known issue https://github.com/thin-edge/thin-edge.io/issues/1687
-    ${operation}=    Cumulocity.Execute Shell Command    echo hello;${\n}echo world
+    ${operation}=    Cumulocity.Execute Shell Command    echo "hello"${\n}echo "world"
     Operation Should Be SUCCESSFUL    ${operation}
     Should Be Equal    ${operation.to_json()["c8y_Command"]["result"]}    hello\nworld\n
 
