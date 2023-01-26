@@ -1,5 +1,7 @@
 name: integration-tests
 on:
+  pull_request_target:
+    branches: [ main, add-robot-libraries ]
   push:
     branches: [ main, add-robot-libraries ]
   workflow_call:
@@ -15,8 +17,18 @@ on:
         required: false
         default: "10"
 jobs:
+  approve: # Wait for manual approval
+    # if: contains(github.event.pull_request.labels.*.name, 'safe to test')
+    runs-on: ubuntu-latest
+    steps:
+    - name: Approve
+      run: echo For security reasons, all pull requests need to be approved first before running any automated CI
+
   test:
     name: Test on ${{ matrix.job.arch }}
+    needs: [approve]
+    environment:
+      name: Integrate Pull Request # Our dummy environment
     runs-on: ubuntu-20.04
     strategy:
       matrix:
