@@ -4,9 +4,15 @@ info() {
     echo "$(date --iso-8601=seconds 2>/dev/null || date -Iseconds) : INFO : $*" >&2
 }
 
-# COMMAND=$(echo "$1" | cut -d, -f3- | sed 's/""/"/g'  )
-COMMAND=$(echo "$1" | cut -d, -f3- | sed -e 's/^"//' -e 's/"$//' )
+# Parse the smart rest message, ignore the first two field, and everything afterwards is the command
+COMMAND="${1#*,*,}"
 
+# Check if command is wrapped with quotes, if so then remove them
+if [[ "$COMMAND" == \"*\" ]]; then
+    COMMAND="${COMMAND:1:-1}"
+fi
+
+info "Raw command: $*"
 info "Executing command: $COMMAND"
 bash -c "$COMMAND"
 EXIT_CODE=$?
