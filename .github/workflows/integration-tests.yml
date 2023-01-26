@@ -1,5 +1,10 @@
 name: integration-tests
 on:
+  # Use a manual approval process before PR's are given access to
+  # the secrets which are required to run the integration tests.
+  # The PR code should be manually approved to see if it can be trusted.
+  # When in doubt, do not approve the test run.
+  # Reference: https://dev.to/petrsvihlik/using-environment-protection-rules-to-secure-secrets-when-building-external-forks-with-pullrequesttarget-hci
   pull_request_target:
     branches: [ main, add-robot-libraries ]
   push:
@@ -18,7 +23,6 @@ on:
         default: "10"
 jobs:
   approve: # Wait for manual approval
-    # if: contains(github.event.pull_request.labels.*.name, 'safe to test')
     runs-on: ubuntu-latest
     steps:
     - name: Approve
@@ -28,7 +32,7 @@ jobs:
     name: Test on ${{ matrix.job.arch }}
     needs: [approve]
     environment:
-      name: Integrate Pull Request # Our dummy environment
+      name: Integrate Pull Request
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -38,6 +42,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha }} # Check out the code of the PR. Only after the manual approval process
           fetch-depth: 0
       
       - name: create .env file
