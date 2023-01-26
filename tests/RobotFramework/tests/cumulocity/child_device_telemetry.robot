@@ -39,6 +39,34 @@ Child devices support sending custom alarms
     Log    ${alarms}
 
 
+Child devices support sending events using message fragment instead of text
+    Execute Command    tedge mqtt pub tedge/alarms/minor/parentAlarmType1 '{ "message": "Some test alarm" }'
+    Cumulocity.Set Device    ${DEVICE_SN}
+    ${alarms}=    Device Should Have Alarm/s    expected_text=Some test alarm    severity=MINOR    minimum=1    maximum=1    type=parentAlarmType1
+    Log    ${alarms}
+
+
+Child devices support sending alarms using message fragment instead of text
+    [Tags]    MQTT-API-INCONSISTENCY
+    Skip    Message fragment is not converted to 'text' for child devices. This is inconsistent with the parent device functionality
+    Execute Command    tedge mqtt pub tedge/alarms/critical/childAlarmType1/${CHILD_SN} '{ "message": "Some test alarm" }'
+    ${alarms}=    Device Should Have Alarm/s    expected_text=Some test alarm    severity=CRITICAL    minimum=1    maximum=1    type=childAlarmType1
+    Log    ${alarms}
+
+
+Child devices support sending inventory data via c8y topic
+    Execute Command    tedge mqtt pub "c8y/inventory/managedObjects/update/${CHILD_SN}" '{"custom":{"fragment":"yes"}}'
+    ${mo}=    Device Should Have Fragments    custom
+    Should Be Equal    ${mo["custom"]["fragment"]}    yes
+
+
+Main device support sending inventory data via c8y topic
+    Execute Command    tedge mqtt pub "c8y/inventory/managedObjects/update/${DEVICE_SN}" '{"parentInfo":{"nested":{"name":"complex"}},"type":"customType"}'
+    Cumulocity.Set Device    ${DEVICE_SN}
+    ${mo}=    Device Should Have Fragments    parentInfo    type
+    Should Be Equal    ${mo["parentInfo"]["nested"]["name"]}    complex
+    Should Be Equal    ${mo["type"]}    customType
+
 *** Keywords ***
 
 Custom Setup
