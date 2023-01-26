@@ -40,6 +40,8 @@ Child devices support sending custom alarms
 
 
 Child devices support sending events using message fragment instead of text
+    [Tags]    MQTT-API-INCONSISTENCY
+    Skip    Message fragment is not converted to 'text' for child devices. This is inconsistent with the parent device functionality
     Execute Command    tedge mqtt pub tedge/alarms/minor/parentAlarmType1 '{ "message": "Some test alarm" }'
     Cumulocity.Set Device    ${DEVICE_SN}
     ${alarms}=    Device Should Have Alarm/s    expected_text=Some test alarm    severity=MINOR    minimum=1    maximum=1    type=parentAlarmType1
