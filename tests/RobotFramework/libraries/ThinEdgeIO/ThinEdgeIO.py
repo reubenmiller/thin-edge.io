@@ -320,7 +320,7 @@ class ThinEdgeIO(DeviceLibrary):
 
         Args:
             topic (str): Filter by topic
-            
+
         """
         cmd = "journalctl -u mqtt-logger.service -n 1000 --output=cat"
 
@@ -336,7 +336,7 @@ class ThinEdgeIO(DeviceLibrary):
 
         messages = []
         message_pattern_re = None
-        if message:
+        if message_pattern:
             message_pattern_re = re.compile(message_pattern, re.IGNORECASE)
 
         for line in output.splitlines():
