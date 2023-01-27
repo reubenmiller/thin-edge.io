@@ -14,7 +14,7 @@ Successful shell command with output
     Should Be Equal    ${operation.to_json()["c8y_Command"]["result"]}    helloworld\n
 
 Check Successful shell command with literal double quotes output
-    ${operation}=    Cumulocity.Execute Shell Command    echo \"helloworld\"
+    ${operation}=    Cumulocity.Execute Shell Command    echo \\"helloworld\\"
     Operation Should Be SUCCESSFUL    ${operation}
     Should Be Equal    ${operation.to_json()["c8y_Command"]["result"]}    "helloworld"\n
 
