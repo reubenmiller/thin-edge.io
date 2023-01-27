@@ -13,6 +13,11 @@ Successful shell command with output
     Operation Should Be SUCCESSFUL    ${operation}
     Should Be Equal    ${operation.to_json()["c8y_Command"]["result"]}    helloworld\n
 
+Check Successful shell command with literal double quotes output
+    ${operation}=    Cumulocity.Execute Shell Command    echo \"helloworld\"
+    Operation Should Be SUCCESSFUL    ${operation}
+    Should Be Equal    ${operation.to_json()["c8y_Command"]["result"]}    "helloworld"\n
+
 Execute multiline shell command
     ${operation}=    Cumulocity.Execute Shell Command    echo "hello"${\n}echo "world"
     Operation Should Be SUCCESSFUL    ${operation}
