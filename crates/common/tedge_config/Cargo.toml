@@ -1,20 +1,23 @@
 [package]
 name = "tedge_config"
-version = "0.8.1"
-authors = ["thin-edge.io team <info@thin-edge.io>"]
-edition = "2021"
-rust-version = "1.58.1"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
 
 [dependencies]
 certificate = { path = "../certificate" }
 serde = { version = "1.0", features = ["derive"] }
-tedge_utils = { path = "../tedge_utils", features = ["tedge-derive"] }
 strum_macros = { version = "0.24", optional = true }
+tedge_utils = { path = "../tedge_utils", features = ["tedge-derive"] }
 tempfile = "3.2"
 thiserror = "1.0"
 toml = "0.5"
 tracing = { version = "0.1", features = ["log"] }
-tracing-subscriber = { version = "0.3", features = [ "time" ] }
+tracing-subscriber = { version = "0.3", features = ["time"] }
 url = "2.2"
 
 [dev-dependencies]

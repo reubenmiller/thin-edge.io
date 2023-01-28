@@ -1,32 +1,42 @@
+use crate::child_device::get_child_id_from_child_topic;
+use crate::child_device::ConfigOperationResponse;
 use crate::config::PluginConfig;
 use crate::download::ConfigDownloadManager;
+use crate::download::DownloadConfigFileStatusMessage;
 use crate::operation::ConfigOperation;
 use crate::topic::ConfigOperationResponseTopic;
 use crate::upload::ConfigUploadManager;
-use crate::{
-    child_device::{get_child_id_from_child_topic, ConfigOperationResponse},
-    download::DownloadConfigFileStatusMessage,
-    upload::UploadConfigFileStatusMessage,
-};
+use crate::upload::UploadConfigFileStatusMessage;
 
 use anyhow::Result;
 use c8y_api::http_proxy::C8YHttpProxy;
-use c8y_api::smartrest::smartrest_deserializer::{
-    SmartRestConfigDownloadRequest, SmartRestConfigUploadRequest, SmartRestRequestGeneric,
-};
+use c8y_api::smartrest::smartrest_deserializer::SmartRestConfigDownloadRequest;
+use c8y_api::smartrest::smartrest_deserializer::SmartRestConfigUploadRequest;
+use c8y_api::smartrest::smartrest_deserializer::SmartRestRequestGeneric;
 use c8y_api::smartrest::smartrest_serializer::TryIntoOperationStatusMessage;
 use c8y_api::smartrest::topic::C8yTopic;
-use mqtt_channel::{Connection, Message, MqttError, SinkExt, StreamExt, Topic, TopicFilter};
+use mqtt_channel::Connection;
+use mqtt_channel::Message;
+use mqtt_channel::MqttError;
+use mqtt_channel::SinkExt;
+use mqtt_channel::StreamExt;
+use mqtt_channel::Topic;
+use mqtt_channel::TopicFilter;
+use tedge_api::health::health_status_down_message;
 use tokio::sync::Mutex;
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tedge_api::health::{health_check_topics, send_health_status};
-use tedge_utils::{notify::fs_notify_stream, paths::PathsError};
+use tedge_api::health::health_check_topics;
+use tedge_api::health::send_health_status;
+use tedge_utils::notify::fs_notify_stream;
+use tedge_utils::paths::PathsError;
 
-use tedge_utils::notify::{FsEvent, NotifyStream};
-use tracing::{error, info};
+use tedge_utils::notify::FsEvent;
+use tedge_utils::notify::NotifyStream;
+use tracing::error;
+use tracing::info;
 
 pub const DEFAULT_PLUGIN_CONFIG_FILE_NAME: &str = "c8y-configuration-plugin.toml";
 pub const DEFAULT_OPERATION_DIR_NAME: &str = "c8y/";
@@ -69,7 +79,7 @@ impl ConfigManager {
         let mqtt_client = Self::create_mqtt_client(mqtt_port).await?;
 
         let c8y_request_topics: TopicFilter = C8yTopic::SmartRestRequest.into();
-        let health_check_topics = health_check_topics("c8y-configuration-plugin");
+        let health_check_topics = health_check_topics(DEFAULT_PLUGIN_CONFIG_TYPE);
         let config_snapshot_response_topics: TopicFilter =
             ConfigOperationResponseTopic::SnapshotResponse.into();
         let config_update_response_topics: TopicFilter =
@@ -123,6 +133,12 @@ impl ConfigManager {
 
     pub async fn run(&mut self) -> Result<(), anyhow::Error> {
         self.get_pending_operations_from_cloud().await?;
+
+        // Now the configuration plugin is done with the initialization and ready for processing the messages
+        send_health_status(&mut self.mqtt_client.published, DEFAULT_PLUGIN_CONFIG_TYPE).await;
+
+        info!("Ready to serve the configuration request");
+
         loop {
             tokio::select! {
                 message = self.mqtt_client.received.next() => {
@@ -160,25 +176,21 @@ impl ConfigManager {
                 Some((path, mask)) = self.fs_notification_stream.rx.recv() => {
                     match mask {
                         FsEvent::Modified | FsEvent::FileDeleted | FsEvent::FileCreated => {
-                            match path.file_name() {
-                                Some(file_name) => {
-                                    // this if check is done to avoid matching on temporary files created by editors
-                                    if file_name.eq(DEFAULT_PLUGIN_CONFIG_FILE_NAME) {
-                                        let parent_dir_name = path.parent().and_then(|dir| dir.file_name()).ok_or(PathsError::ParentDirNotFound {path: path.as_os_str().into()})?;
-
-                                        if parent_dir_name.eq("c8y") {
-                                            let plugin_config = PluginConfig::new(&path);
-                                            let message = plugin_config.to_supported_config_types_message()?;
-                                            self.mqtt_client.published.send(message).await?;
-                                        } else {
-                                            // this is a child device
-                                            let plugin_config = PluginConfig::new(&path);
-                                            let message = plugin_config.to_supported_config_types_message_for_child(&parent_dir_name.to_string_lossy())?;
-                                            self.mqtt_client.published.send(message).await?;
-                                        }
+                            if let Some(file_name) = path.file_name() {
+                                // this if check is done to avoid matching on temporary files created by editors
+                                if file_name.eq(DEFAULT_PLUGIN_CONFIG_FILE_NAME) {
+                                    let parent_dir_name = path.parent().and_then(|dir| dir.file_name()).ok_or(PathsError::ParentDirNotFound {path: path.as_os_str().into()})?;
+                                    if parent_dir_name.eq("c8y") {
+                                        let plugin_config = PluginConfig::new(&path);
+                                        let message = plugin_config.to_supported_config_types_message()?;
+                                        self.mqtt_client.published.send(message).await?;
+                                    } else {
+                                        // this is a child device
+                                        let plugin_config = PluginConfig::new(&path);
+                                        let message = plugin_config.to_supported_config_types_message_for_child(&parent_dir_name.to_string_lossy())?;
+                                        self.mqtt_client.published.send(message).await?;
                                     }
-                                },
-                                None => {}
+                                }
                             }
                         },
                         _ => {
@@ -194,15 +206,16 @@ impl ConfigManager {
     async fn create_mqtt_client(mqtt_port: u16) -> Result<mqtt_channel::Connection, anyhow::Error> {
         let mut topic_filter =
             mqtt_channel::TopicFilter::new_unchecked(&C8yTopic::SmartRestRequest.to_string());
-        topic_filter.add_all(health_check_topics("c8y-configuration-plugin"));
+        topic_filter.add_all(health_check_topics(DEFAULT_PLUGIN_CONFIG_TYPE));
 
         topic_filter.add_all(ConfigOperationResponseTopic::SnapshotResponse.into());
         topic_filter.add_all(ConfigOperationResponseTopic::UpdateResponse.into());
 
         let mqtt_config = mqtt_channel::Config::default()
-            .with_session_name("c8y-configuration-plugin")
+            .with_session_name(DEFAULT_PLUGIN_CONFIG_TYPE)
             .with_port(mqtt_port)
-            .with_subscriptions(topic_filter);
+            .with_subscriptions(topic_filter)
+            .with_last_will_message(health_status_down_message(DEFAULT_PLUGIN_CONFIG_TYPE));
 
         let mqtt_client = mqtt_channel::Connection::new(&mqtt_config).await?;
         Ok(mqtt_client)
@@ -210,7 +223,7 @@ impl ConfigManager {
 
     async fn process_mqtt_message(&mut self, message: Message) -> Result<(), anyhow::Error> {
         if self.health_check_topics.accept(&message) {
-            send_health_status(&mut self.mqtt_client.published, "c8y-configuration-plugin").await;
+            send_health_status(&mut self.mqtt_client.published, DEFAULT_PLUGIN_CONFIG_TYPE).await;
             return Ok(());
         } else if self.config_snapshot_response_topics.accept(&message) {
             self.handle_child_device_config_operation_response(&message)

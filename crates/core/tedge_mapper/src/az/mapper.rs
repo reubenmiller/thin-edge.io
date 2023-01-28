@@ -1,16 +1,21 @@
 use std::path::Path;
 
-use crate::{
-    az::converter::AzureConverter,
-    core::{component::TEdgeComponent, mapper::create_mapper, size_threshold::SizeThreshold},
-};
+use crate::az::converter::AzureConverter;
+use crate::core::component::TEdgeComponent;
+use crate::core::mapper::create_mapper;
+use crate::core::size_threshold::SizeThreshold;
 
 use async_trait::async_trait;
 use clock::WallClock;
-use tedge_config::{AzureMapperTimestamp, MqttBindAddressSetting, TEdgeConfig};
-use tedge_config::{ConfigSettingAccessor, MqttPortSetting};
+use tedge_config::AzureMapperTimestamp;
+use tedge_config::ConfigSettingAccessor;
+use tedge_config::MqttBindAddressSetting;
+use tedge_config::MqttPortSetting;
+use tedge_config::TEdgeConfig;
 use tedge_utils::file::create_directory_with_user_group;
-use tracing::{info, info_span, Instrument};
+use tracing::info;
+use tracing::info_span;
+use tracing::Instrument;
 
 const AZURE_MAPPER_NAME: &str = "tedge-mapper-az";
 
@@ -44,7 +49,7 @@ impl TEdgeComponent for AzureMapper {
     async fn start(
         &self,
         tedge_config: TEdgeConfig,
-        _config_dir: &Path,
+        config_dir: &Path,
     ) -> Result<(), anyhow::Error> {
         let add_timestamp = tedge_config.query(AzureMapperTimestamp)?.is_set();
         let mqtt_port = tedge_config.query(MqttPortSetting)?.into();
@@ -57,7 +62,7 @@ impl TEdgeComponent for AzureMapper {
         let mut mapper = create_mapper(AZURE_MAPPER_NAME, mqtt_host, mqtt_port, converter).await?;
 
         mapper
-            .run(None)
+            .run(Some(&config_dir.join("operations/az")))
             .instrument(info_span!(AZURE_MAPPER_NAME))
             .await?;
 

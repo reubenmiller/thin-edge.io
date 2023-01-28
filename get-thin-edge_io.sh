@@ -4,7 +4,7 @@ set -e
 TYPE=full
 TMPDIR=/tmp/tedge
 LOGFILE=/tmp/tedge/install.log
-DEFAULT_VERSION=0.8.1
+DEFAULT_VERSION=0.9.0
 
 # Packages names were changed to confirm to debian naming conventions
 # But we should still care about installing older versions. It will still cause
@@ -245,6 +245,14 @@ main() {
 
     ARCH=$(dpkg --print-architecture)
 
+    if [ -z "$VERSION" ]; then
+        VERSION="$DEFAULT_VERSION"
+
+        log "Version argument has not been provided, installing latest: $VERSION"
+        log "To install a particular version use this script with the version as an argument."
+        log "For example: sudo ./get-thin-edge_io.sh $VERSION"
+    fi
+
     if dpkg --compare-versions "$VERSION" le "0.8.1"; then
         # Use older style packages names (with underscore)
         TEDGE=tedge
@@ -264,14 +272,6 @@ main() {
 
     echo "Thank you for trying thin-edge.io!"
     echo
-
-    if [ -z "$VERSION" ]; then
-        VERSION="$DEFAULT_VERSION"
-
-        log "Version argument has not been provided, installing latest: $VERSION"
-        log "To install a particular version use this script with the version as an argument."
-        log "For example: sudo ./get-thin-edge_io.sh $VERSION"
-    fi
 
     if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ] || [ "$ARCH" = "armhf" ] || [ "$ARCH" = "amd64" ]; then
         # Some OSes may read architecture type as `aarch64`, `aarch64` and `arm64` are the same architectures types.

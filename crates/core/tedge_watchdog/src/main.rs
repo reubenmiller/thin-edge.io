@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::path::PathBuf;
-use tedge_config::{system_services::*, DEFAULT_TEDGE_CONFIG_PATH};
+use tedge_config::system_services::*;
+use tedge_config::DEFAULT_TEDGE_CONFIG_PATH;
 
 mod error;
 
@@ -47,7 +48,7 @@ async fn main() -> Result<(), anyhow::Error> {
         tracing::Level::TRACE
     } else {
         get_log_level(
-            "tedge_watchdog",
+            "tedge-watchdog",
             tedge_config_location.tedge_config_root_path.to_path_buf(),
         )?
     };

@@ -1,12 +1,13 @@
 use crate::errors::MqttError;
 use crate::topics::Topic;
-use rumqttc::{Publish, QoS};
+use rumqttc::Publish;
+use rumqttc::QoS;
 
 /// A message to be sent to or received from MQTT.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Message {
     pub topic: Topic,
-    payload: Payload,
+    pub payload: Payload,
     pub qos: QoS,
     pub retain: bool,
 }

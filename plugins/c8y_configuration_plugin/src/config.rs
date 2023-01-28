@@ -1,15 +1,20 @@
+use crate::child_device::ChildDeviceResponsePayload;
 use crate::config_manager::DEFAULT_PLUGIN_CONFIG_TYPE;
-use crate::{child_device::ChildDeviceResponsePayload, error::ConfigManagementError};
+use crate::error::ConfigManagementError;
 use c8y_api::smartrest::topic::C8yTopic;
-use mqtt_channel::{Message, MqttError, Topic};
+use mqtt_channel::Message;
+use mqtt_channel::MqttError;
+use mqtt_channel::Topic;
 use serde::Deserialize;
 use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::fs;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::path::Path;
 use tedge_utils::file::PermissionEntry;
-use tracing::{error, info};
+use tracing::error;
+use tracing::info;
 
 #[derive(Deserialize, Debug, Default)]
 #[serde(deny_unknown_fields)]
@@ -83,7 +88,7 @@ impl From<ChildDeviceResponsePayload> for FileEntry {
 impl RawPluginConfig {
     fn new(config_file_path: &Path) -> Self {
         let path_str = config_file_path.display().to_string();
-        info!("Reading the config file from {}", path_str);
+        info!("Using the configuration from {}", path_str);
         match fs::read_to_string(config_file_path) {
             Ok(contents) => match toml::from_str(contents.as_str()) {
                 Ok(config) => config,

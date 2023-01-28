@@ -3,33 +3,47 @@ mod error;
 mod logfile_request;
 
 use anyhow::Result;
-use c8y_api::http_proxy::{C8YHttpProxy, JwtAuthHttpProxy};
-use c8y_api::smartrest::smartrest_deserializer::{SmartRestLogRequest, SmartRestRequestGeneric};
+use c8y_api::http_proxy::C8YHttpProxy;
+use c8y_api::http_proxy::JwtAuthHttpProxy;
+use c8y_api::smartrest::smartrest_deserializer::SmartRestLogRequest;
+use c8y_api::smartrest::smartrest_deserializer::SmartRestRequestGeneric;
 use c8y_api::smartrest::topic::C8yTopic;
-use c8y_api::utils::bridge::{is_c8y_bridge_up, C8Y_BRIDGE_HEALTH_TOPIC};
+use c8y_api::utils::bridge::is_c8y_bridge_up;
+use c8y_api::utils::bridge::C8Y_BRIDGE_HEALTH_TOPIC;
 use clap::Parser;
 
 use c8y_api::smartrest::message::get_smartrest_device_id;
-use mqtt_channel::{Connection, Message, StreamExt, TopicFilter};
-use std::path::{Path, PathBuf};
-use tedge_api::health::{health_check_topics, send_health_status};
-use tedge_config::system_services::{get_log_level, set_log_level};
-use tedge_config::{
-    ConfigRepository, ConfigSettingAccessor, DeviceIdSetting, LogPathSetting, MqttPortSetting,
-    TEdgeConfig, DEFAULT_TEDGE_CONFIG_PATH,
-};
+use mqtt_channel::Connection;
+use mqtt_channel::Message;
+use mqtt_channel::StreamExt;
+use mqtt_channel::TopicFilter;
+use std::path::Path;
+use std::path::PathBuf;
+use tedge_api::health::health_check_topics;
+use tedge_api::health::health_status_down_message;
+use tedge_api::health::send_health_status;
+use tedge_config::system_services::get_log_level;
+use tedge_config::system_services::set_log_level;
+use tedge_config::ConfigRepository;
+use tedge_config::ConfigSettingAccessor;
+use tedge_config::DeviceIdSetting;
+use tedge_config::LogPathSetting;
+use tedge_config::MqttPortSetting;
+use tedge_config::TEdgeConfig;
+use tedge_config::DEFAULT_TEDGE_CONFIG_PATH;
 
-use tedge_utils::{
-    file::{create_directory_with_user_group, create_file_with_user_group},
-    notify::{fs_notify_stream, FsEvent},
-    paths::PathsError,
-};
-use tracing::{error, info};
+use tedge_utils::file::create_directory_with_user_group;
+use tedge_utils::file::create_file_with_user_group;
+use tedge_utils::notify::fs_notify_stream;
+use tedge_utils::notify::FsEvent;
+use tedge_utils::paths::PathsError;
+use tracing::error;
+use tracing::info;
 
 use crate::config::LogPluginConfig;
-use crate::logfile_request::{
-    handle_dynamic_log_type_update, handle_logfile_request_operation, read_log_config,
-};
+use crate::logfile_request::handle_dynamic_log_type_update;
+use crate::logfile_request::handle_logfile_request_operation;
+use crate::logfile_request::read_log_config;
 
 const DEFAULT_PLUGIN_CONFIG_FILE: &str = "c8y/c8y-log-plugin.toml";
 const AFTER_HELP_TEXT: &str = r#"On start, `c8y-log-plugin` notifies the cloud tenant of the log types listed in the `CONFIG_FILE`, sending this list with a `118` on `c8y/s/us`.
@@ -37,6 +51,8 @@ const AFTER_HELP_TEXT: &str = r#"On start, `c8y-log-plugin` notifies the cloud t
 
 The thin-edge `CONFIG_DIR` is used to store:
   * c8y-log-plugin.toml - the configuration file that specifies which logs to be retrieved"#;
+
+const C8Y_LOG_PLUGIN: &str = "c8y-log-plugin";
 
 #[derive(Debug, clap::Parser, Clone)]
 #[clap(
@@ -65,16 +81,17 @@ async fn create_mqtt_client(
     tedge_config: &TEdgeConfig,
 ) -> Result<mqtt_channel::Connection, anyhow::Error> {
     let mqtt_port = tedge_config.query(MqttPortSetting)?.into();
-    let mut topics: TopicFilter = health_check_topics("c8y-log-plugin");
+    let mut topics: TopicFilter = health_check_topics(C8Y_LOG_PLUGIN);
 
     topics.add_unchecked(&C8yTopic::SmartRestRequest.to_string());
     // subscribing also to c8y bridge health topic to know when the bridge is up
     topics.add(C8Y_BRIDGE_HEALTH_TOPIC)?;
 
     let mqtt_config = mqtt_channel::Config::default()
-        .with_session_name("c8y-log-plugin")
+        .with_session_name(C8Y_LOG_PLUGIN)
         .with_port(mqtt_port)
-        .with_subscriptions(topics);
+        .with_subscriptions(topics)
+        .with_last_will_message(health_status_down_message(C8Y_LOG_PLUGIN));
 
     let mqtt_client = mqtt_channel::Connection::new(&mqtt_config).await?;
     Ok(mqtt_client)
@@ -98,7 +115,7 @@ async fn run(
     let config_file_path = config_dir.join(config_file_name);
     let mut plugin_config = read_log_config(&config_file_path);
 
-    let health_check_topics = health_check_topics("c8y-log-plugin");
+    let health_check_topics = health_check_topics(C8Y_LOG_PLUGIN);
     handle_dynamic_log_type_update(&plugin_config, mqtt_client).await?;
 
     let mut fs_notification_stream = fs_notify_stream(&[(
@@ -110,6 +127,11 @@ async fn run(
             FsEvent::FileCreated,
         ],
     )])?;
+
+    // Now the log plugin is done with the initialization and ready for processing the messages
+    send_health_status(&mut mqtt_client.published, C8Y_LOG_PLUGIN).await;
+
+    info!("Ready to serve log requests");
 
     loop {
         tokio::select! {
@@ -149,7 +171,7 @@ pub async fn process_mqtt_message(
     if is_c8y_bridge_up(&message) {
         handle_dynamic_log_type_update(plugin_config, mqtt_client).await?;
     } else if health_check_topics.accept(&message) {
-        send_health_status(&mut mqtt_client.published, "c8y-log-plugin").await;
+        send_health_status(&mut mqtt_client.published, C8Y_LOG_PLUGIN).await;
     } else if let Ok(payload) = message.payload_str() {
         for smartrest_message in payload.split('\n') {
             let result = match smartrest_message.split(',').next().unwrap_or_default() {
@@ -212,7 +234,7 @@ async fn main() -> Result<(), anyhow::Error> {
         tracing::Level::TRACE
     } else {
         get_log_level(
-            "c8y_log_plugin",
+            "c8y-log-plugin",
             tedge_config_location.tedge_config_root_path.to_path_buf(),
         )?
     };

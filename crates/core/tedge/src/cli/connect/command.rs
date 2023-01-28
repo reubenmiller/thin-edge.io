@@ -1,12 +1,23 @@
-use crate::{cli::connect::jwt_token::*, cli::connect::*, command::Command, ConfigError};
+use crate::cli::common::Cloud;
+use crate::cli::connect::jwt_token::*;
+use crate::cli::connect::*;
+use crate::command::Command;
+use crate::ConfigError;
+use rumqttc::Event;
+use rumqttc::Incoming;
+use rumqttc::MqttOptions;
+use rumqttc::Outgoing;
+use rumqttc::Packet;
 use rumqttc::QoS::AtLeastOnce;
-use rumqttc::{Event, Incoming, MqttOptions, Outgoing, Packet};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tedge_config::system_services::*;
 use tedge_config::*;
-use tedge_utils::paths::{create_directories, ok_if_not_found, DraftFile};
+use tedge_utils::paths::create_directories;
+use tedge_utils::paths::ok_if_not_found;
+use tedge_utils::paths::DraftFile;
 use which::which;
 
 const WAIT_FOR_CHECK_SECONDS: u64 = 2;
@@ -30,30 +41,6 @@ pub struct ConnectCommand {
 pub enum DeviceStatus {
     AlreadyExists,
     Unknown,
-}
-
-#[derive(Debug)]
-pub enum Cloud {
-    Azure,
-    C8y,
-}
-
-impl Cloud {
-    fn dependent_mapper_service(&self) -> SystemService {
-        match self {
-            Cloud::Azure => SystemService::TEdgeMapperAz,
-            Cloud::C8y => SystemService::TEdgeMapperC8y,
-        }
-    }
-}
-
-impl Cloud {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::Azure => "Azure",
-            Self::C8y => "Cumulocity",
-        }
-    }
 }
 
 impl Command for ConnectCommand {
@@ -155,10 +142,9 @@ impl Command for ConnectCommand {
             if which("tedge-mapper").is_err() {
                 println!("Warning: tedge-mapper is not installed.\n");
             } else {
-                self.service_manager.as_ref().start_and_enable_service(
-                    self.cloud.dependent_mapper_service(),
-                    std::io::stdout(),
-                );
+                self.service_manager
+                    .as_ref()
+                    .start_and_enable_service(self.cloud.mapper_service(), std::io::stdout());
             }
         }
 

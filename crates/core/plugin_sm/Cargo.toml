@@ -1,9 +1,12 @@
 [package]
 name = "plugin_sm"
-version = "0.8.1"
-authors = ["thin-edge.io team <info@thin-edge.io>"]
-edition = "2021"
-rust-version = "1.58.1"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
 
 [dependencies]
 async-trait = "0.1"
@@ -13,9 +16,9 @@ logged_command = { path = "../../common/logged_command" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tedge_api = { path = "../tedge_api" }
-time = { version = "0.3", features = ["formatting"] }
 thiserror = "1.0"
-tokio = { version = "1.8", features = ["process", "rt"] }
+time = { version = "0.3", features = ["formatting"] }
+tokio = { version = "1.23", features = ["process", "rt"] }
 tracing = { version = "0.1", features = ["attributes", "log"] }
 url = "2.2"
 
@@ -25,4 +28,3 @@ assert_matches = "1.5"
 serial_test = "0.8"
 tempfile = "3.2"
 test-case = "2.2"
-

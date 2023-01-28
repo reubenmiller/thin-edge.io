@@ -1,11 +1,12 @@
 [package]
 name = "certificate"
-version = "0.8.1"
-authors = ["thin-edge.io team <info@thin-edge.io>"]
-edition = "2021"
-rust-version = "1.58.1"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
 
 [dependencies]
 rcgen = { version = "0.9", features = ["pem", "zeroize"] }
@@ -23,4 +24,4 @@ assert_matches = "1.5"
 base64 = "0.13"
 pem = "1.0"
 tempfile = "3.2"
-time = {version = "0.3", features = ["macros"]}
+time = { version = "0.3", features = ["macros"] }

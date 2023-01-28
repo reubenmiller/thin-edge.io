@@ -2,10 +2,9 @@ use std::path::PathBuf;
 
 use agent::SmAgentConfig;
 use clap::Parser;
-use tedge_config::{
-    system_services::{get_log_level, set_log_level},
-    DEFAULT_TEDGE_CONFIG_PATH,
-};
+use tedge_config::system_services::get_log_level;
+use tedge_config::system_services::set_log_level;
+use tedge_config::DEFAULT_TEDGE_CONFIG_PATH;
 
 mod agent;
 mod error;
@@ -56,7 +55,7 @@ async fn main() -> Result<(), anyhow::Error> {
         tracing::Level::TRACE
     } else {
         get_log_level(
-            "tedge_agent",
+            "tedge-agent",
             tedge_config_location.tedge_config_root_path.to_path_buf(),
         )?
     };
