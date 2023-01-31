@@ -47,9 +47,8 @@ jobs:
           VERSION=$(./ci/build_scripts/build.sh --version | tail -1)
           bash -x ./ci/build_scripts/publish_debian.sh \
             --path target/debian/ \
-            --distribution "tedge-main" \
-            --component "main" \
-            --group "main/$VERSION/amd64"
+            --repo "tedge-main" \
+            --component "main"
 
   build-arm-matrix:
     name: Build and publish for ${{ matrix.job.target }}
