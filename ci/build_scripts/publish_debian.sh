@@ -80,6 +80,7 @@ do
         # Repository owner
         --owner)
             PUBLISH_OWNER="$2"
+            shift
             ;;
 
         # Token used to authenticate publishing commands
