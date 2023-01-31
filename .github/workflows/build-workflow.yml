@@ -39,10 +39,8 @@ jobs:
 
       - name: Publish debian packages (for internal use)
         env:
-          PUBLISH_URL: ${{ secrets.PUBLISH_URL }}
+          PUBLISH_OWNER: ${{ secrets.PUBLISH_OWNER }}
           PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
-          PUBLISH_REPO: ${{ secrets.PUBLISH_REPO }}
-          PUBLISH_DISTRIBUTION: ${{ secrets.PUBLISH_DISTRIBUTION }}
         run: |
           VERSION=$(./ci/build_scripts/build.sh --version | tail -1)
           bash -x ./ci/build_scripts/publish_debian.sh \
