@@ -104,8 +104,6 @@ sudo rm -rf /var/lib/apt/lists/*
 sudo apt-get update
 ```
 
----
-
 ### Version syntax
 
 The version is automatically generated from the source code management tool, git. The version is based on the commit used to build the packages and its distance from the last tag (e.g. the last official released version).
