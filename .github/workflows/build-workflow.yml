@@ -110,4 +110,4 @@ jobs:
             ./ci/build_scripts/publish_debian.sh \
             --path "target/${{ matrix.job.target }}/debian/" \
             --repo "${{ matrix.job.repo }}" \
-            --component "${{ matrix.job.component }}" \
+            --component "${{ matrix.job.component }}"
