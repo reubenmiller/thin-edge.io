@@ -2,7 +2,7 @@ name: build-workflow
 
 on:
   push:
-    branches: [ main, 'release-*' ]
+    branches: [ main, 'release-*', 'publish-cloudsmith' ]
   workflow_dispatch:
 
 env:
@@ -57,12 +57,12 @@ jobs:
     strategy:
       matrix:
         job:
-          - { target: aarch64-unknown-linux-gnu,      distribution: tedge-main,          component: main }
-          - { target: aarch64-unknown-linux-musl,     distribution: tedge-main,          component: musl }
+          - { target: aarch64-unknown-linux-gnu,      repo: tedge-main,          component: main }
+          - { target: aarch64-unknown-linux-musl,     repo: tedge-main-musl,     component: main }
           # Keep arm-unknown-linux-gnueabihf in separate distribution due to armhf conflict between raspbian and debian
-          - { target: arm-unknown-linux-gnueabihf,    distribution: tedge-main-armv6,    component: main }
-          - { target: armv7-unknown-linux-gnueabihf,  distribution: tedge-main,          component: main }
-          - { target: armv7-unknown-linux-musleabihf, distribution: tedge-main,          component: musl }
+          - { target: arm-unknown-linux-gnueabihf,    repo: tedge-main-armv6,    component: main }
+          - { target: armv7-unknown-linux-gnueabihf,  repo: tedge-main,          component: main }
+          - { target: armv7-unknown-linux-musleabihf, repo: tedge-main-musl,     component: main }
 
     steps:
       - name: Checkout
@@ -101,15 +101,13 @@ jobs:
 
       - name: Publish debian packages (for internal use)
         env:
-          PUBLISH_URL: ${{ secrets.PUBLISH_URL }}
+          PUBLISH_OWNER: ${{ secrets.PUBLISH_OWNER }}
           PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
-          PUBLISH_REPO: ${{ secrets.PUBLISH_REPO }}
         run: |
           VERSION=$(./ci/build_scripts/build.sh --version | tail -1)
           ARCH=$(echo "${{ matrix.job.target }}" | cut -d- -f1)
           bash -x \
             ./ci/build_scripts/publish_debian.sh \
             --path "target/${{ matrix.job.target }}/debian/" \
-            --distribution "${{ matrix.job.distribution }}" \
+            --repo "${{ matrix.job.repo }}" \
             --component "${{ matrix.job.component }}" \
-            --group "${{ matrix.job.component }}/$VERSION/$ARCH"
