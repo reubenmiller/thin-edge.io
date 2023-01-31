@@ -108,7 +108,7 @@ sudo apt-get update
 
 ### Version syntax
 
-The version is automatically generated from the source code management tool, git. The version is based on the actual commit used to build it and it's distance from the last tag (e.g. the last official release).
+The version is automatically generated from the source code management tool, git. The version is based on the commit used to build the packages and its distance from the last tag (e.g. the last official released version).
 
 ```sh
 {base_version}-{distance}g{git_sha}
@@ -121,7 +121,7 @@ The version is automatically generated from the source code management tool, git
 |----|-----------|
 |`base_version`|Last official release|
 |`distance`|Number of commits on the `main` branch since last official release|
-|`git_sha`|Git commit sha which the package was built from|
+|`git_sha`|Git commit sha which the package was built from. This makes it easier to trace the version back to the exact commit|
 
 # How is this made possible?
 
