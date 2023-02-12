@@ -14,7 +14,7 @@ project_dotenv = project_dir.joinpath(".env")
 
 for item in [project_dotenv, ".env"]:
     if os.path.exists(item):
-        load_dotenv(item)
+        load_dotenv(item, override=True)
 
 # pylint: disable=invalid-name
 
@@ -95,7 +95,7 @@ def test(c, file="tests", suite="", test="", adapter="docker", retries=0, output
     env_file = ".env"
     if env_file:
         print(f"loading .env file. path={env_file}")
-        load_dotenv(env_file, verbose=True)
+        load_dotenv(env_file, verbose=True, override=True)
 
     if adapter:
         os.environ[ENV_DEVICE_ADAPTER] = adapter
