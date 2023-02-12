@@ -8,20 +8,7 @@ set -e
 
 ADAPTER=
 
-# Only install selected device adapter (to minimize dependencies)
-if [ $# -gt 1 ]; then
-    ADAPTER="$1"
 
-    case "$ADAPTER" in
-        local|docker|ssh)
-            echo "Install device test adapter: $ADAPTER"
-            ;;
-        *)
-            echo "Invalid device test adapter. Only 'local', 'docker' or 'ssh' are supported"
-            exit 1
-            ;;
-    esac
-fi
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 PROJECT_DIR=$( cd --  "$SCRIPT_DIR/../../../" && pwd )
@@ -51,11 +38,29 @@ REQUIREMENTS=(
     -r
     "requirements.dev.txt"
 )
-if [ -n "$ADAPTER" ]; then
-    REQUIREMENTS+=(
-        -r
-        "requirements.adapter-${ADAPTER}.txt"
-    )
+
+# Support installing only selected device adapters to minimize
+# dependencies for specific test runners
+if [ $# -gt 0 ]; then
+    while [ $# -gt 0 ]; do
+        ADAPTER="$1"
+        case "$ADAPTER" in
+            local|docker|ssh)
+                if [ -f "requirements.adapter-${1}.txt" ]; then
+                    echo "Install device test adapter: $1"
+                    REQUIREMENTS+=(
+                        -r
+                        "requirements.adapter-${ADAPTER}.txt"
+                    )
+                fi
+                ;;
+            *)
+                echo "Invalid device test adapter. Only 'local', 'docker' or 'ssh' are supported"
+                exit 1
+                ;;
+        esac
+        shift
+    done
 else
     # include all adapters
     REQUIREMENTS+=(
@@ -63,7 +68,6 @@ else
         "requirements.adapter.txt"
     )
 fi
-
 
 pip3 install "${REQUIREMENTS[@]}"
 python3 bin/appendpath.py
