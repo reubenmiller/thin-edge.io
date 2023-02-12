@@ -93,7 +93,7 @@ def test(c, file="tests", suite="", test="", adapter="docker", retries=0, output
 
     env_file = ".env"
     if env_file:
-        load_dotenv(env_file)
+        load_dotenv(env_file, verbose=True)
 
     if adapter:
         os.environ[ENV_DEVICE_ADAPTER] = adapter
