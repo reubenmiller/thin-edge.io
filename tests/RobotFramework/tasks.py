@@ -3,6 +3,7 @@
 from pathlib import Path
 import os
 import sys
+import shlex
 from invoke import task
 
 from dotenv import load_dotenv
@@ -93,6 +94,7 @@ def test(c, file="tests", suite="", test="", adapter="docker", retries=0, output
 
     env_file = ".env"
     if env_file:
+        print(f"loading .env file. path={env_file}")
         load_dotenv(env_file, verbose=True)
 
     if adapter:
@@ -126,7 +128,7 @@ def test(c, file="tests", suite="", test="", adapter="docker", retries=0, output
         command.extend(
             [
                 "--include",
-                str(include),
+                shlex.quote(include),
             ]
         )
 
@@ -135,23 +137,23 @@ def test(c, file="tests", suite="", test="", adapter="docker", retries=0, output
         command.extend(
             [
                 "--exclude",
-                str(exclude),
+                shlex.quote(exclude),
             ]
         )
 
     # suite filter
     if suite:
-        command.extend(
+        command.extend([
             "--suite",
-            suite,
-        )
+            shlex.quote(suite),
+        ])
 
     # test filter
     if test:
-        command.extend(
+        command.extend([
             "--test",
-            test,
-        )
+            shlex.quote(test),
+        ])
 
     if not is_ci():
         command.extend(

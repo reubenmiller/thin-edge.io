@@ -152,9 +152,7 @@ jobs:
         working-directory: tests/RobotFramework
         run: |
           source .venv/bin/activate
-          set -a
-          source .env
-          set +a
+          #set -a; source .env; set +a
           invoke test \
             --processes "${{ inputs.processes || '' }}" \
             --include "${{ inputs.include || '' }}" \
