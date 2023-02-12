@@ -66,12 +66,15 @@ def build(c, name="debian-systemd"):
         "file": ("Robot file or directory to run"),
         "outputdir": ("Output directory where the reports will be saved to"),
         "processes": ("Number of processes to use when running tests"),
-        "include": ("Only run tests which match the given tag"),
+        "suite": ("Only run suites matching the given text"),
+        "test": ("Only run tests matching the given text"),
+        "include": ("Only run tests matching the given tag"),
+        "exclude": ("Don't run tests matching the given tag"),
         "retries": ("Max global retries to execute on failed tests. Defaults to 0"),
         "adapter": ("Default device adapter to use to run tests. e.g. docker, ssh or local"),
-    }
+    },
 )
-def test(c, file="tests", adapter="docker", retries=0, outputdir=None, processes=None, include=""):
+def test(c, file="tests", suite="", test="", adapter="docker", retries=0, outputdir=None, processes=None, include="", exclude=""):
     """Run tests
 
     Examples
@@ -118,12 +121,36 @@ def test(c, file="tests", adapter="docker", retries=0, outputdir=None, processes
         f"RetryFailed:{retries}",
     ]
 
+    # include tags
     if include:
         command.extend(
             [
                 "--include",
                 str(include),
             ]
+        )
+
+    # exclude tags
+    if exclude:
+        command.extend(
+            [
+                "--exclude",
+                str(exclude),
+            ]
+        )
+
+    # suite filter
+    if suite:
+        command.extend(
+            "--suite",
+            suite,
+        )
+
+    # test filter
+    if test:
+        command.extend(
+            "--test",
+            test,
         )
 
     if not is_ci():
