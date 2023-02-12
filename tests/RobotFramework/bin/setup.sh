@@ -6,10 +6,6 @@
 
 set -e
 
-ADAPTER=
-
-
-
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 PROJECT_DIR=$( cd --  "$SCRIPT_DIR/../../../" && pwd )
 pushd "$SCRIPT_DIR/.." >/dev/null || exit 1
@@ -121,13 +117,6 @@ if [ ! -f .env ]; then
         echo "Creating symlink to project .env file"
         ln -s "$DOTENV_FILE" ".env"
     fi
-fi
-
-#
-# Build docker images (required for container devices)
-#
-if ! invoke build >/dev/null 2>&1; then
-    echo "Failed to build container image. Please try running 'invoke build' manually to debug the output"
 fi
 
 popd >/dev/null || exit 1
