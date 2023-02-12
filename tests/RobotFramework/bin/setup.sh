@@ -6,6 +6,23 @@
 
 set -e
 
+ADAPTER=
+
+# Only install selected device adapter (to minimize dependencies)
+if [ $# -gt 1 ]; then
+    ADAPTER="$1"
+
+    case "$ADAPTER" in
+        local|docker|ssh)
+            echo "Install device test adapter: $ADAPTER"
+            ;;
+        *)
+            echo "Invalid device test adapter. Only 'local', 'docker' or 'ssh' are supported"
+            exit 1
+            ;;
+    esac
+fi
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 PROJECT_DIR=$( cd --  "$SCRIPT_DIR/../../../" && pwd )
 pushd "$SCRIPT_DIR/.." >/dev/null || exit 1
@@ -17,19 +34,39 @@ export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
 # Setup python virtual environment and install dependencies
 #
 # Add local bin to path
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
-if ! command -v poetry >/dev/null 2>&1; then
-    curl -sSL https://install.python-poetry.org | python3 -
+# Install dependences (including develop)
+if [ ! -d .venv ]; then
+    python3 -m venv .venv
 fi
 
-# Install all dependences (including develop)
-poetry install
-poetry run pip3 install --upgrade pip
-poetry run python3 bin/appendpath.py
+echo "Activating virtual environment"
+source .venv/bin/activate
+pip3 install --upgrade pip
 
-# install poetry plugin to load dotenv files automatically
-poetry run pip install poetry-dotenv-plugin
+REQUIREMENTS=(
+    -r
+    "requirements.txt"
+    -r
+    "requirements.dev.txt"
+)
+if [ -n "$ADAPTER" ]; then
+    REQUIREMENTS+=(
+        -r
+        "requirements.adapter-${ADAPTER}.txt"
+    )
+else
+    # include all adapters
+    REQUIREMENTS+=(
+        -r
+        "requirements.adapter.txt"
+    )
+fi
+
+
+pip3 install "${REQUIREMENTS[@]}"
+python3 bin/appendpath.py
 
 
 #
@@ -85,7 +122,7 @@ fi
 #
 # Build docker images (required for container devices)
 #
-if ! poetry run invoke build >/dev/null 2>&1; then
+if ! invoke build >/dev/null 2>&1; then
     echo "Failed to build container image. Please try running 'invoke build' manually to debug the output"
 fi
 
