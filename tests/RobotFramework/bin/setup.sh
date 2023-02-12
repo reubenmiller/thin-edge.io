@@ -30,9 +30,9 @@ pip3 install --upgrade pip
 
 REQUIREMENTS=(
     -r
-    "requirements.txt"
+    "requirements/requirements.txt"
     -r
-    "requirements.dev.txt"
+    "requirements/requirements.dev.txt"
 )
 
 # Support installing only selected device adapters to minimize
@@ -46,7 +46,7 @@ if [ $# -gt 0 ]; then
                     echo "Install device test adapter: $1"
                     REQUIREMENTS+=(
                         -r
-                        "requirements.adapter-${ADAPTER}.txt"
+                        "requirements/requirements.adapter-${ADAPTER}.txt"
                     )
                 fi
                 ;;
@@ -61,7 +61,7 @@ else
     # include all adapters
     REQUIREMENTS+=(
         -r
-        "requirements.adapter.txt"
+        "requirements/requirements.adapter.txt"
     )
 fi
 
