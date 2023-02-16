@@ -1096,14 +1096,55 @@ An empty message can't be used for the same, as empty messages are used to clear
 <p>Thin-edge.io doesn't keep any history of all alarms raised on an alarm topic.</p>
 <h2 id="clearing-alarms"><a class="header" href="#clearing-alarms">Clearing alarms</a></h2>
 <p>An already raised alarm can be cleared by sending an empty message with retained flag enabled to the same alarm topic on which the original alarm was raised.</p>
+<p>For example <code>temperature_alarm</code> will be cleared by publishing an empty payload message as below:</p>
+<pre><code>tedge mqtt pub tedge/alarms/critical/temperature_alarm &quot;&quot; -q 2 -r
+
+</code></pre>
 <blockquote>
-<p>Note: Using the retained flag is a must while clearing the alarm as well, without which the alarm won't be cleared properly.</p>
+<p>Note: Using the retained (-r) flag is a must while clearing the alarm as well, without which the alarm won't be cleared properly.</p>
 </blockquote>
 <p>If alarms of different severities exist for a given alarm type, they must all be cleared separately as they're all treated as independent alarms.</p>
 <h3 id="raising-alarms-from-child-devices"><a class="header" href="#raising-alarms-from-child-devices">Raising alarms from child devices</a></h3>
 <p>Alarms for child devices can be raised by publishing the alarm payload to <code>tedge/alarms/&lt;severity&gt;/&lt;alarm-type&gt;/&lt;child-device-id&gt;</code> topic,
 where the <code>child-device-id</code> is the unique device id of the child device.
 The alarm payload structure is the same, as described in the previous section.</p>
+<h3 id="raising-an-alarm-with-custom-fragment"><a class="header" href="#raising-an-alarm-with-custom-fragment">Raising an alarm with custom fragment</a></h3>
+<p>Thin-edge supports the creation of alarms using custom (user-defined) fragments.
+Custom fragments are supported for both the main and child devices.
+The custom fragments can be a simple json value or a complex json value.</p>
+<p>For example, an alarm with simple custom fragment field named <code>details</code>:</p>
+<p>Payload:</p>
+<pre><code class="language-json">{
+    &quot;text&quot;: &quot;Temperature is very high&quot;,
+    &quot;time&quot;: &quot;2021-01-01T05:30:45+00:00&quot;,
+    &quot;details&quot;: &quot;A custom alarm info&quot;
+}
+</code></pre>
+<p>For example, an alarm with complex custom fragments</p>
+<p>Payload:</p>
+<pre><code class="language-json">{
+    &quot;text&quot;: &quot;Temperature is very high&quot;,
+    &quot;time&quot;: &quot;2021-01-01T05:30:45+00:00&quot;,
+    &quot;someOtherCustomFragment&quot;: {
+        &quot;nested&quot;: {
+            &quot;value&quot;: &quot;extra info&quot;
+        }
+    }
+}
+</code></pre>
+<blockquote>
+<p>Note: Other than <code>text</code> and <code>time</code> fields, all the other fields are considered as custom fragments.</p>
+</blockquote>
+<h3 id="raising-an-alarm-with-empty-json-payload"><a class="header" href="#raising-an-alarm-with-empty-json-payload">Raising an alarm with empty json payload</a></h3>
+<p>Alarms can also be raised with an <code>empty json object</code> as payload as follows:</p>
+<p>Payload:</p>
+<pre><code class="language-json">{}
+</code></pre>
+<blockquote>
+<p>Note: The <code>default</code> value for the <code>time</code> fragment will be the timestamp in utc time that is added by the <code>tedge-mapper-c8y</code>
+while alarm message being translated to cumulocity format.
+The default value for the <code>text</code> fragment will be derived from the <code>alarm-type</code> of the topic.</p>
+</blockquote>
 <h2 id="cloud-data-mapping"><a class="header" href="#cloud-data-mapping">Cloud data mapping</a></h2>
 <p>If the device is connected to some supported IoT cloud platform, any alarms raised locally on thin-edge.io will be forwarded to the connected cloud platform as well.
 The mapping of thin-edge alarms data to its respective cloud-native representation will be done by the corresponding cloud mapper process.
@@ -1118,6 +1159,44 @@ For example, if the device is connected to Cumulocity IoT cloud platform, the Cu
 </code></pre>
 <p>... and is published to <code>c8y/s/us</code> topic which will get forwarded to the connected Cumulocity cloud instance.</p>
 <p>If the alarm is raised from a child device, the payload is published to <code>c8y/s/us/&lt;child-device-id&gt;</code> topic instead.</p>
+<p>If an alarm contains a <code>custom fragment</code> then, the alarm message will be converted to <code>cumulocity json</code>
+format and then will be published on to <code>c8y/alarm/alarms/create</code> topic.</p>
+<p>An example of the translated custom message for <code>thin-edge</code> device will be as below</p>
+<pre><code class="language-json">{
+    &quot;severity&quot;:&quot;MAJOR&quot;,
+    &quot;type&quot;:&quot;temperature_high&quot;,
+    &quot;time&quot;:&quot;2023-01-25T18:41:14.776170774Z&quot;,
+    &quot;text&quot;:&quot;Temperature High&quot;,
+    &quot;someOtherCustomFragment&quot;:
+        {
+            &quot;nested&quot;:
+            {
+                &quot;value&quot;: &quot;extra info&quot;
+            }
+        }
+}
+</code></pre>
+<p>An example of the translated <code>cumulocity</code> alarm message for a <code>child</code> device with a <code>custom</code> fragment will be as below</p>
+<pre><code class="language-json">{
+    &quot;severity&quot;:&quot;MAJOR&quot;,
+    &quot;type&quot;:&quot;pressure_alarm&quot;,
+    &quot;time&quot;:&quot;2023-01-25T18:41:14.776170774Z&quot;,
+    &quot;text&quot;:&quot;Pressure alarm&quot;,
+    &quot;someOtherCustomFragment&quot;:
+        {
+            &quot;nested&quot;:
+            {
+                &quot;value&quot;: &quot;extra info&quot;
+            }
+        }
+    &quot;externalSource&quot;:
+        {
+            &quot;externalId&quot;:&quot;child_device_id&quot;,
+            &quot;type&quot;:&quot;c8y_Serial&quot;
+        }
+}
+
+</code></pre>
 <p>Find more information about SmartREST representations for alarms in Cumulocity <a href="https://cumulocity.com/guides/10.11.0/reference/smartrest-two/#alarm-templates">here</a></p>
 <p>Find more information about alarms data model in Cumulocity <a href="https://cumulocity.com/guides/concepts/domain-model/#events">here</a></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="thin-edge-event"><a class="header" href="#thin-edge-event">Thin Edge Event</a></h1>
@@ -1544,9 +1623,9 @@ Hence, you can implement a plugin in your preferred language.</p>
 <tr><td>list</td><td>-</td><td>lines with tab separated values</td><td>Returns the list of software modules that have been installed with this plugin.</td></tr>
 <tr><td>prepare</td><td>-</td><td>-</td><td>Executes the provided actions before a sequence of install and remove commands.</td></tr>
 <tr><td>finalize</td><td>-</td><td>-</td><td>Executes the provided actions after a sequence of install and remove commands.</td></tr>
-<tr><td>install</td><td>NAME [--version VERSION] [--file FILE]</td><td>-</td><td>Executes the action of installation.</td></tr>
-<tr><td>remove</td><td>NAME [--version VERSION]</td><td>-</td><td>Executes the action of uninstallation.</td></tr>
-<tr><td>update-list</td><td>COMMAND NAME [--version VERSION] [--file FILE]</td><td>-</td><td>Executes the list of <code>install</code> and <code>remove</code> commands.</td></tr>
+<tr><td>install</td><td>NAME [--module-version VERSION] [--file FILE]</td><td>-</td><td>Executes the action of installation.</td></tr>
+<tr><td>remove</td><td>NAME [--module-version VERSION]</td><td>-</td><td>Executes the action of uninstallation.</td></tr>
+<tr><td>update-list</td><td>COMMAND NAME [--module-version VERSION] [--file FILE]</td><td>-</td><td>Executes the list of <code>install</code> and <code>remove</code> commands.</td></tr>
 </tbody></table>
 <p>The order of the commands invoked by the Software Management Agent is:
 <code>prepare</code> -&gt; <code>update-list</code> or [<code>install</code>, <code>remove</code>] -&gt;<code>finalize</code></p>
@@ -5239,9 +5318,9 @@ Hence, you can implement a plugin in your preferred language.</p>
 <tr><td>list</td><td>-</td><td>lines with tab separated values</td><td>Returns the list of software modules that have been installed with this plugin.</td></tr>
 <tr><td>prepare</td><td>-</td><td>-</td><td>Executes the provided actions before a sequence of install and remove commands.</td></tr>
 <tr><td>finalize</td><td>-</td><td>-</td><td>Executes the provided actions after a sequence of install and remove commands.</td></tr>
-<tr><td>install</td><td>NAME [--version VERSION] [--file FILE]</td><td>-</td><td>Executes the action of installation.</td></tr>
-<tr><td>remove</td><td>NAME [--version VERSION]</td><td>-</td><td>Executes the action of uninstallation.</td></tr>
-<tr><td>update-list</td><td>COMMAND NAME [--version VERSION] [--file FILE]</td><td>-</td><td>Executes the list of <code>install</code> and <code>remove</code> commands.</td></tr>
+<tr><td>install</td><td>NAME [--module-version VERSION] [--file FILE]</td><td>-</td><td>Executes the action of installation.</td></tr>
+<tr><td>remove</td><td>NAME [--module-version VERSION]</td><td>-</td><td>Executes the action of uninstallation.</td></tr>
+<tr><td>update-list</td><td>COMMAND NAME [--module-version VERSION] [--file FILE]</td><td>-</td><td>Executes the list of <code>install</code> and <code>remove</code> commands.</td></tr>
 </tbody></table>
 <p>The order of the commands invoked by the Software Management Agent is:
 <code>prepare</code> -&gt; <code>update-list</code> or [<code>install</code>, <code>remove</code>] -&gt;<code>finalize</code></p>
@@ -6184,8 +6263,7 @@ the <code>tedge/measurements</code> topic.</p>
 <li>and produces a single thin-edge-json for the whole group of measurements.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="software-management-plugin-api"><a class="header" href="#software-management-plugin-api">Software Management Plugin API</a></h1>
-<p>Thin-edge uses plugins to delegate to the appropriate package managers and installers
-all the software management operations: installation of packages, uninstallations and queries.</p>
+<p>Thin-edge uses plugins to delegate software management operations to the appropriate package manager/installer. The plugins are responsible for: installation of packages, uninstalls and queries.</p>
 <ul>
 <li>A package manager plugin acts as a facade for a specific package manager.</li>
 <li>A plugin is an executable that follows the <a href="references/plugin-api.html#plugin-api">plugin API</a>.</li>
@@ -6194,7 +6272,7 @@ all the software management operations: installation of packages, uninstallation
 <li>All the actions on a software module are directed to the plugin bearing the name that matches the module type name.</li>
 <li>The plugins are loaded and invoked by the sm-agent in a systematic order (in practice the alphanumerical order of their names in the file system).</li>
 <li>The software modules to be installed/removed are also passed to the plugins in a consistent order.</li>
-<li>Among all the plugins, one can be marked as the default plugin using <code>tedge config</code> cli.</li>
+<li>Among all the plugins, one can be marked as the default plugin using the <code>tedge config</code> cli.</li>
 <li>The default plugin is invoked when an incoming software module in the cloud request doesn't contain any explicit type annotation.</li>
 <li>Several plugins can co-exist for a given package manager as long as they are given different names.
 Each can implement a specific software management policy.
@@ -6202,16 +6280,18 @@ For instance, for a debian package manager, several plugins can concurrently be 
 </ul>
 <h2 id="plugin-repository"><a class="header" href="#plugin-repository">Plugin repository</a></h2>
 <ul>
-<li>To be used by thin-edge, a plugin has to stored in the directory <code>/etc/tedge/sm-plugins</code>.</li>
+<li>To be used by thin-edge, a plugin has to be stored in the directory <code>/etc/tedge/sm-plugins</code>.</li>
 <li>A plugin must be named after the software module type as specified in the cloud request.
 That is, a plugin named <code>apt</code> handles software modules that are defined with type <code>apt</code> in the cloud request.
 Consequently a plugin to handle software module defined for <code>docker</code> must be named <code>docker</code>.</li>
 <li>The same plugin can be given different names, using virtual links.</li>
 <li>When there are multiple plugins on a device, one can be marked as the default plugin using the command
-<code>tedge config set software.plugin.default &lt;plugin-name&gt;</code></li>
-<li>If there's one and only one plugin available on a device, that's treated as the default, even without an explicit configuration.</li>
+<pre><code class="language-sh">tedge config set software.plugin.default &lt;plugin-name&gt;
+</code></pre>
+</li>
+<li>If there's only one plugin available on a device, it is selected by default, even without an explicit configuration.</li>
 </ul>
-<p>On start-up and sighup, the sm-agent registers the plugins as follow:</p>
+<p>On start-up, the sm-agent registers the plugins as follows:</p>
 <ol>
 <li>Iterate over the executable file of the directory <code>/etc/tedge/sm-plugins</code>.</li>
 <li>Check the executable is indeed a plugin, calling the <a href="references/plugin-api.html#the-list-command"><code>list</code></a> command.</li>
@@ -6220,18 +6300,18 @@ Consequently a plugin to handle software module defined for <code>docker</code> 
 <ul>
 <li>A plugin must implement all the commands used by the sm-agent of thin-edge,
 and support all the options for these commands.</li>
-<li>A plugin should not support extra command or option.</li>
+<li>A plugin should not support extra commands or options.</li>
 <li>A plugin might have a configuration file.
 <ul>
 <li>It can be a list of remote repositories, or a list of software modules to be excluded.</li>
-<li>These configuration files can be managed from the cloud via the sm-agent (TODO: how).</li>
+<li>These configuration files can be managed from the cloud via the configuration management feature.</li>
 </ul>
 </li>
 </ul>
 <h3 id="input-output-and-errors-2"><a class="header" href="#input-output-and-errors-2">Input, Output and Errors</a></h3>
 <ul>
 <li>The plugins are called by the sm-agent using a child process for each action.</li>
-<li>Beside command <code>update-list</code> there is no input beyond the command arguments, and a plugin that does not
+<li>Besides the <code>update-list</code> command, there is no input beyond the command arguments, and a plugin that does not
 implement <code>update-list</code> can close its <code>stdin</code>.</li>
 <li>The <code>stdout</code> and <code>stderr</code> of the process running a plugin command are captured by the sm-agent.
 <ul>
@@ -6241,10 +6321,10 @@ It can be a one sentence summary of the error, redirecting the administrator to 
 </li>
 <li>A plugin must return the appropriate exit status after each command.
 <ul>
-<li>In no cases, the error status of the underlying package manager should be reported.</li>
+<li>It is important that under no circumstances should the error status of the underlying package manager should be reported, instead return one of the exit codes mentioned in the next section.</li>
 </ul>
 </li>
-<li>The exit status are interpreted by sm-agent as follows:
+<li>The exit status are interpreted by the sm-agent as follows:
 <ul>
 <li><strong><code>0</code></strong>: success.</li>
 <li><strong><code>1</code></strong>: usage. The command arguments cannot be interpreted, and the command has not been launched.</li>
@@ -6338,7 +6418,7 @@ from the sm-agent viewpoint this is no more than a string.</li>
 </li>
 <li>An optional file path can be provided.
 <ul>
-<li>When the device administrator provides an url,
+<li>When the device administrator provides a url,
 the sm-agent downloads the software module on the device,
 then invoke the install command with a path to that file.</li>
 <li>If no file is provided, the plugin has to derive the appropriate location from its repository
@@ -6362,7 +6442,7 @@ If the plugin manage concurrent versions, the module <code>foo</code> might also
 <li>An error must be reported if:
 <ul>
 <li>The module name is unknown.</li>
-<li>There is no version for the module that matches the constraint provided by the <code>--version</code> option.</li>
+<li>There is no version for the module that matches the constraint provided by the <code>--module-version</code> option.</li>
 <li>The file content provided by <code>--file</code> option:
 <ul>
 <li>is not in the expected format,</li>
@@ -6393,7 +6473,7 @@ and is transmitted unchanged from the cloud to the plugin.</li>
 and is transmitted unchanged from the cloud to the plugin.</li>
 </ul>
 </li>
-<li>The command uninstall the requested module and possibly any dependencies that are no more required.
+<li>The command uninstalls the requested module and possibly any dependencies that are no more required.
 <ul>
 <li>If a version is provided, only the module of that version is removed.
 This is in-practice useful only for a package manager that is able to install concurrent versions of a module.</li>
@@ -6414,7 +6494,7 @@ If the plugin manage concurrent versions, the module <code>foo</code> might stil
 <h3 id="the-update-list-command"><a class="header" href="#the-update-list-command">The <code>update-list</code> command</a></h3>
 <p>The <code>update-list</code> command accepts a list of software modules and associated operations as <code>install</code> or <code>remove</code>.</p>
 <p>This basically achieves same purpose as original commands <code>install</code> and <code>remove</code>, but gets passed all software modules to be processed in one command.
-This can be needed when order of processing software modules is relevant - e.g. when dependencies between packages inside the software list do occur.</p>
+This can be necessary when the processing order of software modules is relevant - e.g. when dependencies between packages inside the software list do occur.</p>
 <pre><code class="language-shell"># building list of software modules and operations, 
 # and passing to plugin's stdin via pipe:
 # NOTE that each argument is tab separated:
@@ -6430,14 +6510,13 @@ echo '\
 <ul>
 <li>This command is optional for a plugin. It can be implemented alternatively to original commands <code>install</code> and <code>remove</code> as both are specified above.
 <ul>
-<li>If a plugin does not implement this command it must return exit status <code>1</code>. In that case sm-agent will call the plugin again
-package-by-package using original commands <code>install</code> and <code>remove</code>.</li>
-<li>If a plugin implements this command sm-agent uses it instead of original commands <code>install</code> and <code>remove</code>.</li>
+<li>If a plugin does not implement this command it must return exit status <code>1</code>. In that case, the sm-agent will call the plugin again, calling it package-by-package using the <code>install</code> and <code>remove</code> commands.</li>
+<li>If a plugin implements this command, the sm-agent uses it instead of original commands <code>install</code> and <code>remove</code>.</li>
 </ul>
 </li>
-<li>This command takes no commandline arguments, but expects a software list sent from sm-agent to plugin's <code>stdin</code>.</li>
-<li>In the software list each software module is represented by exactly one line, using tab separated values.</li>
-<li>The position of each argument in the argument list has it's defined meaning:
+<li>This command takes no command line arguments, but expects a software list sent from the sm-agent to the plugin's <code>stdin</code>.</li>
+<li>In the software list, each software module is represented by exactly one line, using tab separated values.</li>
+<li>The position of each argument in the argument list has its defined meaning:
 <ul>
 <li>1st argument: Is the operation and can be <code>install</code> or <code>remove</code></li>
 <li>2nd argument: Is the software module's name.</li>
@@ -6453,7 +6532,7 @@ package-by-package using original commands <code>install</code> and <code>remove
 </li>
 <li>An overall error must be reported (via process's exit status) when at least one software module operation has failed.</li>
 </ul>
-<p>Example how to invoke that plugin command <code>update-list</code>. Note that each argument is tab separated:</p>
+<p>Example how to invoke a plugin's <code>update-list</code> command. Note that each argument is tab separated:</p>
 <pre><code class="language-shell">plugin update-list &lt;&lt;EOF
   install	name1	version1
   install	name2		path2
@@ -6463,12 +6542,11 @@ EOF
 </code></pre>
 <p>That is equivalent to use of original commands (<code>install</code> and <code>remove</code>):</p>
 <pre><code class="language-shell">plugin install name1 --module-version version1
-plugin install name2 --module-path path2
+plugin install name2 --file path2
 plugin remove &quot;name 3&quot; --module-version version3
 plugin remove name4
 </code></pre>
-<p>Exemplary implementation of a shell script for parsing software list from <code>stdin</code>:</p>
-<p>Note that this example works only in bash.</p>
+<p>Below shows an example implementation (in <code>bash</code>) to parse the software list from <code>stdin</code>:</p>
 <pre><code class="language-shell">#!/bin/bash
 
 echo &quot;&quot;
