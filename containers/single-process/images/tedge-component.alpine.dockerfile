@@ -11,6 +11,7 @@ RUN apk update \
 # Copy all binaries to make the image generic (only if space is not a big deal)
 COPY ./bin/* /usr/bin/
 VOLUME [ "/etc/tedge" ]
+VOLUME [ "/device-certs" ]
 
 COPY ./common/configure.sh ./common/init.sh /usr/local/bin/
 RUN /usr/local/bin/configure.sh tedge tedge-agent

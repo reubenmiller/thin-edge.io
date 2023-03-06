@@ -6,25 +6,10 @@ CMD="$1"
 CMD_BAK="$1"
 shift
 
-get_mqtt_broker_ip() {
-    if command -V curl >/dev/null 2>&1; then
-        IP=$(curl "$MQTT_BROKER" -s -v 2>&1 | grep "Trying" | sed 's/.*Trying[[:space:]]//g' | cut -d':' -f1)
-    elif command -V nslookup >/dev/null 2>&1; then
-        IP=$(nslookup "$MQTT_BROKER" | grep -A 10 "Non-authoritative answer" | grep "^Address:" | tail -1 | cut -d' ' -f2)
-    else
-        echo "Missing command to lookup the ip address. Please install either 'curl' or 'nslookup'"
-        exit 1
-    fi
-
-    echo "${IP:-"127.0.0.1"}"
-}
-
 set_mqtt_broker() {
-    # FIXME: config set should support setting a hostname instead of an ip address
-    BROKER_IP=$(get_mqtt_broker_ip)
-    echo "Setting mqtt.bind_address to $BROKER_IP"
-    tedge config set mqtt.bind_address "$BROKER_IP"
-    tedge config set mqtt.port "${MQTT_BROKER_PORT:-1883}"
+    echo "Setting mqtt.client.host to $MQTT_BROKER:${MQTT_BROKER_PORT:-1883}"
+    tedge config set mqtt.client.host "$MQTT_BROKER"
+    tedge config set mqtt.client.port "${MQTT_BROKER_PORT:-1883}"
 }
 
 #
@@ -40,6 +25,10 @@ case "$CMD" in
 
         # FIXME: Why does the mapper care if this is done or not
         tedge config set c8y.url "$C8Y_BASEURL"
+
+        # FIXME: Create separate location for device certificate
+        mkdir -p /device-certs
+        tedge config set device.cert.path /device-certs/tedge-certificate.pem
 
         # FIXME: Remove need for the mapper to know about the device id
         if [ -n "$DEVICE_ID" ]; then
@@ -83,6 +72,13 @@ case "$CMD" in
 
     tedge-mapper*)
         CMD="tedge-mapper"
+        set_mqtt_broker
+
+        mkdir -p /device-certs
+        tedge config set device.cert.path /device-certs/tedge-certificate.pem
+
+        # FIXME: Why does the mapper care if this is done or not
+        tedge config set c8y.url "$C8Y_BASEURL"
         ;;
 
     tedge-agent)
@@ -94,6 +90,9 @@ case "$CMD" in
         tedge config set mqtt.external.bind_address "$BIND_IP"
         tedge config set mqtt.external.port "1883"
 
+
+        mkdir -p /device-certs
+        tedge config set device.cert.path /device-certs/tedge-certificate.pem
 
         # CHECK: does a nested folder in the sm-plugins cause problems?
         # mkdir -p /etc/tedge/sm-plugins/apt
@@ -115,6 +114,12 @@ case "$CMD" in
     c8y-*-plugin)
         mkdir -p /etc/ssl/certs
         set_mqtt_broker
+
+        mkdir -p /device-certs
+        tedge config set device.cert.path /device-certs/tedge-certificate.pem
+
+        # FIXME: Why do the plugins require this setting?
+        tedge config set c8y.url "$C8Y_BASEURL"
         ;;
     *)
         echo "Unknown init command"

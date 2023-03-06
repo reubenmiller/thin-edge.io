@@ -11,4 +11,5 @@ COPY ./common/configure.sh ./common/init.sh /usr/local/bin/
 RUN /usr/local/bin/configure.sh tedge
 
 VOLUME [ "/etc/tedge/mosquitto-conf" ]
+VOLUME [ "/device-certs" ]
 ENTRYPOINT ["/usr/local/bin/init.sh", "mosquitto", "-c", "/mosquitto/config/mosquitto.conf"]

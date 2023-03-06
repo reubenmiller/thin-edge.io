@@ -5,13 +5,14 @@ services:
     image: reubenmiller/tedge-mosquitto:2.0.14
     # Optional: Expose port if you would like the mqtt broker to be available for
     # components outside of this docker-compose. It is not required for communication within network
-    ports:
-      - 1883:1883
+    # ports:
+    #   - 1883:1883
     env_file:
       - .env
       - .env.secrets
     volumes:
-      - tedge_data:/etc/tedge
+      - tedge_cert:/device-certs
+      - tedge_broker:/etc/tedge
       - tedge_logs:/var/log/tedge
     networks:
       - tedge
@@ -20,15 +21,16 @@ services:
     image: reubenmiller/tedge-component:alpine
     command:
       - tedge-mapper-c8y
-      # - "--debug"
       - c8y
     env_file:
       - .env
     environment:
       - MQTT_BROKER=mqtt
     volumes:
-      - tedge_data:/etc/tedge/
+      - tedge_cert:/device-certs
       - tedge_logs:/var/log/tedge
+      # Optional (only required to share operations and config)
+      - tedge_data:/etc/tedge
     depends_on:
       - mqtt-broker
     restart: always
@@ -38,7 +40,7 @@ services:
       - "mqtt-broker:mqtt"
     networks:
       - tedge
-
+  
   tedge-agent:
     image: reubenmiller/tedge-component:alpine
     command:
@@ -46,14 +48,16 @@ services:
     restart: always
     # Optional: Expose port if you would like the tedgeapi endpoint to be available for
     # components outside of this docker-compose. It is not required for communication within network
-    ports:
-      - 8000:8000
+    # ports:
+    #   - 8000:8000
     environment:
       - MQTT_BROKER=mqtt
     volumes:
-      - tedge_data:/etc/tedge
+      - tedge_cert:/device-certs
       - tedge_cache:/var/tedge
       - tedge_logs:/var/log/tedge
+      # Optional (only required to share operations and config)
+      - tedge_data:/etc/tedge
     tmpfs:
       - /run/lock
     depends_on:
@@ -73,8 +77,10 @@ services:
     env_file:
       - .env
     volumes:
-      - tedge_data:/etc/tedge
+      - tedge_cert:/device-certs
       - tedge_logs:/var/log/tedge
+      # Optional (only required to share operations and config)
+      - tedge_data:/etc/tedge
     depends_on:
       - mqtt-broker
     links:
@@ -93,8 +99,10 @@ services:
     env_file:
       - .env
     volumes:
-      - tedge_data:/etc/tedge
+      - tedge_cert:/device-certs
       - tedge_logs:/var/log/tedge
+      # Optional (only required to share operations and config)
+      - tedge_data:/etc/tedge
     depends_on:
       - mqtt-broker
     links:
@@ -104,7 +112,7 @@ services:
       - /run/lock
     networks:
       - tedge
-
+  
   c8y-firmware-plugin:
     image: reubenmiller/tedge-component:alpine
     command:
@@ -115,8 +123,10 @@ services:
     env_file:
       - .env
     volumes:
-      - tedge_data:/etc/tedge
+      - tedge_cert:/device-certs
       - tedge_logs:/var/log/tedge
+      # Optional (only required to share operations and config)
+      - tedge_data:/etc/tedge
     depends_on:
       - mqtt-broker
     links:
@@ -129,6 +139,8 @@ networks:
   tedge:
 
 volumes:
+  tedge_broker:
+  tedge_cert:
   tedge_data:
   tedge_logs:
   tedge_cache:
