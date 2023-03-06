@@ -1,0 +1,23 @@
+version: '3'
+services:
+  tedge:
+    image: reubenmiller/tedge-device:0.9.0-218-gd8bd3b33-10
+    volumes:
+      # Persist the device certificates in a volume so when the container is destroyed it does not delete the cert
+      - config:/etc/tedge
+      - data:/var/tedge
+      - mosquitto_data:/etc/mosquitto
+      - ssh:/etc/ssh/authorized-keys
+    tmpfs:
+      - /run
+      - /tmp
+    # Docker requires privileged=true to run systemd config
+    # ssh only works with privileged=true
+    privileged: true
+    restart: always
+
+volumes:
+  config:
+  data:
+  mosquitto_data:
+  ssh:
