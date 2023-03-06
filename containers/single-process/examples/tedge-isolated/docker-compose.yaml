@@ -1,0 +1,134 @@
+version: '3'
+services:
+  
+  mqtt-broker:
+    image: reubenmiller/tedge-mosquitto:2.0.14
+    # Optional: Expose port if you would like the mqtt broker to be available for
+    # components outside of this docker-compose. It is not required for communication within network
+    ports:
+      - 1883:1883
+    env_file:
+      - .env
+      - .env.secrets
+    volumes:
+      - tedge_data:/etc/tedge
+      - tedge_logs:/var/log/tedge
+    networks:
+      - tedge
+
+  tedge-mapper-c8y:
+    image: reubenmiller/tedge-component:alpine
+    command:
+      - tedge-mapper-c8y
+      # - "--debug"
+      - c8y
+    env_file:
+      - .env
+    environment:
+      - MQTT_BROKER=mqtt
+    volumes:
+      - tedge_data:/etc/tedge/
+      - tedge_logs:/var/log/tedge
+    depends_on:
+      - mqtt-broker
+    restart: always
+    tmpfs:
+      - /run/lock
+    links:
+      - "mqtt-broker:mqtt"
+    networks:
+      - tedge
+
+  tedge-agent:
+    image: reubenmiller/tedge-component:alpine
+    command:
+      - tedge-agent
+    restart: always
+    # Optional: Expose port if you would like the tedgeapi endpoint to be available for
+    # components outside of this docker-compose. It is not required for communication within network
+    ports:
+      - 8000:8000
+    environment:
+      - MQTT_BROKER=mqtt
+    volumes:
+      - tedge_data:/etc/tedge
+      - tedge_cache:/var/tedge
+      - tedge_logs:/var/log/tedge
+    tmpfs:
+      - /run/lock
+    depends_on:
+      - mqtt-broker
+    links:
+      - "mqtt-broker:mqtt"
+    networks:
+      - tedge
+
+  c8y-configuration-plugin:
+    image: reubenmiller/tedge-component:alpine
+    restart: always
+    command:
+      - c8y-configuration-plugin
+    environment:
+      - MQTT_BROKER=mqtt
+    env_file:
+      - .env
+    volumes:
+      - tedge_data:/etc/tedge
+      - tedge_logs:/var/log/tedge
+    depends_on:
+      - mqtt-broker
+    links:
+      - "mqtt-broker:mqtt"
+      - "tedge-agent:tedgeapi"
+    networks:
+      - tedge
+
+  c8y-log-plugin:
+    image: reubenmiller/tedge-component:alpine
+    command:
+      - c8y-log-plugin
+    restart: always
+    environment:
+      - MQTT_BROKER=mqtt
+    env_file:
+      - .env
+    volumes:
+      - tedge_data:/etc/tedge
+      - tedge_logs:/var/log/tedge
+    depends_on:
+      - mqtt-broker
+    links:
+      - "mqtt-broker:mqtt"
+      - "tedge-agent:tedgeapi"
+    tmpfs:
+      - /run/lock
+    networks:
+      - tedge
+
+  c8y-firmware-plugin:
+    image: reubenmiller/tedge-component:alpine
+    command:
+      - c8y-firmware-plugin
+    restart: always
+    environment:
+      - MQTT_BROKER=mqtt
+    env_file:
+      - .env
+    volumes:
+      - tedge_data:/etc/tedge
+      - tedge_logs:/var/log/tedge
+    depends_on:
+      - mqtt-broker
+    links:
+      - "mqtt-broker:mqtt"
+      - "tedge-agent:tedgeapi"
+    networks:
+      - tedge
+
+networks:
+  tedge:
+
+volumes:
+  tedge_data:
+  tedge_logs:
+  tedge_cache:

@@ -1,0 +1,27 @@
+version: '3'
+services:
+  service:
+    # Control the service name so it does not get a suffix
+    container_name: customer-broker-service
+    image: eclipse-mosquitto:2.0.14
+    entrypoint:
+      - mosquitto
+      - -c
+      - /mosquitto-no-auth.conf
+
+    # Optional: Expose port if you would like the mqtt broker to be available for
+    # components outside of this docker-compose. It is not required for communication within network
+    ports:
+      - 8883:1883
+    volumes:
+      - data:/mosquitto/data/
+    networks:
+      - common
+
+networks:
+  common:
+    name: network_common
+    external: true
+
+volumes:
+  data:

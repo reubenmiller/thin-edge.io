@@ -1,0 +1,12 @@
+version: '3'
+services:
+  c8y-configuration-plugin:
+    image: eclipse-mosquitto:2.0.14
+    restart: always
+    environment:
+      - COMPOSE_PROJECT_NAME
+    command:
+      - ash
+      - -c
+      - sleep 2; while true; do mosquitto_pub -t 'tedge/events/helloworld' -m "{\"text\":\"Hello world from $(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d "\"") ${COMPOSE_PROJECT_NAME} 😻\"}"; sleep 3s; done
+    network_mode: host

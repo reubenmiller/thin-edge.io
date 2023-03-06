@@ -1,0 +1,23 @@
+version: '3'
+services:
+  client:
+    image: eclipse-mosquitto:2.0.14
+    entrypoint:
+      - ash
+      - -c
+      - while :; do mosquitto_pub -h broker -p 1883 -t data/value -m hello-world ; sleep 1; done
+    volumes:
+      - data:/mosquitto/data/
+    external_links:
+      # Use the container name that it service should be able to reach
+      - customer-broker-service:broker
+    networks:
+      - common
+
+networks:
+  common:
+    name: network_common
+    external: true
+
+volumes:
+  data:

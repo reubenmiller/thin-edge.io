@@ -12,6 +12,10 @@
 .venv/
 .DS_Store
 
+## Container builds
+containers/single-process/bin/tedge*
+containers/single-process/bin/c8y*
+
 ### robotframework ###
 log.html
 output.xml
@@ -38,3 +42,4 @@ tests/PySys/**/Output/
 Makefile.toml
 .vimspector.json
 *.env
+*.env.*
