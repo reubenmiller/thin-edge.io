@@ -13,10 +13,12 @@ RUN apk update \
 # Copy all binaries to make the image generic (only if space is not a big deal)
 COPY ./bin/* /usr/bin/
 VOLUME [ "/etc/tedge" ]
+VOLUME [ "/device-certs" ]
 
 COPY ./common/configure.sh ./common/init.sh /usr/local/bin/
-RUN /usr/local/bin/configure.sh tedge tedge-agent
-
+# HACK: Initialize the file systems under /etc/tedge however it will be overridden by the later mounted volume
+RUN /usr/local/bin/configure.sh tedge tedge-agent c8y-log-plugin c8y-configuration-plugin c8y-firmware-plugin
+# USER tedge
 
 ADD https://github.com/reubenmiller/tedge-container-plugin/releases/download/0.1.7/tedge-container-plugin_0.1.7_noarch.apk /tmp/
 RUN apk add --allow-untrusted /tmp/tedge-container-plugin_*_noarch.apk \
