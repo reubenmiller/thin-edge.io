@@ -26,12 +26,9 @@ create_user_group tedge
 create_user_group mosquitto
 
 # FIXME: The directory should not have to be created by the user
-SHOULD_CLEANUP_LOCK_DIR=0
 LOCK_DIR="/run/lock"
-if [ ! -d "$LOCK_DIR" ]; then
-    mkdir -p "$LOCK_DIR"
-    SHOULD_CLEANUP_LOCK_DIR=1
-fi
+mkdir -p "$LOCK_DIR"
+chmod 1777 "$LOCK_DIR"
 
 while [ $# -gt 0 ]; do
     CMD="$1"
@@ -41,6 +38,7 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-if [ "$SHOULD_CLEANUP_LOCK_DIR" = "1" ]; then
-    rm -rf "$LOCK_DIR"
+# Change ownership of all tedge folders
+if [ -d /etc/tedge ]; then
+    chown -R tedge:tedge /etc/tedge
 fi

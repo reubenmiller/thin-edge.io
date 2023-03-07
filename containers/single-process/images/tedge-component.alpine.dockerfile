@@ -14,7 +14,9 @@ VOLUME [ "/etc/tedge" ]
 VOLUME [ "/device-certs" ]
 
 COPY ./common/configure.sh ./common/init.sh /usr/local/bin/
-RUN /usr/local/bin/configure.sh tedge tedge-agent
+# HACK: Initialize the file systems under /etc/tedge however it will be overridden by the later mounted volume
+RUN /usr/local/bin/configure.sh tedge tedge-agent c8y-log-plugin c8y-configuration-plugin c8y-firmware-plugin
+USER tedge
 
 ENTRYPOINT ["/usr/local/bin/init.sh"]
 CMD [ "tedge-agent" ]

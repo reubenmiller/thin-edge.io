@@ -7,10 +7,21 @@ services:
     # components outside of this docker-compose. It is not required for communication within network
     # ports:
     #   - 1883:1883
+    restart: always
     env_file:
       - .env
+      # bootstrapping secrets is optional
+      # If it is not provided then you will have to bootstrap it
+      # using the instructions printed on the console!
       - .env.secrets
+    environment:
+      - SERVICE_NAME=mqtt-broker
+      - TEDGE_DEVICE__CERT_PATH=/device-certs/tedge-certificate.pem
+      - TEDGE_MQTT__BIND_ADDRESS=0.0.0.0
+      - TEDGE_MQTT__PORT=1883
+
     volumes:
+      - bootstrap:/bootstrap
       - tedge_cert:/device-certs
       - tedge_broker:/etc/tedge
       - tedge_logs:/var/log/tedge
@@ -22,20 +33,29 @@ services:
     command:
       - tedge-mapper-c8y
       - c8y
+    environment:
+      - TEDGE_MQTT__CLIENT_HOST=mqtt
+      - TEDGE_DEVICE__CERT_PATH=/device-certs/tedge-certificate.pem
     env_file:
       - .env
-    environment:
-      - MQTT_BROKER=mqtt
     volumes:
       - tedge_cert:/device-certs
       - tedge_logs:/var/log/tedge
       # Optional (only required to share operations and config)
       - tedge_data:/etc/tedge
+      # - tedge_c8y:/etc/tedge/c8y
+      # - tedge_operations:/etc/tedge/operations
+      # - tedge_device:/etc/tedge/device
+      # - tedge_plugins:/etc/tedge/plugins
     depends_on:
-      - mqtt-broker
+      mqtt-broker:
+        condition: service_healthy
+      # tedge-agent:
+      #   condition: service_started
+      # c8y-configuration-plugin:
+      #   condition: service_healthy
+
     restart: always
-    tmpfs:
-      - /run/lock
     links:
       - "mqtt-broker:mqtt"
     networks:
@@ -49,19 +69,28 @@ services:
     # Optional: Expose port if you would like the tedgeapi endpoint to be available for
     # components outside of this docker-compose. It is not required for communication within network
     # ports:
-    #   - 8000:8000
+    #   - 8000:80
+    # FIXME: tedge-agent requires c8y.url to be set?
     environment:
-      - MQTT_BROKER=mqtt
+      - TEDGE_MQTT__CLIENT_HOST=mqtt
+      - TEDGE_DEVICE__CERT_PATH=/device-certs/tedge-certificate.pem
+      # FIXME: Separate the HTTP bind setting with the mqtt setting
+      - TEDGE_MQTT__BIND_ADDRESS=0.0.0.0
+      - TEDGE_HTTP__PORT=80
     volumes:
       - tedge_cert:/device-certs
       - tedge_cache:/var/tedge
       - tedge_logs:/var/log/tedge
       # Optional (only required to share operations and config)
       - tedge_data:/etc/tedge
-    tmpfs:
-      - /run/lock
+      # - tedge_c8y:/etc/tedge/c8y
+      # - tedge_operations:/etc/tedge/operations
+      # - tedge_device:/etc/tedge/device
+      # - tedge_plugins:/etc/tedge/plugins
+
     depends_on:
-      - mqtt-broker
+      mqtt-broker:
+        condition: service_healthy
     links:
       - "mqtt-broker:mqtt"
     networks:
@@ -73,7 +102,8 @@ services:
     command:
       - c8y-configuration-plugin
     environment:
-      - MQTT_BROKER=mqtt
+      - TEDGE_MQTT__CLIENT_HOST=mqtt
+      - TEDGE_DEVICE__CERT_PATH=/device-certs/tedge-certificate.pem
     env_file:
       - .env
     volumes:
@@ -81,8 +111,13 @@ services:
       - tedge_logs:/var/log/tedge
       # Optional (only required to share operations and config)
       - tedge_data:/etc/tedge
+      # - tedge_c8y:/etc/tedge/c8y
+      # - tedge_operations:/etc/tedge/operations
+      # - tedge_device:/etc/tedge/device
+      # - tedge_plugins:/etc/tedge/plugins
     depends_on:
-      - mqtt-broker
+      mqtt-broker:
+        condition: service_healthy
     links:
       - "mqtt-broker:mqtt"
       - "tedge-agent:tedgeapi"
@@ -95,7 +130,8 @@ services:
       - c8y-log-plugin
     restart: always
     environment:
-      - MQTT_BROKER=mqtt
+      - TEDGE_MQTT__CLIENT_HOST=mqtt
+      - TEDGE_DEVICE__CERT_PATH=/device-certs/tedge-certificate.pem
     env_file:
       - .env
     volumes:
@@ -103,13 +139,17 @@ services:
       - tedge_logs:/var/log/tedge
       # Optional (only required to share operations and config)
       - tedge_data:/etc/tedge
+      # - tedge_c8y:/etc/tedge/c8y
+      # - tedge_operations:/etc/tedge/operations
+      # - tedge_device:/etc/tedge/device
+      # - tedge_plugins:/etc/tedge/plugins
     depends_on:
-      - mqtt-broker
+      mqtt-broker:
+        condition: service_healthy
     links:
       - "mqtt-broker:mqtt"
       - "tedge-agent:tedgeapi"
-    tmpfs:
-      - /run/lock
+
     networks:
       - tedge
   
@@ -119,7 +159,8 @@ services:
       - c8y-firmware-plugin
     restart: always
     environment:
-      - MQTT_BROKER=mqtt
+      - TEDGE_MQTT__CLIENT_HOST=mqtt
+      - TEDGE_DEVICE__CERT_PATH=/device-certs/tedge-certificate.pem
     env_file:
       - .env
     volumes:
@@ -127,8 +168,13 @@ services:
       - tedge_logs:/var/log/tedge
       # Optional (only required to share operations and config)
       - tedge_data:/etc/tedge
+      # - tedge_c8y:/etc/tedge/c8y
+      # - tedge_operations:/etc/tedge/operations
+      # - tedge_device:/etc/tedge/device
+      # - tedge_plugins:/etc/tedge/plugins
     depends_on:
-      - mqtt-broker
+      mqtt-broker:
+        condition: service_healthy
     links:
       - "mqtt-broker:mqtt"
       - "tedge-agent:tedgeapi"
@@ -139,8 +185,17 @@ networks:
   tedge:
 
 volumes:
+  bootstrap:
   tedge_broker:
   tedge_cert:
-  tedge_data:
   tedge_logs:
   tedge_cache:
+
+  tedge_data:
+  # TODO: Individual volume mounts don't seem to work
+  # though this will be solved by API based plugin discovery
+  # /etc/tedge sub folders
+  # tedge_operations:
+  # tedge_c8y:
+  # tedge_device:
+  # tedge_plugins:
