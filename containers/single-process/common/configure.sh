@@ -42,3 +42,11 @@ done
 if [ -d /etc/tedge ]; then
     chown -R tedge:tedge /etc/tedge
 fi
+
+if [ -d /var/tedge ]; then
+    chown -R tedge:tedge /var/tedge
+fi
+
+if [ -d /var/log/tedge ]; then
+    chown -R tedge:tedge /var/log/tedge
+fi
