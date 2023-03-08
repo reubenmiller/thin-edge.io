@@ -38,8 +38,8 @@ RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
 # Custom ssh settings
 COPY config/strict-ssh.conf /etc/ssh/sshd_config.d/
 
-COPY common/bootstrap.sh /usr/local/bin/
-RUN TEST_USER=${TEST_USER} /usr/local/bin/bootstrap.sh && \
+COPY common/bootstrap.sh common/tedge-cert.sh /usr/bin/
+RUN TEST_USER=${TEST_USER} /usr/bin/bootstrap.sh && \
     rm -rf /var/lib/apt/lists/*
 
 
