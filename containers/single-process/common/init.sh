@@ -20,6 +20,31 @@ common_init() {
 common_init
 
 case "$CMD" in
+    bootstrap)
+        # FIXME: Currently this must be run as root
+        # https://github.com/thin-edge/thin-edge.io/issues/1795
+        tedge --init
+        tedge-agent --init
+        c8y-log-plugin --init
+        c8y-configuration-plugin --init
+        c8y-firmware-plugin --init
+
+        # Change ownership of all tedge folders
+        if [ -d /etc/tedge ]; then
+            chown -R tedge:tedge /etc/tedge
+        fi
+
+        if [ -d /var/tedge ]; then
+            chown -R tedge:tedge /var/tedge
+        fi
+
+        if [ -d /var/log/tedge ]; then
+            chown -R tedge:tedge /var/log/tedge
+        fi
+
+        exit 0
+        ;;
+
     mosquitto)
         # FIXME: Initializations should be handled by the process itself
         tedge --init
