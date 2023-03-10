@@ -10,13 +10,16 @@ RUN apk update \
 
 # Copy all binaries to make the image generic (only if space is not a big deal)
 COPY ./bin/* /usr/bin/
-VOLUME [ "/etc/tedge" ]
 VOLUME [ "/device-certs" ]
 
-COPY ./common/configure.sh ./common/init.sh /usr/local/bin/
+COPY ./common/configure.sh ./common/init.sh /usr/bin/
 # HACK: Initialize the file systems under /etc/tedge however it will be overridden by the later mounted volume
-RUN /usr/local/bin/configure.sh tedge tedge-agent c8y-log-plugin c8y-configuration-plugin c8y-firmware-plugin
+RUN /usr/bin/configure.sh tedge tedge-agent c8y-log-plugin c8y-configuration-plugin c8y-firmware-plugin
 USER tedge
 
-ENTRYPOINT ["/usr/local/bin/init.sh"]
+VOLUME [ "/etc/tedge" ]
+VOLUME [ "/var/tedge" ]
+VOLUME [ "/var/log/tedge" ]
+
+ENTRYPOINT ["/usr/bin/init.sh"]
 CMD [ "tedge-agent" ]

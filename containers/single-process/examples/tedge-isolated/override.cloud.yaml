@@ -1,0 +1,22 @@
+version: '3'
+services:
+  bootstrap:
+    image: reubenmiller/tedge-component:alpine
+  
+  mqtt-broker:
+    image: reubenmiller/tedge-mosquitto:2.0.14
+
+  tedge-mapper-c8y:
+    image: reubenmiller/tedge-component:alpine
+  
+  tedge-agent:
+    image: reubenmiller/tedge-component:alpine
+
+  c8y-configuration-plugin:
+    image: reubenmiller/tedge-component:alpine
+
+  c8y-log-plugin:
+    image: reubenmiller/tedge-component:alpine
+  
+  c8y-firmware-plugin:
+    image: reubenmiller/tedge-component:alpine

@@ -56,13 +56,13 @@ You can spin up the docker-compose of the thin-edge.io and all of its components
 If you would like to have a look inside the running containers then you can open a shell
 
 ```sh
-docker compose exec tedge-agent bash
+docker compose exec tedge-agent sh
 ```
 
-For the mqtt-broker, it uses the `ash` shell by default as `bash` is not installed.
+Or opening a shell on the `mqtt-broker` container:
 
 ```sh
-docker compose exec mqtt-broker ash
+docker compose exec mqtt-broker sh
 ```
 
 ## Troubleshooting connectivity to the tedge http server from within a container
@@ -78,9 +78,16 @@ You can check if the tedge http server is reachable from inside a container.
 2. From the container's shell, check the connectivity to the `tedge-agent` container by using its alias and a curl command.
 
     ```sh
-    curl http://tedgeapi:8000/somefile_that_does_not_exist
+    curl http://tedgeapi/somefile_that_does_not_exist
     ```
 
     **Notes**
     
     The curl command should return `not found`, as you have actually reached the server successfully, it just means that the server does not have a file under the path that you gave it. If the http server is not reachable, then you would get a "host not reachable" error or a "connection refused" error.
+
+
+## Running the example using images published to docker hub
+
+```sh
+docker compose -f ./docker-compose.yaml -f override.cloud.yaml up
+```
