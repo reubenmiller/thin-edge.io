@@ -7,35 +7,9 @@
 * [ ] Child configuration management probably won't work, as the container does not know where the tedgeapi endpoint is.
     * This will probably require moving the configuration so it can have independent settings, e.g. using the --config-dir "/plugin", then setting the external http address to "tedgeapi:8000"
 
-* [ ] Change default user in the container to "tedge"
-
-* [ ] The first startup is clunky because not all of the plugins are registered properly
-
 ## Findings
 
-### Configurable MQTT broker connection settings
-
-Each component should configurable mqtt broker connection settings, for example the following should be configurable:
-
-* Select connection mode to MQTT broker (e.g. username/password or certificate based)
-* Username/password configuration (used when connecting via username/password authentication)
-* Certificate paths for private, public and ca certificates (used when connecting via cert base authentication)
-
-
-### Running `--init` commands fail if `/run/lock` folder does not exist
-
-When building on alpine, the `/run/lock` folder does not exist, and hence any calls to binary which requires a lock file, e.g. `tedge --init` or `tedge-agent --init` will fail in the build steps. It forces the user to have to manually create the `/run/locks` directory during build time.
-
-**Resolution**
-
-There are a few options that could help solve this:
-
-* Add a flag to ignore the creation of the lock file, e.g. `--no-lock`
-* Don't create a lock if the `/run/locks` directory does not exist
-* Create the `/run/locks` directory if it does not exist (though this might be more effort that it is worth as it is a general folder and the wrong permissions might be added to it, so we would have to keep that logic up to date if new linux conventions come out)
-
-
-### Not all services have lock files
+### Not all services have lock files - solved after refactoring
 
 Lock files seem to be necessary as the client client id
 
@@ -52,7 +26,7 @@ Though these services do:
 Though avoiding lock files would be ideal in single-process container environments.
 
 
-### Components hang if the local mqtt broker does not exist - TBC
+### Components hang if the local mqtt broker does not exist - #1797
 
 The following components seem to hang if the broker does not exist. There is very little log output to help determine what is going on, just the tokio trace messages about polling.
 
@@ -105,55 +79,9 @@ Sudo is less relevant when running in a container, as the container provides the
 * Ignore/raise a warning if any configuration files which contain executable commands have the wrong file permissions (e.g. not 644)
 
 
-### Access to device.id information for plugins without having access to the certificate
-
-Most of the component currently rely on the `device.id` property to even initialize. The components rely on access to the public device certificate to be able to read the device.id. This dependency on a file means that plugins cannot not be deployed in a distributed manner. 
-
-Options could include:
-* API to request the device.id from the `tedge-agent`
-* Support setting the device id via environment variable rather than reading it from the public device certificate
-
-Though it seems strange that other components would have to care about the certificate which is only required for cloud communication, so just providing the device id would be good enough, or removing the need for it altogether in each of the components would be even better.
-
-
-
-
-### Registering of supported operations / functionality
-
-The only way for a plugin to register support for an operation to the `tedge-agent` is if it has access to the filesystem used by the `tedge-agent`.
-
-**Resolution**
-
-Create mqtt interface to register/unregister support for different operations. This allows the plugin to be hosted independently of the `tedge-agent`. A similar concept could also be used to register/unregister functionality for child devices.
-
-
-
-### Installing software packages with no default software manage
-
-* If there is no default sm-plugin, and the user tries installing a software package where the version does not include the "::<type>" syntax, then the software logs don't show what went wrong. This makes it very hard to debug it.
-
-The default detection of the software management plugins seems to be set once at start up, and during runtime. This means if at least 1 software management plugin is not already in place when `tedge-agent` starts, then no software management plugin will be used if it is missing the `::<type>` syntax.
-
-Also software management plugins should be able to be added and removed during the lifecycle of the `tedge-agent` without having to restart it.
-
-* crates/core/tedge_agent/src/agent.rs:324 - the default type is detected on startup only!
-
-**Resolution**
-
-* Run the default plugin detection logic just before executing the plugin and not at startup
-* If the default sm-plugin is set to incorrectly and there is still only 1 plugin in the list, then it should use the only plugin
-
 
 ## Discussion points
 
-### Publishing of measurements/events/alarms to services causes child devices
-
-If a service has not been registered prior to sending a measurement, event or alarm, then it results in the creation of a child device (which has the same external id as the service, so it means the devices can't be linked properly)
-
-**Resolution**
-
-* New api endpoint which is dedicated to the telemetry data for services and not child devices. If the service has not already been registered then it
-    * Maybe ignore measurements coming from unregistered services/components, rather than creating them on the fly? Though an explicit pre-registration step might not be wanted in all cases...only for things which are very stateful.
 
 ### Tedge root topic structure should be configurable
 
@@ -222,6 +150,26 @@ File based plugins need to be installed in the `tedge-agent` container in order 
 Whilst the plugins could be stored in a shared volume, it add more dependencies to the containerization setup.
 
 
+### Registration of components and their functionality
+
+The only way for a plugin to register support for an operation to the `tedge-agent` is if it has access to the filesystem used by the `tedge-agent`.
+
+**Resolution**
+
+Create mqtt interface to register/unregister support for different operations. This allows the plugin to be hosted independently of the `tedge-agent`. A similar concept could also be used to register/unregister functionality for child devices.
+
+
+### API to get information about the device
+
+Most of the component currently rely on the `device.id` property to even initialize. The components rely on access to the public device certificate to be able to read the device.id. This dependency on a file means that plugins cannot not be deployed in a distributed manner. 
+
+Options could include:
+* API to request the device.id from the `tedge-agent`
+* Support setting the device id via environment variable rather than reading it from the public device certificate
+
+Though it seems strange that other components would have to care about the certificate which is only required for cloud communication, so just providing the device id would be good enough, or removing the need for it altogether in each of the components would be even better.
+
+
 # Tickets
 
 
@@ -260,3 +208,21 @@ C8Y__URL=test-ci-runner01.latest.stage.c8y.io
 
 Note this will not work for all of the complex toml configuration, however at least the key configuration such as c8y.url, broker address etc, should work just fine.
 
+### Configurable MQTT broker connection settings #1785
+
+Each component should configurable mqtt broker connection settings, for example the following should be configurable:
+
+* ~Select connection mode to MQTT broker (e.g. username/password or certificate based)~
+* ~Username/password configuration (used when connecting via username/password authentication)~
+* Certificate paths for private, public and ca certificates (used when connecting via cert base authentication)
+
+
+### Running `--init` commands fail if `/run/lock` folder does not exist #1802
+
+When building on alpine, the `/run/lock` folder does not exist, and hence any calls to binary which requires a lock file, e.g. `tedge --init` or `tedge-agent --init` will fail in the build steps. It forces the user to have to manually create the `/run/locks` directory during build time.
+
+**Resolution**
+
+There are a few options that could help solve this:
+
+* Add a new configuration option to disable the lock file generation
