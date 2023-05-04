@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+description="Thin-edge device configuration management for Cumulocity"
+command="/usr/bin/c8y-configuration-plugin"
+command_background=true
+pidfile="/run/lock/${RC_SVCNAME}.lock"
+
+depends() {
+    after mosquitto
+}

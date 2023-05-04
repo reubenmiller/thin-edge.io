@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+description="tedge-mapper-c8y converts Thin Edge JSON measurements to Cumulocity JSON format"
+command="/usr/bin/tedge-mapper"
+command_args="c8y"
+command_background=true
+pidfile="/run/lock/${RC_SVCNAME}.lock"
+command_user="tedge:tedge"
+
+depends() {
+    after mosquitto
+}

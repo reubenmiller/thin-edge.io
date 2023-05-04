@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+description="tedge-mapper-aws checks Thin Edge JSON measurements and forwards to AWS IoT Hub"
+command="/usr/bin/tedge-mapper"
+command_args="aws"
+command_background=true
+pidfile="run/lock/${RC_SVCNAME}.lock"
+command_user="tedge:tedge"
+
+depends() {
+    after mosquitto
+}

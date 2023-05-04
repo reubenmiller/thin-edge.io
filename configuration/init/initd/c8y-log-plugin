@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+description="Thin-edge logfile retriever for Cumulocity"
+command="/usr/bin/c8y-log-plugin"
+command_background=true
+pidfile="/run/lock/${RC_SVCNAME}.lock"
+
+depends() {
+    after tedge-mapper-c8y
+}
