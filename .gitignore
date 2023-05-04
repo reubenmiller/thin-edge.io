@@ -37,6 +37,7 @@ tests/PySys/**/*.err
 **/__pycache__
 tests/PySys/**/Output/
 **/*venv*
+**/output_flake*/
 
 # Other files
 Makefile.toml
