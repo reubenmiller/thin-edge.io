@@ -12,6 +12,7 @@ use tedge_actors::NoConfig;
 use tedge_actors::RuntimeRequest;
 use tedge_actors::RuntimeRequestSink;
 use tedge_actors::ServiceProvider;
+use tedge_api::messages::build_topic;
 use tedge_api::RestartOperationRequest;
 use tedge_api::RestartOperationResponse;
 use tedge_mqtt_ext::MqttMessage;
@@ -66,9 +67,9 @@ impl TedgeOperationConverterBuilder {
 
     pub fn subscriptions() -> TopicFilter {
         vec![
-            "tedge/commands/req/software/list",
-            "tedge/commands/req/software/update",
-            "tedge/commands/req/control/restart",
+            build_topic("commands/req/software/list"),
+            build_topic("commands/req/software/update"),
+            build_topic("commands/req/control/restart"),
         ]
         .try_into()
         .expect("Infallible")

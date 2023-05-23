@@ -18,6 +18,7 @@ pub use download::*;
 pub use error::*;
 pub use messages::control_filter_topic;
 pub use messages::software_filter_topic;
+pub use messages::build_topic;
 pub use messages::Jsonify;
 pub use messages::OperationStatus;
 pub use messages::RestartOperationRequest;
@@ -41,27 +42,27 @@ mod tests {
         // one for the requests, the other for the responses
         assert_eq!(
             SoftwareListRequest::topic(),
-            Topic::new_unchecked("tedge/commands/req/software/list")
+            Topic::new_unchecked(&build_topic("commands/req/software/list"))
         );
         assert_eq!(
             SoftwareListResponse::topic(),
-            Topic::new_unchecked("tedge/commands/res/software/list")
+            Topic::new_unchecked(&build_topic("commands/res/software/list"))
         );
         assert_eq!(
             SoftwareUpdateRequest::topic(),
-            Topic::new_unchecked("tedge/commands/req/software/update")
+            Topic::new_unchecked(&build_topic("commands/req/software/update"))
         );
         assert_eq!(
             SoftwareUpdateResponse::topic(),
-            Topic::new_unchecked("tedge/commands/res/software/update")
+            Topic::new_unchecked(&build_topic("commands/res/software/update"))
         );
         assert_eq!(
             RestartOperationRequest::topic(),
-            Topic::new_unchecked("tedge/commands/req/control/restart")
+            Topic::new_unchecked(&build_topic("commands/req/control/restart"))
         );
         assert_eq!(
             RestartOperationResponse::topic(),
-            Topic::new_unchecked("tedge/commands/res/control/restart")
+            Topic::new_unchecked(&build_topic("commands/res/control/restart"))
         );
     }
 

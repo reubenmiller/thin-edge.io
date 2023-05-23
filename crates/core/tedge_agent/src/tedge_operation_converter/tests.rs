@@ -11,6 +11,7 @@ use tedge_actors::MessageReceiver;
 use tedge_actors::Sender;
 use tedge_actors::SimpleMessageBox;
 use tedge_actors::SimpleMessageBoxBuilder;
+use tedge_api::messages::build_topic;
 use tedge_api::messages::SoftwareModuleAction;
 use tedge_api::messages::SoftwareModuleItem;
 use tedge_api::messages::SoftwareRequestResponseSoftwareList;
@@ -32,7 +33,7 @@ async fn convert_incoming_software_list_request() -> Result<(), DynError> {
 
     // Simulate SoftwareList MQTT message received.
     let mqtt_message = MqttMessage::new(
-        &Topic::new_unchecked("tedge/commands/req/software/list"),
+        &Topic::new_unchecked(&build_topic("commands/req/software/list")),
         r#"{"id": "random"}"#,
     );
     mqtt_box.send(mqtt_message).await?;
@@ -53,7 +54,7 @@ async fn convert_incoming_software_update_request() -> Result<(), DynError> {
 
     // Simulate SoftwareUpdate MQTT message received.
     let mqtt_message = MqttMessage::new(
-        &Topic::new_unchecked("tedge/commands/req/software/update"),
+        &Topic::new_unchecked(&build_topic("commands/req/software/update")),
         r#"{"id":"1234","updateList":[{"type":"debian","modules":[{"name":"debian1","version":"0.0.1","action":"install"}]}]}"#,
     );
     mqtt_box.send(mqtt_message).await?;
@@ -89,7 +90,7 @@ async fn convert_incoming_restart_request() -> Result<(), DynError> {
 
     // Simulate Restart MQTT message received.
     let mqtt_message = MqttMessage::new(
-        &Topic::new_unchecked("tedge/commands/req/control/restart"),
+        &Topic::new_unchecked(&build_topic("commands/req/control/restart")),
         r#"{"id": "random"}"#,
     );
     mqtt_box.send(mqtt_message).await?;
@@ -116,7 +117,7 @@ async fn convert_outgoing_software_list_response() -> Result<(), DynError> {
 
     mqtt_box
         .assert_received([MqttMessage::new(
-            &Topic::new_unchecked("tedge/commands/res/software/list"),
+            &Topic::new_unchecked(&build_topic("commands/res/software/list")),
             r#"{"id":"1234","status":"executing"}"#,
         )])
         .await;
@@ -136,7 +137,7 @@ async fn convert_outgoing_software_update_response() -> Result<(), DynError> {
 
     mqtt_box
         .assert_received([MqttMessage::new(
-            &Topic::new_unchecked("tedge/commands/res/software/update"),
+            &Topic::new_unchecked(&build_topic("commands/res/software/update")),
             r#"{"id":"1234","status":"executing"}"#,
         )])
         .await;
@@ -158,7 +159,7 @@ async fn convert_outgoing_restart_response() -> Result<(), DynError> {
         .await
         .map(|msg| (msg.topic, msg.payload))
         .expect("MqttMessage");
-    assert_eq!(topic.name, "tedge/commands/res/control/restart");
+    assert_eq!(topic.name, build_topic("commands/res/control/restart"));
     assert!(format!("{:?}", payload).contains(r#"status":"executing"#));
 
     Ok(())

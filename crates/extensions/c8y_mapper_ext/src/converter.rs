@@ -443,7 +443,7 @@ impl CumulocityConverter {
         &mut self,
         smartrest: &str,
     ) -> Result<Vec<Message>, CumulocityMapperError> {
-        let topic = Topic::new(RequestTopic::SoftwareUpdateRequest.as_str())?;
+        let topic = Topic::new(&RequestTopic::SoftwareUpdateRequest.as_str())?;
         let update_software = SmartRestUpdateSoftware::default();
         let mut software_update_request = update_software
             .from_smartrest(smartrest)?
@@ -475,7 +475,7 @@ impl CumulocityConverter {
     }
 
     fn forward_restart_request(smartrest: &str) -> Result<Vec<Message>, CumulocityMapperError> {
-        let topic = Topic::new(RequestTopic::RestartRequest.as_str())?;
+        let topic = Topic::new(&RequestTopic::RestartRequest.as_str())?;
         let _ = SmartRestRestartRequest::from_smartrest(smartrest)?;
 
         let request = RestartOperationRequest::default();
@@ -815,7 +815,7 @@ fn create_device_data_fragments(
 
 fn create_get_software_list_message() -> Result<Message, ConversionError> {
     let request = SoftwareListRequest::default();
-    let topic = Topic::new(RequestTopic::SoftwareListRequest.as_str())?;
+    let topic = Topic::new(&RequestTopic::SoftwareListRequest.as_str())?;
     let payload = request.to_json().unwrap();
     Ok(Message::new(&topic, payload))
 }

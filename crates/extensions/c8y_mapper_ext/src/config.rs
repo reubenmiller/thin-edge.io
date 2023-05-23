@@ -85,9 +85,9 @@ impl C8yMapperConfig {
             "tedge/health/+",
             "tedge/health/+/+",
             C8yTopic::SmartRestRequest.to_string().as_str(),
-            ResponseTopic::SoftwareListResponse.as_str(),
-            ResponseTopic::SoftwareUpdateResponse.as_str(),
-            ResponseTopic::RestartResponse.as_str(),
+            &ResponseTopic::SoftwareListResponse.as_str(),
+            &ResponseTopic::SoftwareUpdateResponse.as_str(),
+            &ResponseTopic::RestartResponse.as_str(),
         ]
         .try_into()
         .expect("topics that mapper should subscribe to");

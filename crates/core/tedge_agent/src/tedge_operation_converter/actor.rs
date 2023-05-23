@@ -9,6 +9,7 @@ use tedge_actors::LoggingSender;
 use tedge_actors::MessageReceiver;
 use tedge_actors::RuntimeError;
 use tedge_actors::Sender;
+use tedge_api::messages;
 use tedge_api::Jsonify;
 use tedge_api::RestartOperationRequest;
 use tedge_api::RestartOperationResponse;
@@ -74,24 +75,24 @@ impl TedgeOperationConverterActor {
         &mut self,
         message: MqttMessage,
     ) -> Result<(), TedgeOperationConverterError> {
-        match message.topic.name.as_str() {
-            "tedge/commands/req/software/list" => {
-                let request = SoftwareListRequest::from_slice(message.payload_bytes())?;
-                self.software_sender
-                    .send(SoftwareRequest::SoftwareListRequest(request))
-                    .await?;
-            }
-            "tedge/commands/req/software/update" => {
-                let request = SoftwareUpdateRequest::from_slice(message.payload_bytes())?;
-                self.software_sender
-                    .send(SoftwareRequest::SoftwareUpdateRequest(request))
-                    .await?;
-            }
-            "tedge/commands/req/control/restart" => {
-                let request = RestartOperationRequest::from_slice(message.payload_bytes())?;
-                self.restart_sender.send(request).await?;
-            }
-            _ => unreachable!(),
+
+        let topic = message.topic.name.as_str();
+
+        if topic == messages::build_topic("commands/req/software/list") {
+            let request = SoftwareListRequest::from_slice(message.payload_bytes())?;
+            self.software_sender
+                .send(SoftwareRequest::SoftwareListRequest(request))
+                .await?;
+        } else if topic == messages::build_topic("commands/req/software/update") {
+            let request = SoftwareUpdateRequest::from_slice(message.payload_bytes())?;
+            self.software_sender
+                .send(SoftwareRequest::SoftwareUpdateRequest(request))
+                .await?;
+        } else if topic == messages::build_topic("commands/req/control/restart") {
+            let request = RestartOperationRequest::from_slice(message.payload_bytes())?;
+            self.restart_sender.send(request).await?;
+        } else {
+            unreachable!()
         }
         Ok(())
     }
@@ -101,7 +102,7 @@ impl TedgeOperationConverterActor {
         response: SoftwareListResponse,
     ) -> Result<(), TedgeOperationConverterError> {
         let message = MqttMessage::new(
-            &Topic::new_unchecked("tedge/commands/res/software/list"),
+            &Topic::new_unchecked(&messages::build_topic("commands/res/software/list")),
             response.to_bytes()?,
         );
         self.mqtt_publisher.send(message).await?;
@@ -113,7 +114,7 @@ impl TedgeOperationConverterActor {
         response: SoftwareUpdateResponse,
     ) -> Result<(), TedgeOperationConverterError> {
         let message = MqttMessage::new(
-            &Topic::new_unchecked("tedge/commands/res/software/update"),
+            &Topic::new_unchecked(&messages::build_topic("commands/res/software/update")),
             response.to_bytes()?,
         );
         self.mqtt_publisher.send(message).await?;
@@ -125,7 +126,7 @@ impl TedgeOperationConverterActor {
         response: RestartOperationResponse,
     ) -> Result<(), TedgeOperationConverterError> {
         let message = MqttMessage::new(
-            &Topic::new_unchecked("tedge/commands/res/control/restart"),
+            &Topic::new_unchecked(&messages::build_topic("commands/res/control/restart")),
             response.to_bytes()?,
         );
         self.mqtt_publisher.send(message).await?;

@@ -5,13 +5,14 @@ use mqtt_channel::Topic;
 use nanoid::nanoid;
 use serde::Deserialize;
 use serde::Serialize;
+use std::borrow::Cow;
 
-const SOFTWARE_LIST_REQUEST_TOPIC: &str = "tedge/commands/req/software/list";
-const SOFTWARE_LIST_RESPONSE_TOPIC: &str = "tedge/commands/res/software/list";
-const SOFTWARE_UPDATE_REQUEST_TOPIC: &str = "tedge/commands/req/software/update";
-const SOFTWARE_UPDATE_RESPONSE_TOPIC: &str = "tedge/commands/res/software/update";
-const DEVICE_RESTART_REQUEST_TOPIC: &str = "tedge/commands/req/control/restart";
-const DEVICE_RESTART_RESPONSE_TOPIC: &str = "tedge/commands/res/control/restart";
+const SOFTWARE_LIST_REQUEST_TOPIC: &str = "commands/req/software/list";
+const SOFTWARE_LIST_RESPONSE_TOPIC: &str = "commands/res/software/list";
+const SOFTWARE_UPDATE_REQUEST_TOPIC: &str = "commands/req/software/update";
+const SOFTWARE_UPDATE_RESPONSE_TOPIC: &str = "commands/res/software/update";
+const DEVICE_RESTART_REQUEST_TOPIC: &str = "commands/req/control/restart";
+const DEVICE_RESTART_RESPONSE_TOPIC: &str = "commands/res/control/restart";
 
 /// All the messages are serialized using json.
 pub trait Jsonify<'a>
@@ -43,6 +44,17 @@ pub const fn control_filter_topic() -> &'static str {
     "tedge/commands/req/control/#"
 }
 
+fn topic_prefix() -> Cow<'static, str> {
+    std::env::var("TEDGE_TOPIC_PREFIX")
+    .map(Into::into)
+    .unwrap_or("tedge".into())
+}
+
+// Build a topic by using a configurable topic prefix
+pub fn build_topic(partial: &str) -> String {
+    format!("{}/{}", topic_prefix(), partial)
+}
+
 /// Message payload definition for SoftwareList request.
 #[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -66,7 +78,7 @@ impl SoftwareListRequest {
     }
 
     pub fn topic() -> Topic {
-        Topic::new_unchecked(SOFTWARE_LIST_REQUEST_TOPIC)
+        Topic::new_unchecked(&build_topic(SOFTWARE_LIST_REQUEST_TOPIC))
     }
 }
 
@@ -100,7 +112,7 @@ impl SoftwareUpdateRequest {
     }
 
     pub fn topic() -> Topic {
-        Topic::new_unchecked(SOFTWARE_UPDATE_REQUEST_TOPIC)
+        Topic::new_unchecked(&build_topic(SOFTWARE_UPDATE_REQUEST_TOPIC))
     }
 
     pub fn add_update(&mut self, mut update: SoftwareModuleUpdate) {
@@ -213,7 +225,7 @@ impl SoftwareListResponse {
     }
 
     pub fn topic() -> Topic {
-        Topic::new_unchecked(SOFTWARE_LIST_RESPONSE_TOPIC)
+        Topic::new_unchecked(&build_topic(SOFTWARE_LIST_RESPONSE_TOPIC))
     }
 
     pub fn add_modules(&mut self, plugin_type: &str, modules: Vec<SoftwareModule>) {
@@ -265,7 +277,7 @@ impl SoftwareUpdateResponse {
     }
 
     pub fn topic() -> Topic {
-        Topic::new_unchecked(SOFTWARE_UPDATE_RESPONSE_TOPIC)
+        Topic::new_unchecked(&build_topic(SOFTWARE_UPDATE_RESPONSE_TOPIC))
     }
 
     pub fn add_modules(&mut self, plugin_type: &str, modules: Vec<SoftwareModule>) {
@@ -501,7 +513,7 @@ impl RestartOperationRequest {
     }
 
     pub fn topic() -> Topic {
-        Topic::new_unchecked(DEVICE_RESTART_REQUEST_TOPIC)
+        Topic::new_unchecked(&build_topic(DEVICE_RESTART_REQUEST_TOPIC))
     }
 }
 
@@ -526,7 +538,7 @@ impl RestartOperationResponse {
     }
 
     pub fn topic() -> Topic {
-        Topic::new_unchecked(DEVICE_RESTART_RESPONSE_TOPIC)
+        Topic::new_unchecked(&build_topic(DEVICE_RESTART_RESPONSE_TOPIC))
     }
 
     pub fn status(&self) -> OperationStatus {

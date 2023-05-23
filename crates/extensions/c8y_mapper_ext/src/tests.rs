@@ -6,6 +6,7 @@ use c8y_api::smartrest::topic::C8yTopic;
 use c8y_http_proxy::messages::C8YRestRequest;
 use c8y_http_proxy::messages::C8YRestResult;
 use serde_json::json;
+use tedge_api::build_topic;
 use std::time::Duration;
 use tedge_actors::test_helpers::MessageReceiverExt;
 use tedge_actors::Actor;
@@ -57,7 +58,7 @@ async fn mapper_publishes_init_messages_on_startup() {
                 &json!({"type":"test-device-type"}).to_string(),
             ),
             ("c8y/s/us", "500"),
-            ("tedge/commands/req/software/list", r#"{"id":"#),
+            (&build_topic("commands/req/software/list"), r#"{"id":"#),
         ],
     )
     .await;
@@ -85,7 +86,7 @@ async fn mapper_publishes_software_update_request() {
     assert_received_includes_json(
         &mut mqtt,
         [(
-            "tedge/commands/req/software/update",
+            build_topic("commands/req/software/update"),
             json!({
                 "updateList": [
                     {
@@ -222,7 +223,7 @@ async fn mapper_fails_during_sw_update_recovers_and_process_response() -> Result
 
     // Create a subscriber to receive messages on `tedge/commands/req/software/update` topic.
     let mut requests = broker
-        .messages_published_on("tedge/commands/req/software/update")
+        .messages_published_on(build_topic("commands/req/software/update"))
         .await;
 
     // Create a subscriber to receive messages on `"c8y/s/us` topic.
@@ -279,7 +280,7 @@ async fn mapper_fails_during_sw_update_recovers_and_process_response() -> Result
         ]}"#;
     broker
         .publish(
-            "tedge/commands/res/software/update",
+            build_topic("commands/res/software/update"),
             &remove_whitespace(json_response),
         )
         .await
@@ -746,7 +747,7 @@ async fn mapper_handles_multiline_sm_requests() {
         &mut mqtt,
         [
             (
-                "tedge/commands/req/software/update",
+                build_topic("commands/req/software/update"),
                 json!({
                     "updateList": [
                         {
@@ -763,7 +764,7 @@ async fn mapper_handles_multiline_sm_requests() {
                 }),
             ),
             (
-                "tedge/commands/req/software/update",
+                build_topic("commands/req/software/update"),
                 json!({
                     "updateList": [
                         {
