@@ -12,6 +12,8 @@ mod software_manager;
 mod state_repository;
 mod tedge_operation_converter;
 
+const TEDGE_AGENT: &str = "tedge-agent";
+
 #[derive(Debug, clap::Parser)]
 #[clap(
 name = clap::crate_name!(),
@@ -35,6 +37,10 @@ pub struct AgentOpt {
     /// WARNING: This is mostly used in testing.
     #[clap(long = "config-dir", default_value = DEFAULT_TEDGE_CONFIG_PATH)]
     pub config_dir: Utf8PathBuf,
+
+    /// MQTT client id
+    #[clap(long = "client-id", default_value = TEDGE_AGENT)]
+    pub client_id: String,
 }
 
 #[tokio::main]
@@ -60,7 +66,7 @@ async fn main() -> Result<(), anyhow::Error> {
     if agent_opt.init {
         agent.init(agent_opt.config_dir).await?;
     } else {
-        agent.start().await?;
+        agent.start(&agent_opt.client_id).await?;
     }
     Ok(())
 }

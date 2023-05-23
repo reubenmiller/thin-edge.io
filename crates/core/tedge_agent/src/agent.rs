@@ -136,7 +136,7 @@ impl Agent {
     }
 
     #[instrument(skip(self), name = "sm-agent")]
-    pub async fn start(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn start(&mut self, client_id: &str) -> Result<(), anyhow::Error> {
         info!("Starting tedge agent");
 
         // Runtime
@@ -156,7 +156,7 @@ impl Agent {
             self.config
                 .mqtt_config
                 .clone()
-                .with_session_name(TEDGE_AGENT),
+                .with_session_name(client_id),
         );
 
         // Software update actor
