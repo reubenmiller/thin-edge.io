@@ -45,7 +45,7 @@ pub const fn control_filter_topic() -> &'static str {
 }
 
 fn topic_prefix() -> Cow<'static, str> {
-    std::env::var("TEDGE_TOPIC_PREFIX")
+    std::env::var("EXP_TOPIC_PREFIX")
     .map(Into::into)
     .unwrap_or("tedge".into())
 }
