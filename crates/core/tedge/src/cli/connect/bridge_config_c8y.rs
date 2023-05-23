@@ -57,6 +57,8 @@ impl From<BridgeConfigC8yParams> for BridgeConfig {
             // c8y JWT token retrieval
             r#"s/uat/# out 2 c8y/ """#.into(),
             r#"s/dat/# in 2 c8y/ """#.into(),
+            // JSON operation notifications
+            r#"devicecontrol/notifications/# in 2 c8y/ """#.into(),
         ];
 
         let templates_set = smartrest_templates
