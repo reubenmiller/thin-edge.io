@@ -1,10 +1,19 @@
 #!/sbin/openrc-run
 description="tedge-agent is a thin-edge.io component to support operations"
 command="/usr/bin/tedge-agent"
-command_background=true
+command_background="yes"
 pidfile="/run/lock/${RC_SVCNAME}.lock"
+: ${command_user=tedge}
 command_user="tedge:tedge"
 
 depends() {
     after mosquitto
+}
+
+start() {
+    ebegin "Starting $RC_SVCNAME"
+    start-stop-daemon --start \
+        --exec /usr/bin/tedge-agent \
+        --pidfile "/run/lock/${RC_SVCNAME}.lock"
+    eend $?
 }

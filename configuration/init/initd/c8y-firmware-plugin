@@ -1,7 +1,7 @@
 #!/sbin/openrc-run
 description="Thin-edge device firmware management for Cumulocity"
 command="/usr/bin/c8y-firmware-plugin"
-command_background=true
+command_background="yes"
 pidfile="/run/lock/${RC_SVCNAME}.lock"
 command_user="tedge:tedge"
 
