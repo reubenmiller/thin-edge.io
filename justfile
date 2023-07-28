@@ -5,6 +5,10 @@ set ignore-comments
 default:
     @just --list
 
+# Build linux packages
+build-nfpm:
+    ci/build_scripts/package.sh
+
 # Install necessary tools
 install-tools:
     rustup component add rustfmt --toolchain nightly

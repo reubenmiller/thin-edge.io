@@ -42,6 +42,10 @@ docs/theme/pagetoc.js
 # Symlink used when building docs in tedge-docs repo
 docs/src/src
 
+# Packaging
+dist/
+.build
+
 # Other files
 Makefile.toml
 .vimspector.json

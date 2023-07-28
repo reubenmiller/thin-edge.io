@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://nfpm.goreleaser.com/static/schema.json
+---
+name: c8y-remote-access-plugin
+description: |
+  Thin-edge device log file retriever for Cumulocity
+arch: "${PKG_ARCH}"
+platform: "linux"
+version: "${GIT_SEMVER}"
+section: "default"
+priority: "optional"
+maintainer: "thin-edge.io team <info@thin-edge.io>"
+vendor: "thin-edge.io"
+homepage: "https://thin-edge.io"
+license: "Apache-2.0"
+
+deb:
+  fields:
+    Vcs-Browser: ${CI_PROJECT_URL}
+    Vcs-Git: ${CI_PROJECT_URL}
+  compression: xz
+
+contents:
+  # binary
+  - src: .build/c8y-remote-access-plugin
+    dst: /usr/bin/
+    file_info:
+      mode: 755
+
+scripts:
+  postinstall: configuration/debian/c8y-remote-access-plugin/postinst
+  preremove: configuration/debian/c8y-remote-access-plugin/prerm

@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=https://nfpm.goreleaser.com/static/schema.json
+---
+name: "tedge-mapper"
+description: |
+  tedge-mapper is the mapper that translates thin-edge.io data model to c8y/az data model.
+arch: "${PKG_ARCH}"
+platform: "linux"
+version: "${GIT_SEMVER}"
+section: "default"
+priority: "optional"
+maintainer: "thin-edge.io team <info@thin-edge.io>"
+vendor: "thin-edge.io"
+homepage: "https://thin-edge.io"
+license: "Apache-2.0"
+
+depends:
+  - tedge
+replaces:
+  - tedge_mapper
+provides:
+  - tedge_mapper
+conflicts:
+  - tedge_mapper (<= 0.8.1)
+recommends:
+  - mosquitto
+
+deb:
+  fields:
+    Vcs-Browser: ${CI_PROJECT_URL}
+    Vcs-Git: ${CI_PROJECT_URL}
+  compression: xz
+  breaks:
+    - tedge_mapper (<= 0.8.1)
+
+contents:
+  # binary
+  - src: .build/tedge-mapper
+    dst: /usr/bin/
+    file_info:
+      mode: 755
+
+  # service definitions
+  - src: ./configuration/init/systemd/tedge-mapper-aws.service
+    dst: /lib/systemd/system/tedge-mapper-aws.service
+    file_info:
+      mode: 644
+  - src: ./configuration/init/systemd/tedge-mapper-az.service
+    dst: /lib/systemd/system/tedge-mapper-az.service
+    file_info:
+      mode: 644
+  - src: ./configuration/init/systemd/tedge-mapper-c8y.service
+    dst: /lib/systemd/system/tedge-mapper-c8y.service
+    file_info:
+      mode: 644
+  - src: ./configuration/init/systemd/tedge-mapper-collectd.service
+    dst: /lib/systemd/system/tedge-mapper-collectd.service
+    file_info:
+      mode: 644
+  - src: ./configuration/contrib/collectd/collectd.conf
+    dst: /etc/tedge/contrib/collectd/
+    file_info:
+      mode: 644
+
+scripts:
+  postinstall: configuration/debian/tedge-mapper/postinst
+  postremove: configuration/debian/tedge-mapper/postrm
+  preremove: configuration/debian/tedge-mapper/prerm

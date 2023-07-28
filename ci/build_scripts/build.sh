@@ -139,12 +139,6 @@ if [ "$SHOW_VERSION" == "1" ]; then
     exit 0
 fi
 
-# Install required cargo crates
-# cargo-deb >=1.41.3, the debian package names are automatically converted to a debian-conform name
-if ! cargo deb --help &>/dev/null; then
-    cargo install cargo-deb --version 1.41.3
-fi
-
 # Use zig to build as it is provides better cross compiling support
 if ! cargo zigbuild --help &>/dev/null; then
     cargo install cargo-zigbuild
@@ -219,18 +213,16 @@ if [ -n "$GIT_SEMVER" ]; then
     )
 fi
 
-# Create debian packages for release artifacts
-for PACKAGE in "${RELEASE_PACKAGES[@]}"
-do
-    cargo deb -p "$PACKAGE" --no-strip --no-build "${DEB_OPTIONS[@]}" "${TARGET[@]}"
-done
+# TODO: Build release artifacts using nfpm
+
 
 # Strip and build for test artifacts
 for PACKAGE in "${TEST_PACKAGES[@]}"
 do
     cargo zigbuild --release -p "$PACKAGE" "${TARGET[@]}"
-    cargo deb -p "$PACKAGE" --no-strip --no-build "${DEB_OPTIONS[@]}" "${TARGET[@]}"
 done
+
+# TODO: build test packages
 
 # Create tarball with just the binaries
 echo -e "\nCreating tarball"
