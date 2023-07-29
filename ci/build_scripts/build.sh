@@ -11,7 +11,7 @@ set -eo pipefail
 
 help() {
   cat <<EOF
-Compile and build the tedge components and debian packages.
+Compile and build the tedge components and linux packages.
 Cross is automatically used if you are trying to build for a foreign target (e.g. build for arm64 on a x86_64 machine)
 
 By default, if the project is cloned using git (with all history), the version will be determined
@@ -205,16 +205,9 @@ source ./ci/package_list.sh
 # GIT_SEMVER should be referenced in the build.rs scripts
 cargo zigbuild "${TARGET[@]}" "${BUILD_OPTIONS[@]}"
 
-# set cargo deb options
-DEB_OPTIONS=()
-if [ -n "$GIT_SEMVER" ]; then
-    DEB_OPTIONS+=(
-        --deb-version "$GIT_SEMVER"
-    )
-fi
-
-# TODO: Build release artifacts using nfpm
-
+# Create release packages
+./ci/build_scripts/package.sh build "$ARCH" "${RELEASE_PACKAGES[@]}" --version "$GIT_SEMVER"
+./ci/build_scripts/package.sh build_meta "$ARCH" --version "$GIT_SEMVER"
 
 # Strip and build for test artifacts
 for PACKAGE in "${TEST_PACKAGES[@]}"
@@ -222,12 +215,5 @@ do
     cargo zigbuild --release -p "$PACKAGE" "${TARGET[@]}"
 done
 
-# TODO: build test packages
-
-# Create tarball with just the binaries
-echo -e "\nCreating tarball"
-rm -f "target/$ARCH/"*tar.gz
-# Use underscores as a delimiter between version and target/arch to make it easier to parse
-TAR_FILE="target/$ARCH/tedge_${GIT_SEMVER}_$ARCH.tar.gz"
-tar cfvz "$TAR_FILE" -C "target/$ARCH/release" --files-from <(printf "%s\n" "${RELEASE_PACKAGES[@]}")
-echo -e "\nCreated tarball: $TAR_FILE\n"
+# Package test binaries (deb only)
+./ci/build_scripts/package.sh build "$ARCH" "${TEST_PACKAGES[@]}" --version "$GIT_SEMVER" --types deb
