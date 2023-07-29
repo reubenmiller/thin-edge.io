@@ -19,6 +19,10 @@ deb:
     Vcs-Git: ${CI_PROJECT_URL}
   compression: xz
 
+depends:
+  # Requires tedge user (created by the tedge package) before post installation
+  - tedge
+
 contents:
   # binary
   - src: .build/c8y-remote-access-plugin
