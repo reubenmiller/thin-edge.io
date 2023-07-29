@@ -9,6 +9,20 @@ purge_mapper_lock() {
         /run/lock/tedge-mapper-collectd.lock
 }
 
+purge() {
+    printf "\033[32m Purge\033[0m"
+    purge_operations
+    purge_mapper_lock
+}
+
+remove() {
+    printf "\033[32m Remove\033[0m"
+}
+
+upgrade() {
+    printf "\033[32m Upgrade\033[0m"
+}
+
 case "$1" in
     purge)
         purge_mapper_lock

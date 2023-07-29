@@ -57,6 +57,24 @@ purge_var_log() {
     fi
 }
 
+purge() {
+    printf "\033[32m Purge\033[0m"
+    remove_user_tedge
+    remove_tedge_group
+    remove_mosquitto_edit
+    remove_sudoers_file
+    purge_configs
+    purge_var_log
+}
+
+remove() {
+    printf "\033[32m Remove\033[0m"
+}
+
+upgrade() {
+    printf "\033[32m Upgrade\033[0m"
+}
+
 case "$1" in
     purge)
         remove_user_tedge
