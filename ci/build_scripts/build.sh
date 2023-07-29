@@ -112,12 +112,65 @@ fi
 
 export GIT_SEMVER="${GIT_SEMVER:-}"
 
+next_base_version() {
+    local version="$1"
+    local bump_type="$2"
+    local major
+    local minor
+    local patch
+    major=$(echo "$version" | cut -d'.' -f1)
+    minor=$(echo "$version" | cut -d'.' -f2)
+    patch=$(echo "$version" | cut -d'.' -f3)
+    
+    case "$bump_type" in
+        major)
+            major=$((major + 1))
+            ;;
+        minor)
+            minor=$((minor + 1))
+            ;;
+        patch)
+            patch=$((patch + 1))
+            ;;
+        *)
+            patch=$((patch + 1))
+            ;;
+    esac
+
+    echo "${major}.${minor}.${patch}"
+}
+
 # Set version from scm
 # Run before installing any dependencies so that it
 # can be called from other tools without requiring cargo
 if [ -z "$GIT_SEMVER" ]; then
     if command -v git >/dev/null 2>&1; then
-        GIT_DESCRIBE=$(git describe --always --tags --abbrev=8 2>/dev/null || true)
+        GIT_DESCRIBE_RAW=$(git describe --always --tags --abbrev=8 2>/dev/null || true)
+
+        BASE_VERSION=$(echo "$GIT_DESCRIBE_RAW" | cut -d- -f1)
+        BUILD_COMMITS_SINCE=$(echo "$GIT_DESCRIBE_RAW" | cut -d- -f2)
+        BUILD_COMMIT_HASH=$(echo "$GIT_DESCRIBE_RAW" | cut -d- -f3)
+
+        if [ -n "$BUILD_COMMITS_SINCE" ]; then
+            # If there is build info, it means we are building an unofficial version (e.g. it does not have a git tag)
+            # Bump version automatically, and use the build info to mark it as a pre-release version
+            #
+            # Note: Use a tilda (~) to seperate the version from the build info
+            # as debian treats everything after ~ as a pre-release of the currently named
+            # version.
+            #
+            # Example: 0.11.0~296-ga8025ffd should be considered less than 0.11.0
+            #  Correct: dpkg --compare-versions 0.11.0~296-ga8025ffd '<<' 0.11.0
+            #  Wrong: dpkg --compare-versions 0.11.0~296-ga8025ffd '<<' 0.11.0
+            #
+            # Example: 0.11.0~296-ga8025ffd should be less than 0.11.0~297-gabcdefab
+            #
+            AUTO_BUMP="patch"
+            NEXT_BASE_VERSION=$(next_base_version "$BASE_VERSION" "$AUTO_BUMP")
+            GIT_DESCRIBE="${NEXT_BASE_VERSION}~${BUILD_COMMITS_SINCE}+${BUILD_COMMIT_HASH}"
+        else
+            GIT_DESCRIBE="$BASE_VERSION"
+        fi
 
         # only match if it looks like a semver version
         if [[ "$GIT_DESCRIBE" =~ ^[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
@@ -206,8 +259,11 @@ source ./ci/package_list.sh
 cargo zigbuild "${TARGET[@]}" "${BUILD_OPTIONS[@]}"
 
 # Create release packages
-./ci/build_scripts/package.sh build "$ARCH" "${RELEASE_PACKAGES[@]}" --version "$GIT_SEMVER"
-./ci/build_scripts/package.sh build_meta "$ARCH" --version "$GIT_SEMVER"
+OUTPUT_DIR="target/$ARCH/packages"
+./ci/build_scripts/package.sh build "$ARCH" "${RELEASE_PACKAGES[@]}" --version "$GIT_SEMVER" --output "$OUTPUT_DIR"
+
+# TODO: Move meta package building out of here, as it needs to only be run once for the entire build
+#./ci/build_scripts/package.sh build_meta "all" --version "$GIT_SEMVER"
 
 # Strip and build for test artifacts
 for PACKAGE in "${TEST_PACKAGES[@]}"
@@ -216,4 +272,4 @@ do
 done
 
 # Package test binaries (deb only)
-./ci/build_scripts/package.sh build "$ARCH" "${TEST_PACKAGES[@]}" --version "$GIT_SEMVER" --types deb
+./ci/build_scripts/package.sh build "$ARCH" "${TEST_PACKAGES[@]}" --version "$GIT_SEMVER" --types deb --output "$OUTPUT_DIR" --no-clean
