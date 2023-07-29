@@ -65,10 +65,10 @@ export CI_PROJECT_URL="https://github.com/thin-edge/thin-edge.io"
 #
 # Script settings
 #
-OUTPUT_DIR=${OUTPUT_DIR:-dist/}
+OUTPUT_DIR=${OUTPUT_DIR:-dist}
 TARGET=
 VERSION=0.0.0
-CLEAN=0
+CLEAN=1
 PACKAGES=()
 COMMAND=
 PACKAGE_TYPES="deb,apk,rpm,tarball"
@@ -77,7 +77,8 @@ while [ $# -gt 0 ]
 do
     case "$1" in
         --output)
-            OUTPUT_DIR=1
+            OUTPUT_DIR="$2"
+            shift
             ;;
         --version)
             VERSION="$2"
@@ -89,6 +90,9 @@ do
             ;;
         --clean)
             CLEAN=1
+            ;;
+        --no-clean)
+            CLEAN=0
             ;;
         -h|--help)
             help
@@ -106,6 +110,9 @@ do
     esac
     shift
 done
+
+# Normalize output dir
+OUTPUT_DIR="${OUTPUT_DIR%/}"
 
 build_package() {
     name="$1"
@@ -136,7 +143,7 @@ build_package() {
     # * arm7 => armhf
     if [[ "$PACKAGE_TYPES" =~ deb ]]; then
         if [ "$package_arch" == "arm6" ]; then
-            nfpm "${COMMON_ARGS[@]}" --packager deb --target "${OUTPUT_DIR%/}/${name}_${GIT_SEMVER}_armv6.deb"
+            nfpm "${COMMON_ARGS[@]}" --packager deb --target "${OUTPUT_DIR}/${name}_${GIT_SEMVER}_armv6.deb"
         else
             nfpm "${COMMON_ARGS[@]}" --packager deb
         fi
@@ -198,7 +205,7 @@ build_tarball() {
     # Use underscores as a delimiter between version and target/arch to make it easier to parse
     # package_arch=$(get_package_arch "$target")
     # TAR_FILE="target/$ARCH/${name}_${VERSION}_${package_arch}.tar.gz"
-    TAR_FILE="${OUTPUT_DIR%/}/${name}_${VERSION}_${target}.tar.gz"
+    TAR_FILE="${OUTPUT_DIR}/${name}_${VERSION}_${target}.tar.gz"
 
     echo ""
     echo "Building: pkg_arch=$target, source=$source_dir"
