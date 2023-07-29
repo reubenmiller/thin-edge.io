@@ -33,5 +33,11 @@ fi
 # Initialize the tedge
 tedge init
 
+if [ ! -d /run/lock ]; then
+    # Alpine container image does not have this folder by default
+    echo "Creating /run/lock directory"
+    mkdir -p /run/lock && chown 1777 /run/lock
+fi
+
 ### Below are automatically created script parts by cargo deb (Search for cargo deb DEBHELPER)
 #DEBHELPER#
