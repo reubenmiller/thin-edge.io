@@ -17,6 +17,9 @@ apk:
   # Use noarch instead of "all"
   arch: noarch
 
+recommends:
+  - mosquitto
+
 depends:
   - tedge (= ${GIT_SEMVER})
   - tedge-mapper (= ${GIT_SEMVER})
