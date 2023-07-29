@@ -175,15 +175,15 @@ if [ -z "$GIT_SEMVER" ]; then
         # only match if it looks like a semver version
         if [[ "$GIT_DESCRIBE" =~ ^[0-9]+\.[0-9]+\.[0-9]+.*$ ]]; then
             GIT_SEMVER="$GIT_DESCRIBE"
-            echo "Using version set from git: $GIT_SEMVER"
+            echo "Using version set from git: $GIT_SEMVER" >&2
         else
-            echo "git version does not match. got=$GIT_DESCRIBE, expected=^[0-9]+\.[0-9]+\.[0-9]+.*$"
+            echo "git version does not match. got=$GIT_DESCRIBE, expected=^[0-9]+\.[0-9]+\.[0-9]+.*$" >&2
         fi
     else
-        echo "git is not present on system. version will be handled by cargo directly"
+        echo "git is not present on system. version will be handled by cargo directly" >&2
     fi
 else
-    echo "Using version set by user: $GIT_SEMVER"
+    echo "Using version set by user: $GIT_SEMVER" >&2
 fi
 
 # Only show version (for usage with other tooling)
