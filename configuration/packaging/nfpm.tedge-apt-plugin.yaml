@@ -35,6 +35,7 @@ contents:
     file_info:
       mode: 755
 
-scripts:
-  postinstall: configuration/debian/tedge-apt-plugin/postinst
-  postremove: configuration/debian/tedge-apt-plugin/postrm
+  # Symlink to sm plugin dir
+  - src: /usr/bin/tedge-apt-plugin
+    dst: /etc/tedge/sm-plugins/apt
+    type: symlink
