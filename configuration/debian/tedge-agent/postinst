@@ -10,12 +10,17 @@ fi
 # Use service manager agnostic tools (e.g. ps or pgrep) to determine if a process is running or not
 process_running() {
     name="$1"
-    if command -v ps >/dev/null 2>&1; then
-        if ps -C "$name" >/dev/null; then
+    # prefer pgrep over ps as ps -C is not supported in alpine busybox
+    if command -v pgrep >/dev/null 2>&1; then
+        if pgrep -x "$name" >/dev/null; then
             return 0
         fi
-    elif command -v pgrep >/dev/null 2>&1; then
-        if pgrep -x "$name" >/dev/null; then
+    elif command -v pidof >/dev/null 2>&1; then
+        if pidof "$name" >/dev/null; then
+            return 0  
+        fi
+    elif command -v ps >/dev/null 2>&1; then
+        if ps -C "$name" >/dev/null; then
             return 0
         fi
     fi
