@@ -1,13 +1,11 @@
 set ignore-comments
 
+VERSION := `./ci/build_scripts/build.sh --version 2>/dev/null`
+
 # Default recipe
 [private]
 default:
     @just --list
-
-# Build linux packages
-build-nfpm:
-    ci/build_scripts/package.sh
 
 # Install necessary tools
 install-tools:
@@ -66,3 +64,15 @@ docs:
 # Install doc dependencies
 docs-install:
     cargo install mdbook mdbook-linkcheck mdbook-mermaid mdbook-admonish mdbook-cmdrun
+
+# Build linux virtual packages
+package-meta:
+    ./ci/build_scripts/package.sh build_meta "all" --version "{{VERSION}}" --output dist/meta
+
+# Publish linux meta packages (e.g. virtual packages)
+publish-linux-meta:
+    ./ci/build_scripts/publish_packages.sh --path dist/meta
+
+# Publish linux packages for a specific target
+publish-linux-target TARGET:
+    ./ci/build_scripts/publish_packages.sh --path target/{{TARGET}}/packages/

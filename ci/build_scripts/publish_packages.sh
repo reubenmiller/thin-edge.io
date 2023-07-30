@@ -3,9 +3,14 @@ set -e
 
 help() {
   cat <<EOF
-Publish debian packages from a path to an external debian repository
+Publish packages from a path to an external debian repository
 
 All the necessary dependencies will be downloaded automatically if they are not already present
+
+* Debian (deb)
+* RPM (rmp)
+* Alpine (apk)
+* Tarball (tar.gz)
 
 Usage:
     $0
@@ -65,10 +70,12 @@ export CI=true
 # Enable setting values via env variables (easier for CI for secrets)
 PUBLISH_TOKEN="${PUBLISH_TOKEN:-}"
 PUBLISH_OWNER="${PUBLISH_OWNER:-thinedge}"
-PUBLISH_REPO="${PUBLISH_REPO:-}"
+PUBLISH_REPO="${PUBLISH_REPO:-tedge-dev}"
 PUBLISH_DISTRIBUTION="${PUBLISH_DISTRIBUTION:-any-distro}"
 PUBLISH_DISTRIBUTION_VERSION="${PUBLISH_DISTRIBUTION_VERSION:-any-version}"
 PUBLISH_COMPONENT="${PUBLISH_COMPONENT:-main}"
+
+CLOUDSMITH_COMMON_ARGS=()
 
 #
 # Argument parsing
@@ -118,6 +125,13 @@ do
             shift
             ;;
 
+        # Dry run. Don't upload anything, but validate everything else (still requires a valid token)
+        --dry)
+            CLOUDSMITH_COMMON_ARGS+=(
+                "--dry-run"
+            )
+            ;;
+
         --help|-h)
             help
             exit 0
@@ -137,14 +151,6 @@ do
 done
 set -- "${POSITIONAL[@]}"
 
-RUST_TUPLE="arm-unknown-linux-gnueabihf"
-
-case "$RUST_TUPLE" in
-    arm-unknown-linux-gnueabihf)
-
-        ;;
-esac
-
 
 echo "---------------details-------------------------------"
 echo "PUBLISH_OWNER:                   $PUBLISH_OWNER"
@@ -154,68 +160,129 @@ echo "PUBLISH_DISTRIBUTION_VERSION:    $PUBLISH_DISTRIBUTION_VERSION"
 echo "PUBLISH_COMPONENT:               $PUBLISH_COMPONENT"
 echo "-----------------------------------------------------"
 
-ARCHITECTURES=(
-    amd64
-    arm64
-    armhf
-    armel
-)
+read_name_from_file() {
+    #
+    # Detect the package name from a file
+    # e.g. output/tedge-openrc_0.0.0~rc0.tar.gz => tedge-openrc
+    #
+    name="$(basename "$1")"
+    echo "Reading name from file: $name" >&2
+    case "$name" in
+        *.tar.gz)
+            echo "${name%.tar.gz}" | cut -d'_' -f1
+            ;;
+        *)
+            echo "${name%.*}" | cut -d'_' -f1
+            ;;
+    esac
+}
 
-publish() {
+read_version_from_file() {
+    #
+    # Detect the package version from a file
+    # e.g. output/tedge-openrc_0.0.0~rc0.tar.gz => 0.0.0~rc0
+    #
+    name="$(basename "$1")"
+    echo "Reading version from file: $name" >&2
+    case "$name" in
+        *_*)
+            echo "${name%.*}" | sed 's/.tar$//g' | cut -d'_' -f2
+            ;;
+    esac
+}
+
+publish_linux() {
     # Publish matching debian packages to a debian repository
     #
     # Usage:
-    #   publish <distribution> <pattern> <arch> [arch...]
+    #   publish <source_dir> <package_type> <pattern> <upload_path>
     #
-    if [ $# -lt 2 ]; then
-        echo "Invalid number of arguments. Expected at least 2 arguments" >&2
+    if [ $# -lt 4 ]; then
+        echo "Invalid number of arguments. Expected at least 4 arguments" >&2
+        echo "Function Usage: "
+        echo "  publish <source_dir> <package_type> <pattern> <upload_path>"
         exit 1
     fi
 
-    local distribution="$1"
-    shift
-    local distribution_version="$1"
-    shift
-    local pattern="$1"
-    shift
-    local arch="$1"
-    shift
+    local sourcedir="$1"
+    local package_type="$2"
+    local pattern="$3"
+    local sub_path="$4"
+
+    local upload_path="${PUBLISH_OWNER}/${PUBLISH_REPO}"
+    if [ -n "$sub_path" ]; then
+        upload_path="$upload_path/$sub_path"
+    fi
 
     if [ -z "$pattern" ]; then
         echo "Invalid pattern. Pattern must not be empty" >&2
         exit 1
     fi
-
-    if [ -z "$arch" ]; then
-        echo "Invalid architecture. Architecture must not be empty" >&2
+    if [ -z "$package_type" ]; then
+        echo "Invalid package type. package_type must not be empty" >&2
         exit 1
     fi
 
     # Notes: Currently Cloudsmith does not support the following (this might change in the future)
     #  * distribution and distribution_version must be selected from values in the list. use `cloudsmith list distros` to get the list
     #  * The component can not be set and is currently fixed to 'main'
-    find "${SOURCE_PATH}" -name "${pattern}_${arch}.deb" -print0 | while read -r -d $'\0' file
+    find "$sourcedir" -name "$pattern" -print0 | while read -r -d $'\0' file
     do
-        cloudsmith upload deb "${PUBLISH_OWNER}/${PUBLISH_REPO}/${distribution}/${distribution_version}" "$file" \
+        cloudsmith upload "$package_type" "$upload_path" "$file" \
             --no-wait-for-sync \
-            --api-key "${PUBLISH_TOKEN}"
+            --api-key "${PUBLISH_TOKEN}" \
+            "${CLOUDSMITH_COMMON_ARGS[@]}"
     done
 }
 
-publish_for_distribution() {
-    # Publish debian packages for all given architectures to a specific repository distribution
-    # Usage:
-    #   publish_for_distribution <distribution> <distribution_version> <arch> [arch...]
+publish_raw() {
     #
-    local distribution="$1"
-    shift
-    local distribution_version="$1"
-    shift
-    for arch in "$@"
+    # Publish a raw packages (e.g. a tarball)
+    #
+    local sourcedir="$1"
+    local pattern="$2"
+    local version="$3"
+    local upload_path="${PUBLISH_OWNER}/${PUBLISH_REPO}"
+
+    find "$sourcedir" -name "$pattern" -print0 | while read -r -d $'\0' file
     do
-        echo "[distribution=$distribution, arch=$arch] Publishing packages"
-        publish "$distribution" "$distribution_version" "**" "$arch"
+        # parse package info from filename
+        pkg_name=$(read_name_from_file "$file")
+        pkg_version="${version:-}"
+        if [ -z "$pkg_version" ]; then
+            pkg_version=$(read_version_from_file "$file")
+        fi
+
+        if [ -z "$pkg_name" ]; then
+            echo "Could not detect package name from file. file=$file" >&2
+            exit 1
+        fi
+
+        if [ -z "$pkg_version" ]; then
+            echo "Could not detect package version from file. file=$file" >&2
+            exit 1
+        fi
+
+        # Create tmp package without the version information
+        # so that the latest url is static
+        mkdir -p tmp
+        tmp_file="tmp/${pkg_name}.tar.gz"
+        cp "$file" "$tmp_file"
+
+        echo "Uploading file: $file (name=$pkg_name, version=$pkg_version, file=$tmp_file)"
+        cloudsmith upload raw "$upload_path" "$tmp_file" \
+            --name "$pkg_name" \
+            --version "$pkg_version" \
+            --no-wait-for-sync \
+            --api-key "${PUBLISH_TOKEN}" \
+            "${CLOUDSMITH_COMMON_ARGS[@]}"
+
+        rm -rf tmp
     done
 }
 
-publish_for_distribution "$PUBLISH_DISTRIBUTION" "$PUBLISH_DISTRIBUTION_VERSION" "${ARCHITECTURES[@]}" "all"
+publish_raw "$SOURCE_PATH" "*.tar.gz"
+
+publish_linux "$SOURCE_PATH" "deb" "*.deb" "any-distro/any-version"
+publish_linux "$SOURCE_PATH" "rpm" "*.rpm" "any-distro/any-version"
+publish_linux "$SOURCE_PATH" "alpine" "*.apk" "alpine/any-version"
