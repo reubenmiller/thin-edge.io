@@ -39,6 +39,9 @@ ${APK_SETUP}      apk add --no-cache sudo curl bash mosquitto \
     ...           && curl -1sLf "https://dl.cloudsmith.io/public/thinedge/tedge-dev/setup.alpine.sh" | sudo -E bash
 ${APK_INSTALL}    apk add --no-cache tedge-full
 
+# Other linux distributions
+${TAR_INSTALL}    curl -O 'https://dl.cloudsmith.io/public/thinedge/tedge-dev/raw/names/tedge/versions/latest/tedge.tar.gz' \
+    ...           && tar xzvf tedge.tar.gz -C /usr/bin
 
 *** Test Cases ***
 
@@ -74,6 +77,10 @@ Install on Alpine based images
     alpine:3.18
     alpine:3.17
     alpine:3.16
+
+Install on any linux distribution
+    [Template]    Install using tarball
+    alpine:3.18    apk add sudo curl && addgroup -S tedge && adduser -g "" -H -D tedge -G tedge && mkdir -p /run/lock && chmod 1777 /run/lock
 
 *** Keywords ***
 
@@ -118,6 +125,14 @@ Install using yzpper
     ${DEVICE_ID}=        Setup    skip_bootstrap=${True}
     Execute Command      ${SUSE_SETUP}    shell=${True}    sudo=${False}
     Execute Command      ${SUSE_INSTALL}
+
+Install using tarball
+    [Arguments]    ${IMAGE}    ${SETUP_STEP}
+    Set To Dictionary    ${DOCKER_CONFIG}    image=${IMAGE}
+    ${DEVICE_ID}=        Setup    skip_bootstrap=${True}
+    Execute Command      ${SETUP_STEP}    sudo=${False}
+    Execute Command      ${TAR_INSTALL}    timeout=1
+    Execute Command      timeout 2 tedge-agent || exit 0
 
 Validate thin-edge
     Log    TODO
