@@ -2,11 +2,6 @@
 
 set -e
 
-# Deprecate: Remove symlink in 1.x release
-if [ ! -e /usr/bin/tedge_agent ]; then
-    ln -s /usr/bin/tedge-agent /usr/bin/tedge_agent
-fi
-
 # Use service manager agnostic tools (e.g. ps or pgrep) to determine if a process is running or not
 process_running() {
     name="$1"

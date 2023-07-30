@@ -61,6 +61,12 @@ contents:
     file_info:
       mode: 644
 
+  # Symlink for backwards compatibility
+  # Deprecate: Remove symlink in 1.x release
+  - src: /usr/bin/tedge-mapper
+    dst: /usr/bin/tedge_mapper
+    type: symlink
+
 scripts:
   postinstall: configuration/debian/tedge-mapper/postinst
   postremove: configuration/debian/tedge-mapper/postrm

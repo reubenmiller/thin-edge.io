@@ -43,6 +43,12 @@ contents:
     file_info:
       mode: 644
 
+  # Symlink for backwards compatibility
+  # Deprecate: Remove symlink in 1.x release
+  - src: /usr/bin/tedge-agent
+    dst: /usr/bin/tedge_agent
+    type: symlink
+
 scripts:
   postinstall: configuration/debian/tedge-agent/postinst
   postremove: configuration/debian/tedge-agent/postrm

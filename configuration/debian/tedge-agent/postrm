@@ -55,8 +55,6 @@ case "$1" in
         purge
         ;;
     *)
-        printf "\033[32m Alpine\033[0m"
-        # Alpine does not support purging
         remove
         ;;
 esac

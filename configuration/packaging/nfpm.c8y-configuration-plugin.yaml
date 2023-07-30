@@ -41,6 +41,12 @@ contents:
     file_info:
       mode: 644
 
+  # Symlink for backwards compatibility
+  # Deprecate: Remove symlink in 1.x release
+  - src: /usr/bin/c8y-configuration-plugin
+    dst: /usr/bin/c8y_configuration_plugin
+    type: symlink
+
 scripts:
   postinstall: configuration/debian/c8y-configuration-plugin/postinst
   preremove: configuration/debian/c8y-configuration-plugin/prerm

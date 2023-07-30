@@ -1,0 +1,106 @@
+#!/bin/sh
+set -e
+#
+# ----------------
+# cargo-deb helper
+# ----------------
+#
+# defaults: (https://github.com/kornelski/cargo-deb/blob/main/systemd.md)
+# enable = true, start = true, restart-after-upgrade = true, stop-on-upgrade = true
+#
+#
+# non-defaults:
+# * tedge-mapper => start = false, enable = false, stop-on-upgrade = false
+#
+# -----------------------
+# postinst
+# -----------------------
+#
+# using debhelper:
+# * [ ] c8y-configuration-plugin
+# * [ ] c8y-firmware-plugin
+# * [ ] c8y-log-plugin
+# * [x] tedge-mapper
+# * [ ] tedge-watchdog
+#
+# -----------------------
+# prerm
+# -----------------------
+#
+# using debhelper:
+# * [ ] c8y-configuration-plugin
+# * [ ] c8y-firmware-plugin
+# * [ ] c8y-log-plugin
+# * [x] tedge-mapper
+# * [ ] tedge-watchdog
+#
+# -----------------------
+# postrm
+# -----------------------
+#
+# using debhelper:
+# * [x] tedge-mapper
+# -----------------------
+#
+custom_service_enable() {
+    service_file="$2"
+    if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+        # This will only remove masks created by d-s-h on package removal.
+        deb-systemd-helper unmask "$service_file" >/dev/null || true
+
+        # was-enabled defaults to true, so new installations run enable.
+        if deb-systemd-helper --quiet was-enabled "$service_file"; then
+            # Enables the unit on first installation, creates new
+            # symlinks on upgrades if the unit file has changed.
+            deb-systemd-helper enable "$service_file" >/dev/null || true
+        else
+            # Update the statefile to add new symlinks (if any), which need to be
+            # cleaned up on purge. Also remove old symlinks.
+            deb-systemd-helper update-state "$service_file" >/dev/null || true
+        fi
+    fi
+}
+
+custom_service_dont_enable() {
+    service_file="$2"
+    if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+        if deb-systemd-helper debian-installed "$service_file"; then
+            # This will only remove masks created by d-s-h on package removal.
+            deb-systemd-helper unmask "$service_file" >/dev/null || true
+
+            if deb-systemd-helper --quiet was-enabled "$service_file"; then
+                # Create new symlinks, if any.
+                deb-systemd-helper enable "$service_file" >/dev/null || true
+            fi
+        fi
+
+        # Update the statefile to add new symlinks (if any), which need to be cleaned
+        # up on purge. Also remove old symlinks.
+        deb-systemd-helper update-state "$service_file" >/dev/null || true
+    fi
+}
+
+custom_service_restart() {
+    service_file="$2"
+    if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+        if [ -d /run/systemd/system ]; then
+            systemctl --system daemon-reload >/dev/null || true
+            if [ -n "$2" ]; then
+                _dh_action=#RESTART_ACTION#
+            else
+                _dh_action=start
+            fi
+            deb-systemd-invoke $_dh_action "$service_file" >/dev/null || true
+        fi
+    fi
+}
+
+custom_service_start() {
+    service_file="$2"
+    if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+        if [ -d /run/systemd/system ]; then
+            systemctl --system daemon-reload >/dev/null || true
+            deb-systemd-invoke start "$service_file" >/dev/null || true
+        fi
+    fi
+}

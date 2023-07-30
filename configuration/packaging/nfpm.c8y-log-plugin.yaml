@@ -41,6 +41,12 @@ contents:
     file_info:
       mode: 644
 
+  # Symlink for backwards compatibility
+  # Deprecate: Remove symlink in 1.x release
+  - src: /usr/bin/c8y-log-plugin
+    dst: /usr/bin/c8y_log_plugin
+    type: symlink
+
 scripts:
   postinstall: configuration/debian/c8y-log-plugin/postinst
   preremove: configuration/debian/c8y-log-plugin/prerm

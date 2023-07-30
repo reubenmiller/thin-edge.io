@@ -13,20 +13,27 @@ purge() {
     printf "\033[32m Purge\033[0m"
     purge_operations
     purge_mapper_lock
+    purge_services
 }
 
 remove() {
     printf "\033[32m Remove\033[0m"
+
+    if [ -x "/usr/bin/deb-systemd-helper" ]; then
+        deb-systemd-helper mask tedge-mapper-aws.service tedge-mapper-az.service tedge-mapper-c8y.service tedge-mapper-collectd.service >/dev/null || true
+    fi
 }
 
 upgrade() {
     printf "\033[32m Upgrade\033[0m"
 }
 
+if [ -d /run/systemd/system ]; then
+	systemctl --system daemon-reload >/dev/null || true
+fi
+
 case "$1" in
     purge)
         purge_mapper_lock
     ;;
 esac
-
-#DEBHELPER#
