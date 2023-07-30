@@ -38,6 +38,3 @@ if [ ! -d /run/lock ]; then
     echo "Creating /run/lock directory"
     mkdir -p /run/lock && chmod 1777 /run/lock
 fi
-
-### Below are automatically created script parts by cargo deb (Search for cargo deb DEBHELPER)
-#DEBHELPER#
