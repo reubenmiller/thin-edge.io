@@ -6,7 +6,7 @@ description: |
 arch: "${PKG_ARCH}"
 platform: "linux"
 version: "${GIT_SEMVER}"
-section: "default"
+section: misc
 priority: "optional"
 maintainer: "thin-edge.io team <info@thin-edge.io>"
 vendor: "thin-edge.io"
@@ -26,5 +26,3 @@ contents:
   # binary
   - src: .build/sawtooth-publisher
     dst: /usr/bin/
-    file_info:
-      mode: 755

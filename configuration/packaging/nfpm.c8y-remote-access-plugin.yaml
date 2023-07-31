@@ -6,7 +6,7 @@ description: |
 arch: "${PKG_ARCH}"
 platform: "linux"
 version: "${GIT_SEMVER}"
-section: "default"
+section: misc
 priority: "optional"
 maintainer: "thin-edge.io team <info@thin-edge.io>"
 vendor: "thin-edge.io"
@@ -27,8 +27,6 @@ contents:
   # binary
   - src: .build/c8y-remote-access-plugin
     dst: /usr/bin/
-    file_info:
-      mode: 755
 
 scripts:
   postinstall: configuration/debian/c8y-remote-access-plugin/postinst

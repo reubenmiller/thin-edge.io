@@ -6,7 +6,7 @@ description: |
 arch: "${PKG_ARCH}"
 platform: "linux"
 version: "${GIT_SEMVER}"
-section: "default"
+section: misc
 priority: "optional"
 maintainer: "thin-edge.io team <info@thin-edge.io>"
 vendor: "thin-edge.io"
@@ -37,14 +37,19 @@ contents:
   # binary
   - src: .build/tedge-watchdog
     dst: /usr/bin/
-    file_info:
-      mode: 755
 
   # service definitions
   - src: ./configuration/init/systemd/tedge-watchdog.service
     dst: /lib/systemd/system/
     file_info:
-      mode: 644
+      mode: 0644
+    packager: deb
+
+  - src: ./configuration/init/systemd/tedge-watchdog.service
+    dst: /lib/systemd/system/
+    file_info:
+      mode: 0644
+    packager: rpm
 
   # Symlink for backwards compatibility
   # Deprecate: Remove symlink in 1.x release

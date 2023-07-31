@@ -6,7 +6,7 @@ description: |
 arch: "${PKG_ARCH}"
 platform: "linux"
 version: "${GIT_SEMVER}"
-section: "default"
+section: misc
 priority: "optional"
 maintainer: "thin-edge.io team <info@thin-edge.io>"
 vendor: "thin-edge.io"
@@ -36,30 +36,57 @@ contents:
   # binary
   - src: .build/tedge-mapper
     dst: /usr/bin/
-    file_info:
-      mode: 755
 
   # service definitions
   - src: ./configuration/init/systemd/tedge-mapper-aws.service
     dst: /lib/systemd/system/tedge-mapper-aws.service
     file_info:
-      mode: 644
+      mode: 0644
+    packager: deb
+  - src: ./configuration/init/systemd/tedge-mapper-aws.service
+    dst: /lib/systemd/system/tedge-mapper-aws.service
+    file_info:
+      mode: 0644
+    packager: rpm
+
   - src: ./configuration/init/systemd/tedge-mapper-az.service
     dst: /lib/systemd/system/tedge-mapper-az.service
     file_info:
-      mode: 644
+      mode: 0644
+    packager: deb
+  - src: ./configuration/init/systemd/tedge-mapper-az.service
+    dst: /lib/systemd/system/tedge-mapper-az.service
+    file_info:
+      mode: 0644
+    packager: rpm
+
   - src: ./configuration/init/systemd/tedge-mapper-c8y.service
     dst: /lib/systemd/system/tedge-mapper-c8y.service
     file_info:
-      mode: 644
+      mode: 0644
+    packager: deb
+
   - src: ./configuration/init/systemd/tedge-mapper-collectd.service
     dst: /lib/systemd/system/tedge-mapper-collectd.service
     file_info:
-      mode: 644
+      mode: 0644
+    packager: deb
+  - src: ./configuration/init/systemd/tedge-mapper-collectd.service
+    dst: /lib/systemd/system/tedge-mapper-collectd.service
+    file_info:
+      mode: 0644
+    packager: rpm
+
   - src: ./configuration/contrib/collectd/collectd.conf
     dst: /etc/tedge/contrib/collectd/
     file_info:
-      mode: 644
+      mode: 0644
+    packager: deb
+  - src: ./configuration/contrib/collectd/collectd.conf
+    dst: /etc/tedge/contrib/collectd/
+    file_info:
+      mode: 0644
+    packager: rpm
 
   # Symlink for backwards compatibility
   # Deprecate: Remove symlink in 1.x release

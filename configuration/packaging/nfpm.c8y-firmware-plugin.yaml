@@ -6,7 +6,7 @@ description: |
 arch: "${PKG_ARCH}"
 platform: "linux"
 version: "${GIT_SEMVER}"
-section: "default"
+section: misc
 priority: "optional"
 maintainer: "thin-edge.io team <info@thin-edge.io>"
 vendor: "thin-edge.io"
@@ -29,14 +29,19 @@ contents:
   # binary
   - src: .build/c8y-firmware-plugin
     dst: /usr/bin/
-    file_info:
-      mode: 755
 
   # service definitions
   - src: ./configuration/init/systemd/c8y-firmware-plugin.service
     dst: /lib/systemd/system/
     file_info:
-      mode: 644
+      mode: 0644
+    packager: deb
+
+  - src: ./configuration/init/systemd/c8y-firmware-plugin.service
+    dst: /lib/systemd/system/
+    file_info:
+      mode: 0644
+    packager: rpm
 
 scripts:
   postinstall: configuration/debian/c8y-firmware-plugin/postinst
