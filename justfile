@@ -74,5 +74,5 @@ publish-linux-meta:
     ./ci/build_scripts/publish_packages.sh --path dist/meta
 
 # Publish linux packages for a specific target
-publish-linux-target TARGET:
-    ./ci/build_scripts/publish_packages.sh --path target/{{TARGET}}/packages/
+publish-linux-target TARGET *ARGS='':
+    ./ci/build_scripts/publish_packages.sh --path target/{{TARGET}}/packages/ {{ARGS}}
