@@ -1,0 +1,39 @@
+########################################################################
+preinstall scriptlet (using /bin/sh):
+
+getent group mosquitto >/dev/null || groupadd -r mosquitto
+getent passwd mosquitto >/dev/null || \
+    useradd -r -g mosquitto -d /etc/mosquitto -s /sbin/nologin \
+    -c "Mosquitto Broker" mosquitto
+exit 0
+
+
+########################################################################
+postinstall scriptlet (using /bin/sh):
+
+if [ $1 -eq 1 ] && [ -x "/usr/lib/systemd/systemd-update-helper" ]; then
+    # Initial installation
+    /usr/lib/systemd/systemd-update-helper install-system-units mosquitto.service || :
+fi
+
+/sbin/ldconfig
+
+########################################################################
+preuninstall scriptlet (using /bin/sh):
+
+
+if [ $1 -eq 0 ] && [ -x "/usr/lib/systemd/systemd-update-helper" ]; then
+    # Package removal, not upgrade
+    /usr/lib/systemd/systemd-update-helper remove-system-units mosquitto.service || :
+fi
+
+########################################################################
+postuninstall scriptlet (using /bin/sh):
+
+
+if [ $1 -ge 1 ] && [ -x "/usr/lib/systemd/systemd-update-helper" ]; then
+    # Package upgrade, not uninstall
+    /usr/lib/systemd/systemd-update-helper mark-restart-system-units mosquitto.service || :
+fi
+
+/sbin/ldconfig
