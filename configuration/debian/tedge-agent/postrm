@@ -44,18 +44,9 @@ if [ -d /run/systemd/system ]; then
 fi
 
 case "$1" in
-    "0" | "remove")
-        remove
-    ;;
-    "1" | "upgrade")
-        upgrade
-        ;;
     "purge")
         purge
         ;;
-    *)
-        remove
-        ;;
 esac
 
-# Do not use DEBHELPER: for OTA self-update one needs a fine-control over the deb options
+#LINUXHELPER#
