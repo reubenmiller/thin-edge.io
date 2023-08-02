@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Generate package scripts (aka maintainer scripts) used for linux packaging,
 # e.g. post/pre install/remove
