@@ -43,8 +43,9 @@ docs/theme/pagetoc.js
 docs/src/src
 
 # Packaging
-dist/
 .build
+dist/
+tmp/
 
 # Other files
 Makefile.toml
