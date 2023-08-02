@@ -13,8 +13,6 @@ vendor: "thin-edge.io"
 homepage: "https://thin-edge.io"
 license: "Apache-2.0"
 
-recommends:
-  - mosquitto
 replaces:
   - tedge_apt_plugin
 conflicts:

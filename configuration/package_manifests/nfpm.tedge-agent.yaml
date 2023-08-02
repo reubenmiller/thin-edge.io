@@ -19,8 +19,6 @@ provides:
   - tedge_agent
 conflicts:
   - tedge_agent (<= 0.8.1)
-recommends:
-  - mosquitto
 
 deb:
   fields:

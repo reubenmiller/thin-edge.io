@@ -21,8 +21,6 @@ provides:
   - tedge_mapper
 conflicts:
   - tedge_mapper (<= 0.8.1)
-recommends:
-  - mosquitto
 
 deb:
   fields:

@@ -13,17 +13,10 @@ vendor: "thin-edge.io"
 homepage: "https://thin-edge.io"
 license: "Apache-2.0"
 
-depends:
-  - tedge-watchdog
-
 replaces:
   - tedge_watchdog
-
 conflicts:
   - tedge_watchdog (<= 0.8.1)
-
-recommends:
-  - mosquitto
 
 deb:
   fields:

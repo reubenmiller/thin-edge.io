@@ -17,9 +17,6 @@ vendor: "thin-edge.io"
 homepage: "https://thin-edge.io"
 license: "Apache-2.0"
 
-recommends:
-  - mosquitto
-
 overrides:
   apk:
     scripts:
@@ -29,12 +26,14 @@ overrides:
       postremove: configuration/package_scripts/_generated/tedge/apk/postrm
 
   rpm:
-    # Don't use dependency as different operating systems
-    # have different names for the packages
-    # shadow-utils (fedora)
-    # shadow (opensuse)
-    # depends:
-    #   - shadow-utils
+    # Note: Don't depend on adduser for rpm or apk packages
+    # as it is generally included out of the box on such systems.
+    # Even if we wanted to add a dependency for rpm, each RHEL/CentOS
+    # variant has another name for the package which provides adduser
+    # Don't use dependency as different operating systems:
+    # E.g.
+    # * shadow-utils (fedora)
+    # * shadow (opensuse)
     scripts:
       preinstall: configuration/package_scripts/_generated/tedge/rpm/preinst
       postinstall: configuration/package_scripts/_generated/tedge/rpm/postinst
@@ -47,7 +46,7 @@ overrides:
       postinstall: configuration/package_scripts/_generated/tedge/deb/postinst
       preremove: configuration/package_scripts/_generated/tedge/deb/prerm
       postremove: configuration/package_scripts/_generated/tedge/deb/postrm
-      
+
     depends:
       - adduser
 
