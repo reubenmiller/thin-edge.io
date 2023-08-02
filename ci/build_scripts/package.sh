@@ -216,14 +216,35 @@ build_tarball() {
     rm -f "$source_dir/$name"*tar.gz
 
     # Use underscores as a delimiter between version and target/arch to make it easier to parse
-    # package_arch=$(get_package_arch "$target")
-    # TAR_FILE="target/$ARCH/${name}_${VERSION}_${package_arch}.tar.gz"
     TAR_FILE="${OUTPUT_DIR}/${name}_${VERSION}_${target}.tar.gz"
 
     echo ""
     echo "Building: pkg_arch=$target, source=$source_dir"
     echo "using tarball packager..."
-    tar cfz "$TAR_FILE" -C "$source_dir" --files-from <(printf "%s\n" "${PACKAGES[@]}")
+
+    # Support both gnu tar (default) and bsd tar (for MacOS)
+    tar_cmd="tar"
+    tar_type="gnutar"
+    if command -v gtar >/dev/null 2>&1; then
+        tar_cmd="gtar"
+    elif grep -q "GNU tar" <(tar --version); then
+        tar_type="gnutar"
+    elif grep -q "bsdtar" <(tar --version); then
+        tar_type="bsdtar"
+    fi
+
+    case "$tar_type" in
+        bsdtar)
+            # bsd tar requires different options to prevent adding extra "AppleDouble" files, e.g. `._` files, to the archive
+            echo "Using bsdtar, but please consider using gnu-tar instead. Install via: brew install gnu-tar"
+            COPYFILE_DISABLE=1 tar cfz "$TAR_FILE" --no-xattrs --no-mac-metadata -C "$source_dir" --files-from <(printf "%s\n" "${PACKAGES[@]}")
+            ;;
+        *)
+            # Default to gnu tar (as this is generally the default)
+            "$tar_cmd" cfz "$TAR_FILE" --no-xattrs --owner=0 --group=0 --mode='0755' -C "$source_dir" --files-from <(printf "%s\n" "${PACKAGES[@]}")
+            ;;
+    esac
+
     echo "created package: $TAR_FILE"
 }
 
@@ -233,7 +254,7 @@ cmd_build() {
     done
 
     if [[ "$PACKAGE_TYPES" =~ tarball ]]; then
-        build_tarball "tedge" "$TARGET" "${PACKAGES[@]}"
+        build_tarball "tedge-archive" "$TARGET" "${PACKAGES[@]}"
     fi
 }
 
