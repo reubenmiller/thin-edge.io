@@ -44,7 +44,8 @@ overrides:
         - tedge-mapper = ${GIT_SEMVER}
         - tedge-agent = ${GIT_SEMVER}
         - tedge-watchdog = ${GIT_SEMVER}
-        - tedge-apt-plugin = ${GIT_SEMVER}
+        # tedge-apt-plugin does not make sense on rpm
+        # - tedge-apt-plugin = ${GIT_SEMVER}
         - c8y-log-plugin = ${GIT_SEMVER}
         - c8y-configuration-plugin = ${GIT_SEMVER}
         - c8y-remote-access-plugin = ${GIT_SEMVER}
