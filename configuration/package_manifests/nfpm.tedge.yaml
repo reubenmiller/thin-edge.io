@@ -69,8 +69,7 @@ contents:
       mode: 0644
 
   # systemd presets use for rpm only
-  # TODO: Check if it is easier for debian to also adopt a similar
-  # mechanism
+  # Presets only get applied by rpm on a new install (not an upgrade)
   - src: ./configuration/init/systemd/75-tedge.preset
     dst: /usr/lib/systemd/system-preset/
     file_info:
