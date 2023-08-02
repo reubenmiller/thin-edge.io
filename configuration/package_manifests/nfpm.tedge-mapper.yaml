@@ -103,8 +103,6 @@ overrides:
       postremove: configuration/package_scripts/_generated/tedge-mapper/apk/postrm
 
   rpm:
-    depends:
-      - adduser
     scripts:
       preinstall: configuration/package_scripts/_generated/tedge-mapper/rpm/preinst
       postinstall: configuration/package_scripts/_generated/tedge-mapper/rpm/postinst

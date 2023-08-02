@@ -37,8 +37,6 @@ overrides:
       postremove: configuration/package_scripts/_generated/c8y-remote-access-plugin/apk/postrm
 
   rpm:
-    depends:
-      - adduser
     scripts:
       preinstall: configuration/package_scripts/_generated/c8y-remote-access-plugin/rpm/preinst
       postinstall: configuration/package_scripts/_generated/c8y-remote-access-plugin/rpm/postinst

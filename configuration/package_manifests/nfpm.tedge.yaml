@@ -29,8 +29,12 @@ overrides:
       postremove: configuration/package_scripts/_generated/tedge/apk/postrm
 
   rpm:
-    depends:
-      - adduser
+    # Don't use dependency as different operating systems
+    # have different names for the packages
+    # shadow-utils (fedora)
+    # shadow (opensuse)
+    # depends:
+    #   - shadow-utils
     scripts:
       preinstall: configuration/package_scripts/_generated/tedge/rpm/preinst
       postinstall: configuration/package_scripts/_generated/tedge/rpm/postinst
@@ -45,7 +49,7 @@ overrides:
       postremove: configuration/package_scripts/_generated/tedge/deb/postrm
       
     depends:
-      - adduser  
+      - adduser
 
 deb:
   fields:

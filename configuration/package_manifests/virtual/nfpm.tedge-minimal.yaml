@@ -23,6 +23,22 @@ apk:
 recommends:
   - mosquitto
 
+overrides:
+  # Different packages requires the version to be specified in
+  # slightly different formats
+  apk:
+    depends:
+        - tedge = ${GIT_SEMVER}
+        - tedge-mapper = ${GIT_SEMVER}
+  rpm:
+    depends:
+        - tedge = ${GIT_SEMVER}
+        - tedge-mapper = ${GIT_SEMVER}
+  deb:
+    depends:
+        - tedge (= ${GIT_SEMVER})
+        - tedge-mapper (= ${GIT_SEMVER})
+
 depends:
   - tedge (>= ${GIT_SEMVER})
   - tedge-mapper (>= ${GIT_SEMVER})

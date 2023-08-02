@@ -63,8 +63,6 @@ overrides:
       postremove: configuration/package_scripts/_generated/tedge-agent/apk/postrm
 
   rpm:
-    depends:
-      - adduser
     scripts:
       preinstall: configuration/package_scripts/_generated/tedge-agent/rpm/preinst
       postinstall: configuration/package_scripts/_generated/tedge-agent/rpm/postinst

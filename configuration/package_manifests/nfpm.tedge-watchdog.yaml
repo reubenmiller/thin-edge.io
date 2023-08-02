@@ -66,8 +66,6 @@ overrides:
       postremove: configuration/package_scripts/_generated/tedge-watchdog/apk/postrm
 
   rpm:
-    depends:
-      - adduser
     scripts:
       preinstall: configuration/package_scripts/_generated/tedge-watchdog/rpm/preinst
       postinstall: configuration/package_scripts/_generated/tedge-watchdog/rpm/postinst

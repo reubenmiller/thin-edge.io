@@ -61,8 +61,6 @@ overrides:
       postremove: configuration/package_scripts/_generated/c8y-log-plugin/apk/postrm
 
   rpm:
-    depends:
-      - adduser
     scripts:
       preinstall: configuration/package_scripts/_generated/c8y-log-plugin/rpm/preinst
       postinstall: configuration/package_scripts/_generated/c8y-log-plugin/rpm/postinst
