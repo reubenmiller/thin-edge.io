@@ -7,6 +7,14 @@ VERSION := `./ci/build_scripts/build.sh --version 2>/dev/null`
 # e.g. MacOS m1 => "aarch64-unknown-linux-musl"
 DEFAULT_TARGET := `./ci/build_scripts/detect_target.sh`
 
+# Print project and host machine info
+info:
+    @echo "OS:             {{os()}}"
+    @echo "OS_FAMILY:      {{os_family()}}"
+    @echo "HOST_ARCH:      {{arch()}}"
+    @echo "VERSION:        {{VERSION}}"
+    @echo "DEFAULT_TARGET: {{DEFAULT_TARGET}}"
+
 # Default recipe
 [private]
 default:
