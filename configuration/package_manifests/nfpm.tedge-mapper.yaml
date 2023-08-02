@@ -65,6 +65,11 @@ contents:
     file_info:
       mode: 0644
     packager: deb
+  - src: ./configuration/init/systemd/tedge-mapper-c8y.service
+    dst: /lib/systemd/system/tedge-mapper-c8y.service
+    file_info:
+      mode: 0644
+    packager: rpm
 
   - src: ./configuration/init/systemd/tedge-mapper-collectd.service
     dst: /lib/systemd/system/tedge-mapper-collectd.service
