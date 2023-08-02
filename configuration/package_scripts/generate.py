@@ -255,4 +255,4 @@ if __name__ == "__main__":
     # Change to script's directory so that relative paths
     # can be used for when generating the maintainer scripts
     os.chdir(str(Path(__file__).parent))
-    main("builder.json" if len(sys.argv) < 2 else sys.argv[1])
+    main("packages.json" if len(sys.argv) < 2 else sys.argv[1])
