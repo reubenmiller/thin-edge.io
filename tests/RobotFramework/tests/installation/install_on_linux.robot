@@ -30,7 +30,7 @@ ${DNF2_INSTALL}   dnf install -y tedge-full
 
 # Microdnf
 ${MDNF_SETUP}     microdnf install -y epel-release \
-    ...           && microdnf install -y sudo mosquitto \
+    ...           && microdnf install -y sudo tar mosquitto \
     ...           && curl -1sLf "https://dl.cloudsmith.io/public/thinedge/tedge-dev/setup.rpm.sh" | sudo -E bash
 ${MDNF_INSTALL}   microdnf install -y tedge-full
 
