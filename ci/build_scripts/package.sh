@@ -114,6 +114,15 @@ do
     shift
 done
 
+# Change to root project folder (to make referencing project files easier)
+# and the script can be called from anywhere
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+pushd "$SCRIPT_DIR/../.." >/dev/null || exit 1
+
+if [ -z "$TARGET" ]; then
+    TARGET=$(./ci/build_scripts/detect_target.sh)
+fi
+
 # Normalize output dir
 OUTPUT_DIR="${OUTPUT_DIR%/}"
 
@@ -125,16 +134,17 @@ build_package() {
     source_dir="target/$target/release"
 
     export PKG_ARCH="$package_arch"
+    export PKG_NAME="$name"
 
     # Use symlinks to allow a fixed base directory in the nfpm.yaml definition
     rm -f .build
     ln -s "$source_dir" .build
     echo
-    echo "Building: pkg_arch=$PKG_ARCH, source=$source_dir"
+    echo "Building: name=$name pkg_arch=$PKG_ARCH, source=$source_dir"
 
     COMMON_ARGS=(
         package
-        -f "configuration/packaging/nfpm.$name.yaml"
+        -f "configuration/package_manifests/nfpm.$name.yaml"
         --target "$OUTPUT_DIR"
     )
 
@@ -167,7 +177,7 @@ build_meta_package() {
     name="$1"
     COMMON_ARGS=(
         package
-        -f "configuration/packaging/meta/nfpm.$name.yaml"
+        -f "configuration/package_manifests/virtual/nfpm.$name.yaml"
         --target "$OUTPUT_DIR"
     )
 
@@ -269,6 +279,10 @@ export GIT_SEMVER="$VERSION"
 case "$COMMAND" in
     build)
         banner "build"
+        if command -v python3 >/dev/null 2>&1; then
+            echo "Generating package scripts (e.g. postinst, postrm, preinst, prerm)"
+            python3 configuration/package_scripts/generate.py >/dev/null
+        fi
         prepare
         cmd_build
         ;;
@@ -284,6 +298,8 @@ case "$COMMAND" in
         exit 1
         ;;
 esac
+
+popd >/dev/null || exit 1
 
 echo
 echo "Successfully created packages"

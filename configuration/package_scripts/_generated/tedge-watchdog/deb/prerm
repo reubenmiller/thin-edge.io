@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+# Automatically added by thin-edge.io
+if [ -d /run/systemd/system ]; then
+	deb-systemd-invoke stop tedge-watchdog.service >/dev/null || true
+fi
+# End automatically added section
