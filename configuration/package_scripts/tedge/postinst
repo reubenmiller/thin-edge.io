@@ -24,6 +24,5 @@ tedge init
 
 if [ ! -d /run/lock ]; then
     # Alpine container image does not have this folder by default
-    echo "Creating /run/lock directory"
     mkdir -p /run/lock && chmod 1777 /run/lock
 fi
