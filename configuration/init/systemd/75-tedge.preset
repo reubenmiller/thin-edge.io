@@ -1,0 +1,14 @@
+#
+# The mapper and agents are not enabled by default as the user must configure them
+# first to run. Though they can override this functionality using their own
+# systemd preset file with a lower number, e.g. 50-tedge-custom.preset
+#
+
+# Agent
+disabled tedge-agent.service
+
+# Mappers
+disabled tedge-mapper-c8y.service
+disabled tedge-mapper-aws.service
+disabled tedge-mapper-az.service
+disabled tedge-mapper-collectd.service

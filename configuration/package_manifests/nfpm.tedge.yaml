@@ -67,3 +67,12 @@ contents:
     packager: deb
     file_info:
       mode: 0644
+
+  # systemd presets use for rpm only
+  # TODO: Check if it is easier for debian to also adopt a similar
+  # mechanism
+  - src: ./configuration/init/systemd/75-tedge.preset
+    dst: /usr/lib/systemd/system-preset/
+    file_info:
+      mode: 0644
+    packager: rpm
