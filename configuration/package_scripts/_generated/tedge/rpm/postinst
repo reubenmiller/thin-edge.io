@@ -3,7 +3,7 @@ set -e
 
 ### Add include to mosquitto.conf so tedge specific conf will be loaded
 if [ -f /etc/mosquitto/mosquitto.conf ]; then
-    if ! grep -q "/etc/tedge/mosquitto-conf" "/etc/mosquitto/mosquitto.conf"; then
+    if ! grep -q "include_dir /etc/tedge/mosquitto-conf" "/etc/mosquitto/mosquitto.conf"; then
         # Insert `include_dir /etc/tedge/mosquitto-conf` before any `include_dir`
         # directive so that all other partial conf files inherit the
         # `per_listener_settings` defined in /etc/tedge/mosquitto-conf.
@@ -20,7 +20,7 @@ if [ -f /etc/mosquitto/mosquitto.conf ]; then
         # it might be better as it allows users to add and remove stuff by just using a symlink.
 
         # Check if `include_dir` or `#include_dir` (as the latter could be a future problem if the user uncomments it)
-        if grep -E '^[#]?include_dir' /etc/mosquitto/mosquitto.conf; then
+        if grep -qE '^[#]?include_dir' /etc/mosquitto/mosquitto.conf; then
             # insert tedge include_dir before the first `included_dir` (but only the first!)
             mosquitto_conf=$(awk '!found && /^#?include_dir/ \
             { print "include_dir /etc/tedge/mosquitto-conf"; found=1 }1' \
