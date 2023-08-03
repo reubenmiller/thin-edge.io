@@ -150,24 +150,30 @@ def process_package(name: str, manifest: dict, package_type: str, out_dir: Path)
             )
         )
 
-    # postrm
-    postrm.append(
-        replace_variables(
-            get_template(f"templates/{package_type}/postrm-systemd-reload-only"),
-            variables,
-            wrap=True,
-        )
-    )
-
-    postrm.append(
-        replace_variables(
-            get_template(f"templates/{package_type}/postrm-systemd"),
-            variables,
-            wrap=True,
-        )
-    )
-
     if service:
+        # postrm
+        postrm.append(
+            replace_variables(
+                get_template(f"templates/{package_type}/postrm-systemd-reload-only"),
+                variables,
+                wrap=True,
+            )
+        )
+
+        # Special case for rpm packages:
+        # By default rpm maintainer scripts restart mark a service to be restarted in the postrm script
+        # unlike debian which does this in the postinst.
+        if package_type != "rpm" or (
+            service and package_type == "rpm" and service.stop_on_upgrade
+        ):
+            postrm.append(
+                replace_variables(
+                    get_template(f"templates/{package_type}/postrm-systemd"),
+                    variables,
+                    wrap=True,
+                )
+            )
+
         if service.restart_after_upgrade:
             snippet = {
                 True: ("postinst-systemd-restart", "restart"),
