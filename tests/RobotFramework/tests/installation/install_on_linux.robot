@@ -3,7 +3,7 @@ Resource    ../../resources/common.resource
 Library    ThinEdgeIO
 Library    Collections
 
-Test Tags    theme:installation
+Test Tags    theme:installation    test:on_demand
 
 *** Variables ***
 # Debian
@@ -40,7 +40,7 @@ ${APK_SETUP}      apk add --no-cache sudo curl bash mosquitto \
 ${APK_INSTALL}    apk add --no-cache tedge-full
 
 # Other linux distributions
-${TAR_INSTALL}    curl -O 'https://dl.cloudsmith.io/public/thinedge/tedge-dev/raw/names/tedge/versions/latest/tedge.tar.gz' \
+${TAR_INSTALL}    curl -O 'https://dl.cloudsmith.io/public/thinedge/tedge-dev/raw/names/tedge-arm64/versions/latest/tedge.tar.gz' \
     ...           && tar xzvf tedge.tar.gz -C /usr/bin
 
 *** Test Cases ***
