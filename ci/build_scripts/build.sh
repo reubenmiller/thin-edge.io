@@ -81,7 +81,7 @@ ARCH=
 SHOW_VERSION=0
 TARGET=()
 BUILD_OPTIONS=()
-SKIP_BUILD=0
+BUILD=1
 
 REST_ARGS=()
 while [ $# -gt 0 ]
@@ -92,7 +92,7 @@ do
             ;;
 
         --skip-build)
-            SKIP_BUILD=1
+            BUILD=0
             ;;
 
         -h|--help)
@@ -262,7 +262,7 @@ source ./ci/package_list.sh
 
 # build release for target
 # GIT_SEMVER should be referenced in the build.rs scripts
-if [ "$SKIP_BUILD" == 1 ]; then
+if [ "$BUILD" = 1 ]; then
     cargo zigbuild "${TARGET[@]}" "${BUILD_OPTIONS[@]}"
 fi
 
@@ -277,7 +277,7 @@ fi
 
 ./ci/build_scripts/package.sh build "$ARCH" "${RELEASE_PACKAGES[@]}" --version "$GIT_SEMVER" --output "$OUTPUT_DIR"
 
-if [ "$SKIP_BUILD" == 1 ]; then
+if [ "$BUILD" = 1 ]; then
     # Strip and build for test artifacts
     for PACKAGE in "${TEST_PACKAGES[@]}"
     do
