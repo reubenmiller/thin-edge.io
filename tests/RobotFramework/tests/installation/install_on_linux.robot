@@ -23,7 +23,7 @@ ${SUSE_SETUP}     yzpper install -y sudo curl mosquitto \
 ${SUSE_INSTALL}   yzpper install -y tedge-full
 
 
-# DNF where the epel-release repo is not required
+# DNF where the epel-release repo is not required (e.g. Fedora)
 ${DNF2_SETUP}     dnf install -y sudo mosquitto \
     ...           && curl -1sLf "https://dl.cloudsmith.io/public/thinedge/tedge-dev/setup.rpm.sh" | sudo -E bash
 ${DNF2_INSTALL}   dnf install -y tedge-full
