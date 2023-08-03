@@ -7,14 +7,6 @@ Build linux packages
 
 NOTE: This script is intended to be called from the build.sh script
 
-TODO:
-* [x] Slight difference in version number generation, check which is better
-    * NEW: 0.12.0~13-gea7d1cf3
-    * OLD: 0.12.0-13-gea7d1cf3
-
-* [ ] Port debian start stop services in maintainer scripts
-* [ ] Rename tarball as the name is confusing, as it mirrors the tedge deb/apk/rpm package.
-
 Usage:
     $0 <CMD> <ARCH> [...PACKAGE]
 
@@ -254,7 +246,7 @@ cmd_build() {
     done
 
     if [[ "$PACKAGE_TYPES" =~ tarball ]]; then
-        build_tarball "tedge-archive" "$TARGET" "${PACKAGES[@]}"
+        build_tarball "tedge" "$TARGET" "${PACKAGES[@]}"
     fi
 }
 

@@ -160,6 +160,28 @@ echo "PUBLISH_DISTRIBUTION_VERSION:    $PUBLISH_DISTRIBUTION_VERSION"
 echo "PUBLISH_COMPONENT:               $PUBLISH_COMPONENT"
 echo "-----------------------------------------------------"
 
+get_user_friendly_arch() {
+    # Get an easy to use cpu architecture
+    # which is easier for users to remember, and it also falls inline
+    # with the docker CPU architecture (well the major ones at least)
+    easy_arch=
+    case "$1" in
+        *x86_64-unknown-linux-*)
+            easy_arch=amd64
+            ;;
+        *aarch64-unknown-linux-*)
+            easy_arch=arm64
+            ;;
+        *armv7-unknown-linux-musleabihf*)
+            easy_arch=armv7
+            ;;
+        *arm-unknown-linux-musleabihf*)
+            easy_arch=armv6
+            ;;
+    esac
+    echo "$easy_arch"
+}
+
 read_name_from_file() {
     #
     # Detect the package name from a file
@@ -248,6 +270,7 @@ publish_raw() {
     do
         # parse package info from filename
         pkg_name=$(read_name_from_file "$file")
+        pkg_arch=$(get_user_friendly_arch "$file")
         pkg_version="${version:-}"
         if [ -z "$pkg_version" ]; then
             pkg_version=$(read_version_from_file "$file")
@@ -264,14 +287,25 @@ publish_raw() {
         fi
 
         # Create tmp package without the version information
-        # so that the latest url is static
+        # so that the latest url is static.
+        # Also use a file name which does not have the target architecture
+        # so that it is easier to extract.
         mkdir -p tmp
         tmp_file="tmp/${pkg_name}.tar.gz"
         cp "$file" "$tmp_file"
 
-        echo "Uploading file: $file (name=$pkg_name, version=$pkg_version, file=$tmp_file)"
+        # Include package architecture in the name
+        # to avoid conflicts between the different architectures
+        # and what is the "latest" package. Default to using the name
+        # if there is no architecture (to be generic)
+        full_pkg_name="$pkg_name"
+        if [ -n "$pkg_arch" ]; then
+            full_pkg_name="${pkg_name}-${pkg_arch}"
+        fi
+
+        echo "Uploading file: $file (name=$full_pkg_name, version=$pkg_version, file=$tmp_file)"
         cloudsmith upload raw "$upload_path" "$tmp_file" \
-            --name "$pkg_name" \
+            --name "$full_pkg_name" \
             --version "$pkg_version" \
             --no-wait-for-sync \
             --api-key "${PUBLISH_TOKEN}" \
