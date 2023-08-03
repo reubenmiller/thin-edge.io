@@ -47,6 +47,7 @@ Args:
 Flags:
     --help|-h   Show this help
     --version   Print the automatic version which will be used (this does not build the project)
+    --skip-build    Skip building the binaries and only package them (e.g. just create the linux packages)
 
 Env:
     GIT_SEMVER      Use a custom version when building the packages. Only use for dev/testing purposes!
@@ -80,6 +81,7 @@ ARCH=
 SHOW_VERSION=0
 TARGET=()
 BUILD_OPTIONS=()
+SKIP_BUILD=0
 
 REST_ARGS=()
 while [ $# -gt 0 ]
@@ -87,6 +89,10 @@ do
     case "$1" in
         --version)
             SHOW_VERSION=1
+            ;;
+
+        --skip-build)
+            SKIP_BUILD=1
             ;;
 
         -h|--help)
@@ -256,7 +262,9 @@ source ./ci/package_list.sh
 
 # build release for target
 # GIT_SEMVER should be referenced in the build.rs scripts
-cargo zigbuild "${TARGET[@]}" "${BUILD_OPTIONS[@]}"
+if [ "$SKIP_BUILD" == 1 ]; then
+    cargo zigbuild "${TARGET[@]}" "${BUILD_OPTIONS[@]}"
+fi
 
 # Create release packages
 OUTPUT_DIR="target/$ARCH/packages"
@@ -269,11 +277,13 @@ fi
 
 ./ci/build_scripts/package.sh build "$ARCH" "${RELEASE_PACKAGES[@]}" --version "$GIT_SEMVER" --output "$OUTPUT_DIR"
 
-# Strip and build for test artifacts
-for PACKAGE in "${TEST_PACKAGES[@]}"
-do
-    cargo zigbuild --release -p "$PACKAGE" "${TARGET[@]}"
-done
+if [ "$SKIP_BUILD" == 1 ]; then
+    # Strip and build for test artifacts
+    for PACKAGE in "${TEST_PACKAGES[@]}"
+    do
+        cargo zigbuild --release -p "$PACKAGE" "${TARGET[@]}"
+    done
+fi
 
 # Package test binaries (deb only)
 ./ci/build_scripts/package.sh build "$ARCH" "${TEST_PACKAGES[@]}" --version "$GIT_SEMVER" --types deb --output "$OUTPUT_DIR" --no-clean
