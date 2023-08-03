@@ -260,10 +260,14 @@ cargo zigbuild "${TARGET[@]}" "${BUILD_OPTIONS[@]}"
 
 # Create release packages
 OUTPUT_DIR="target/$ARCH/packages"
-./ci/build_scripts/package.sh build "$ARCH" "${RELEASE_PACKAGES[@]}" --version "$GIT_SEMVER" --output "$OUTPUT_DIR"
 
-# TODO: Move meta package building out of here, as it needs to only be run once for the entire build
-#./ci/build_scripts/package.sh build_meta "all" --version "$GIT_SEMVER"
+# Remove deprecated debian folder to avoid confusion with newly built linux packages
+if [ -d "target/$ARCH/debian" ]; then
+    echo "Removing deprecated debian folder created by cargo-deb: target/$ARCH/debian" >&2
+    rm -rf "target/$ARCH/debian"
+fi
+
+./ci/build_scripts/package.sh build "$ARCH" "${RELEASE_PACKAGES[@]}" --version "$GIT_SEMVER" --output "$OUTPUT_DIR"
 
 # Strip and build for test artifacts
 for PACKAGE in "${TEST_PACKAGES[@]}"

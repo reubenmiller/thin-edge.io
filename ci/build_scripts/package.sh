@@ -19,7 +19,7 @@ Usage:
     $0 <CMD> <ARCH> [...PACKAGE]
 
 Args:
-    CMD      Packaging command. Accepted values: [build, build_meta]
+    CMD      Packaging command. Accepted values: [build, build_virtual]
              build   Build the linux packages
              build_virt  Build the virtual linux packages which make it easier for users to install, e.g. "tedge-full" just references all the tedge packages
 
@@ -173,7 +173,7 @@ build_package() {
     fi
 }
 
-build_meta_package() {
+build_virtual_package() {
     name="$1"
     COMMON_ARGS=(
         package
@@ -258,11 +258,6 @@ cmd_build() {
     fi
 }
 
-cmd_build_meta() {
-    build_meta_package "tedge-full"
-    build_meta_package "tedge-minimal"
-}
-
 prepare() {
     if [ "$CLEAN" = "1" ]; then
         rm -rf "$OUTPUT_DIR"
@@ -307,14 +302,15 @@ case "$COMMAND" in
         prepare
         cmd_build
         ;;
-    build_meta)
-        # Note: build_meta does not support tarballs
-        banner "build_meta"
+    build_virtual)
+        # Note: build_virtual does not support tarballs
+        banner "build_virtual"
         prepare
-        cmd_build_meta
+        build_virtual_package "tedge-full"
+        build_virtual_package "tedge-minimal"
         ;;
     *)
-        echo "Unknown command. Accepted commands are: [build, build_meta]"
+        echo "Unknown command. Accepted commands are: [build, build_virtual]"
         help
         exit 1
         ;;

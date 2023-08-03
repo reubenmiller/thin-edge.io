@@ -80,11 +80,11 @@ docs-install:
 
 # Build linux virtual packages
 release-linux-virtual:
-    ./ci/build_scripts/package.sh build_meta "all" --version "{{VERSION}}" --output dist/meta
+    ./ci/build_scripts/package.sh build_virtual "all" --version "{{VERSION}}" --output dist/virtual-packages
 
 # Publish linux virtual packages
 publish-linux-virtual:
-    ./ci/build_scripts/publish_packages.sh --path dist/meta
+    ./ci/build_scripts/publish_packages.sh --path dist/virtual-packages
 
 # Publish linux packages for a specific target
 publish-linux-target TARGET=DEFAULT_TARGET *ARGS='':
