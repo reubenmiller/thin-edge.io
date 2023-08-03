@@ -1,0 +1,23 @@
+version: '3'
+services:
+  tedge:
+    build:
+      context: .
+      dockerfile: fedora-systemd.dockerfile
+    environment:
+      - DEVICE_ID=${DEVICE_ID:-}
+      - TEDGE_C8Y_URL=${C8Y_DOMAIN:-}
+      - C8Y_USER=${C8Y_USER:-}
+      - C8YPASS=${C8Y_PASSWORD:-}
+    volumes:
+      # Persist the device certificates in a volume so when the container is destroyed it does not delete the cert
+      - device-certs:/etc/tedge/device-certs
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+    privileged: true
+    restart: always
+
+volumes:
+  device-certs:
