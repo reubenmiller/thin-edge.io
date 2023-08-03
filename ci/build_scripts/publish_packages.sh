@@ -35,15 +35,15 @@ Examples:
     $0 \\
         --token "mywonderfultoken" \\
         --repo "tedge-main" \\
-        --path ./target/debian
+        --path ./target/packages
 
-    \$ Publish all debian packages found under ./target/debian to the given repo
+    \$ Publish all debian packages found under ./target/packages to the given repo
 
 
     $0 \\
-        --path ./target/armv7-unknown-linux-gnueabihf/debian/
+        --path ./target/armv7-unknown-linux-gnueabihf/packages/
 
-    \$ Publish all debian packages under ./target/debian but group them in the debian pool, so they are easier to manage
+    \$ Publish all packages under ./target/packages
 EOF
 }
 
