@@ -32,8 +32,3 @@ fi
 
 # Initialize the tedge
 tedge init
-
-if [ -d /run ] && [ ! -d /run/lock ]; then
-    # Alpine container image does not have this folder by default
-    mkdir -m 1777 /run/lock
-fi

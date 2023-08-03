@@ -45,8 +45,11 @@ fi
 
 case "$1" in
     "purge")
-        purge
-        ;;
+        purge_agent_directory
+        purge_agent_lock
+        purge_var_data_directory
+        purge_agent_logs
+    ;;
 esac
 
 

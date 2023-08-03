@@ -78,6 +78,10 @@ docs:
 docs-install:
     cargo install mdbook mdbook-linkcheck mdbook-mermaid mdbook-admonish mdbook-cmdrun
 
+# Generate linux package scripts from templates
+generate-linux-package-scripts:
+    ./configuration/package_scripts/generate.py
+
 # Build linux virtual packages
 release-linux-virtual:
     ./ci/build_scripts/package.sh build_virtual "all" --version "{{VERSION}}" --output target/virtual-packages
