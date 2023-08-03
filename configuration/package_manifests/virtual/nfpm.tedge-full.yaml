@@ -20,9 +20,6 @@ apk:
 recommends:
   - mosquitto
 
-# provides:
-#   - tedge-full (= ${GIT_SEMVER})
-
 overrides:
   # Different packages requires the version to be specified in
   # slightly different formats

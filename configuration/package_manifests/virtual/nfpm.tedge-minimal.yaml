@@ -17,9 +17,6 @@ apk:
   # Use noarch instead of "all"
   arch: noarch
 
-#provides:
-#  - tedge-full (= ${GIT_SEMVER})
-
 recommends:
   - mosquitto
 
