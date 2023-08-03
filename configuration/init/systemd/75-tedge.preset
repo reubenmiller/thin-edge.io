@@ -3,12 +3,19 @@
 # first to run. Though they can override this functionality using their own
 # systemd preset file with a lower number, e.g. 50-tedge-custom.preset
 #
+# Device management
+enable c8y-log-plugin.service
+enable c8y-configuration-plugin.service
+enable c8y-firmware-plugin.service
 
 # Agent
-disabled tedge-agent.service
+disable tedge-agent.service
 
 # Mappers
-disabled tedge-mapper-c8y.service
-disabled tedge-mapper-aws.service
-disabled tedge-mapper-az.service
-disabled tedge-mapper-collectd.service
+disable tedge-mapper-c8y.service
+disable tedge-mapper-aws.service
+disable tedge-mapper-az.service
+disable tedge-mapper-collectd.service
+
+# Misc
+disable tedge-watchdog.service
