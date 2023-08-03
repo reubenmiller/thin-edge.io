@@ -57,18 +57,13 @@ purge_var_log() {
     fi
 }
 
-purge() {
-    printf "\033[32m Purge\033[0m\n"
-    remove_user_tedge
-    remove_tedge_group
-    remove_mosquitto_edit
-    remove_sudoers_file
-    purge_configs
-    purge_var_log
-}
-
 case "$1" in
-    "purge")
-        purge
-        ;;
+    purge)
+        remove_user_tedge
+        remove_tedge_group
+        remove_mosquitto_edit
+        remove_sudoers_file
+        purge_configs
+        purge_var_log
+    ;;
 esac

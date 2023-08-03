@@ -30,18 +30,13 @@ purge_var_data_directory() {
     fi
 }
 
-purge() {
-    printf "\033[32m Purge\033[0m"
-    purge_agent_directory
-    purge_agent_lock
-    purge_var_data_directory
-    purge_agent_logs
-}
-
 case "$1" in
     "purge")
-        purge
-        ;;
+        purge_agent_directory
+        purge_agent_lock
+        purge_var_data_directory
+        purge_agent_logs
+    ;;
 esac
 
 #LINUXHELPER#
