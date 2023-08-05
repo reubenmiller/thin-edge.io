@@ -31,19 +31,6 @@ purge_var_data_directory() {
 }
 
 case "$1" in
-    purge)
-       purge_agent_directory
-       purge_agent_lock
-       purge_var_data_directory
-       purge_agent_logs
-    ;;
-esac
-
-if [ -d /run/systemd/system ]; then
-    systemctl --system daemon-reload >/dev/null || true
-fi
-
-case "$1" in
     "purge")
         purge_agent_directory
         purge_agent_lock

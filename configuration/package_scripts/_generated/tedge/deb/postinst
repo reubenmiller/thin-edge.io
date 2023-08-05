@@ -16,9 +16,6 @@ if [ -f /etc/mosquitto/mosquitto.conf ]; then
         #  On Fedora: `#include_dir`. mosquitto does not use a /etc/mosquitto/conf.d folder
         #  On Debian: `include_dir /etc/mosquitto/conf.d`. Uses a conf.d folder, so the tedge setting must be before this
 
-        # TODO: Check if the conf.d style should be normalized on other non-debian systems...
-        # it might be better as it allows users to add and remove stuff by just using a symlink.
-
         # Check if `include_dir` or `#include_dir` (as the latter could be a future problem if the user uncomments it)
         if grep -qE '^#?include_dir' /etc/mosquitto/mosquitto.conf; then
             # insert tedge include_dir before the first `included_dir` (but only the first!)
