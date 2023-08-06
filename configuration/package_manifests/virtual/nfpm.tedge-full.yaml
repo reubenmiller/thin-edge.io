@@ -17,14 +17,17 @@ apk:
   # Use noarch instead of "all"
   arch: noarch
 
-recommends:
-  - mosquitto
-  - ca-certificates
+# recommends:
+#   - mosquitto
+#   - ca-certificates
 
 overrides:
   # Different packages requires the version to be specified in
   # slightly different formats
   apk:
+    recommends:
+      - mosquitto
+      - ca-certificates
     depends:
         - tedge = ${GIT_SEMVER}
         - tedge-mapper = ${GIT_SEMVER}
@@ -37,6 +40,9 @@ overrides:
         - c8y-remote-access-plugin = ${GIT_SEMVER}
         - c8y-firmware-plugin = ${GIT_SEMVER}
   rpm:
+    recommends:
+      - mosquitto > 1.5
+      - ca-certificates > 2021.1.1
     depends:
         - tedge = ${GIT_SEMVER}
         - tedge-mapper = ${GIT_SEMVER}
@@ -49,6 +55,9 @@ overrides:
         - c8y-remote-access-plugin = ${GIT_SEMVER}
         - c8y-firmware-plugin = ${GIT_SEMVER}
   deb:
+    recommends:
+      - mosquitto
+      - ca-certificates
     depends:
         - tedge (= ${GIT_SEMVER})
         - tedge-mapper (= ${GIT_SEMVER})
