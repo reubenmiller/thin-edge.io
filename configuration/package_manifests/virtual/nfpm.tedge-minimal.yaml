@@ -19,6 +19,7 @@ apk:
 
 recommends:
   - mosquitto
+  - ca-certificates
 
 overrides:
   # Different packages requires the version to be specified in
@@ -35,10 +36,6 @@ overrides:
     depends:
         - tedge (= ${GIT_SEMVER})
         - tedge-mapper (= ${GIT_SEMVER})
-
-depends:
-  - tedge (>= ${GIT_SEMVER})
-  - tedge-mapper (>= ${GIT_SEMVER})
 
 deb:
   fields:

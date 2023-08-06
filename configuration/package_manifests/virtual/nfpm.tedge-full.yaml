@@ -19,6 +19,7 @@ apk:
 
 recommends:
   - mosquitto
+  - ca-certificates
 
 overrides:
   # Different packages requires the version to be specified in
