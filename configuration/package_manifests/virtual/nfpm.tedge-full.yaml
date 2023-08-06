@@ -26,7 +26,7 @@ overrides:
   # slightly different formats
   apk:
     recommends:
-      - mosquitto
+      # - mosquitto
       - ca-certificates
     depends:
         - tedge = ${GIT_SEMVER}
@@ -41,9 +41,10 @@ overrides:
         - c8y-firmware-plugin = ${GIT_SEMVER}
   rpm:
     recommends:
-      - mosquitto > 1.5
+      # - mosquitto > 1.5
       - ca-certificates > 2021.1.1
     depends:
+        - ca-certificates
         - tedge = ${GIT_SEMVER}
         - tedge-mapper = ${GIT_SEMVER}
         - tedge-agent = ${GIT_SEMVER}
