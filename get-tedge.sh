@@ -4,10 +4,10 @@ set -e
 TYPE=full
 TMPDIR=/tmp/tedge
 LOGFILE=/tmp/tedge/install.log
-# REPO_CHANNEL="release"
+# REPO_CHANNEL="${REPO_CHANNEL:-release}"
 REPO_CHANNEL="${REPO_CHANNEL:-dev}"
 INSTALL_PREDEPENDS="${INSTALL_PREDEPENDS:-1}"
-PREDEPENDS_PACKAGES="curl ca-certificates"
+PREDEPENDS_PACKAGES=
 
 # TODO
 # * Support installing a specific version - check if this is really required?
@@ -97,13 +97,8 @@ is_dry_run() {
 	fi
 }
 
-check_prerequisites() {
-    return 0
-}
-
 should_install_predepends() {
     [ "$INSTALL_PREDEPENDS" = 1 ]
-    #  && ! command_exists curl && ! command_exists wget
 }
 
 configure_shell() {
@@ -243,18 +238,13 @@ install_via_apt() {
     download_file "https://dl.cloudsmith.io/public/thinedge/${PACKAGE_REPO}/setup.deb.sh"
     run_repo_setup "$TMPDIR/setup.deb.sh"
 
-    # if [ "$(dpkg-query --show --showformat='${db:Status-Status}\n' mosquitto 2>/dev/null)" != "installed" ]; then
-    #     # Always update cache (to enforce latest version available)
-    #     $sh_c "apt-get install --no-install-recommends -y curl mosquitto"
-    # fi
-
     $sh_c "DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y $*"
 }
 
 install_via_dnf() {
-    if [ -z "$(dnf repoquery epel-release --refresh 2>/dev/null)" ]; then
+    if should_install_predepends && [ -n "$(dnf repoquery epel-release --refresh 2>/dev/null)" ]; then
         log "Adding epel-release"
-        $sh_c "dnf install -y epel-release"
+        $sh_c "dnf --setopt=install_weak_deps=0 install -y epel-release"
     fi
 
     if should_install_predepends && [ -n "$PREDEPENDS_PACKAGES" ]; then
@@ -267,9 +257,9 @@ install_via_dnf() {
 }
 
 install_via_microdnf() {
-    if [ -z "$(microdnf repoquery epel-release --refresh 2>/dev/null)" ]; then
+    if should_install_predepends && [ -n "$(microdnf repoquery epel-release --refresh 2>/dev/null)" ]; then
         log "Adding epel-release"
-        $sh_c "microdnf install -y epel-release"
+        $sh_c "microdnf --setopt=install_weak_deps=0 install -y epel-release"
     fi
 
     if should_install_predepends && [ -n "$PREDEPENDS_PACKAGES" ]; then
@@ -430,13 +420,22 @@ try_install_dependencies() {
     esac
 }
 
+configure_pre_depends() {
+    # Some distributions have curl-minimal installed, which then causes
+    # problems when trying to install the "curl" package. So only install it if the command is not available
+    PREDEPENDS_PACKAGES="ca-certificates"
+    if ! command_exists curl && ! command_exists wget; then
+        PREDEPENDS_PACKAGES="$PREDEPENDS_PACKAGES curl"
+    fi
+}
+
 main() {
     if [ -d "$TMPDIR" ]; then
         rm -Rf "$TMPDIR"
     fi
     mkdir -p "$TMPDIR"
 
-    check_prerequisites
+    configure_pre_depends
     configure_shell
 
     echo "Thank you for trying thin-edge.io!"
@@ -454,23 +453,17 @@ main() {
 
     # Detect package manager
     if [ -z "$PACKAGE_MANAGER" ]; then
-        # package_manager="tarball"
         package_manager=$(get_package_manager)
-        if ! command_exists bash; then
-            # Bash is required to run the repository setup scripts
-            debug "bash was not detected, so thin-edge.io will be installed via tarballs. bash is required to configure the software repository"
-        fi
         PACKAGE_MANAGER="$package_manager"
         if [ -z "$package_manager" ]; then
             package_manager="tarball"
         fi
     fi
 
-    # Check conditional dependency
-    if [ "$PACKAGE_MANAGER" != "tarball" ]; then
-        if ! command_exists bash; then
-            fail 1 "Missing prerequisite: bash. bash is required when configuring the package manager (e.g. apt, dnf, apk etc.)"
-        fi
+    # Fallback to tarball if bash is not available
+    if [ "$PACKAGE_MANAGER" != "tarball" ] && ! command_exists bash; then
+        log "Fallback to installing from tarball as bash was not found. bash is required to install thin-edge.io using a package manager"
+        PACKAGE_MANAGER="tarball"
     fi
 
     ONLY_INCLUDE_BINARIES=
@@ -495,7 +488,9 @@ main() {
     case "$PACKAGE_MANAGER" in
         tarball)
             # Note: If binaries are empty, then all included binaries are extracted
-            try_install_dependencies curl mosquitto
+            # Also install mosquitto if possible
+            # shellcheck disable=SC2086
+            try_install_dependencies mosquitto $PREDEPENDS_PACKAGES
             # shellcheck disable=SC2086
             install_via_tarball $ONLY_INCLUDE_BINARIES
             ;;
