@@ -82,6 +82,20 @@ Install on any linux distribution
     [Template]    Install using tarball
     alpine:3.18    apk add sudo curl && addgroup -S tedge && adduser -g "" -H -D tedge -G tedge && mkdir -p /run/lock && chmod 1777 /run/lock
 
+Install on diverse linux distributions
+    [Template]    Install using script
+    alpine:3.18
+    debian:12-slim
+    busybox
+    ubuntu:23.04
+    opensuse/leap:15
+    opensuse/tumbleweed:latest
+    rockylinux:9-minimal
+    rockylinux:8-minimal
+    almalinux:9-minimal
+    almalinux:8-minimal
+    debian:12-slim     install_args=--package-manager tarball
+
 *** Keywords ***
 
 Install using dnf
@@ -133,6 +147,19 @@ Install using tarball
     Execute Command      ${SETUP_STEP}    sudo=${False}
     Execute Command      ${TAR_INSTALL}    timeout=1
     Execute Command      timeout 2 tedge-agent || exit 0
+
+Install using script
+    [Arguments]    ${image}    ${pre_install}=    ${install_args}=
+    Set To Dictionary    ${DOCKER_CONFIG}    image=${image}
+    ${DEVICE_ID}=        Setup    skip_bootstrap=${True}
+
+    IF    "${pre_install}" != ""
+        Execute Command      ${pre_install}    sudo=${False}    timeout=2
+    END
+
+    Transfer To Device    ${CURDIR}/../../../../get-tedge.sh    /setup/
+    Execute Command      chmod +x /setup/get-tedge.sh && /setup/get-tedge.sh ${install_args}    sudo=${False}    timeout=2
+    Execute Command      timeout 2 tedge-agent || exit 0        timeout=2
 
 Validate thin-edge
     Log    TODO
