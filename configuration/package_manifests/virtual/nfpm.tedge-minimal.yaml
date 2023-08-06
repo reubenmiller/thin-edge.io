@@ -18,7 +18,6 @@ apk:
   arch: noarch
 
 recommends:
-  - mosquitto
   - ca-certificates
 
 overrides:
