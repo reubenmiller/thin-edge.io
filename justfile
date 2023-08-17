@@ -56,13 +56,27 @@ check TARGET=DEFAULT_TARGET:
     {{CARGO}} check --target {{TARGET}}
     {{CARGO}} clippy --all-targets --all-features --target {{TARGET}}
 
+# Build binaries with debug symbols
+build TARGET=DEFAULT_TARGET *ARGS='':
+    cargo zigbuild --target {{TARGET}} {{ARGS}}
+
+    @echo
+    @echo "Binaries are stored under:"
+    @echo
+    @echo "  target/{{TARGET}}/debug"
+    @echo
+
+# Run single binary, e.g. `just run tedge`
+run bin *ARGS='':
+    -{{CARGO}} run --target {{DEFAULT_TARGET}} --bin {{bin}} {{ARGS}}
+
 # Release, building all binaries and debian packages
 release *ARGS:
     ci/build_scripts/build.sh {{ARGS}}
 
 # Run unit tests
-test:
-    cargo test --no-fail-fast --all-features --all-targets
+test *ARGS='':
+    cargo test --no-fail-fast --all-features --all-targets {{ARGS}}
 
 # Install integration test dependencies
 setup-integration-test *ARGS:
