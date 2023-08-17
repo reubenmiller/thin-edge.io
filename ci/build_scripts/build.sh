@@ -207,12 +207,12 @@ fi
 if ! zig --help &>/dev/null; then
     if ! python3 -m ziglang --help &>/dev/null; then
         # Fix version, as 0.11.0 does not build
-        pip3 install ziglang==0.10.1.post1
+        PIP_ROOT_USER_ACTION=ignore pip3 install ziglang==0.10.1.post1 --break-system-packages 2>/dev/null || PIP_ROOT_USER_ACTION=ignore pip3 install ziglang==0.10.1.post1
     fi
 fi
 
 # Display zig version to help with debugging
-echo "zig version: $(zig version ||:)"
+echo "zig version: $(zig version || python3 -m ziglang version ||:)"
 
 if [ -z "$ARCH" ]; then
     # If no target has been given, choose the target triple based on the
