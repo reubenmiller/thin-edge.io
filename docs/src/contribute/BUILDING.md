@@ -23,9 +23,7 @@ Following tools and packages are required for building and testing the platform.
 * git
 * curl
 * gcc
-* build-essential
-* python3
-* python3-pip
+* python3 (and pip)
 * [just](https://just.systems/man/en/chapter_5.html)
 
 The following tooling will also be automatically installed when it is required.
@@ -57,6 +55,15 @@ A list of our test platforms can be found [here](../references/supported-platfor
     sudo curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/bin/
     ```
 
+    ```sh tab={"label":"MacOS(brew)"}
+    brew install \
+        curl \
+        git \
+        python3 \
+        just \
+        nfpm
+    ```
+
 2. Install Rust
 
     ```sh
@@ -85,7 +92,7 @@ git clone git@github.com:thin-edge/thin-edge.io.git
 cd thin-edge.io
 ```
 
-```sh tab={"label":"GitHub CLI"}
+```sh tab={"label":"GitHubCLI"}
 gh repo clone thin-edge/thin-edge.io
 cd thin-edge.io
 ```
