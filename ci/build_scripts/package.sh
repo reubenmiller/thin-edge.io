@@ -295,7 +295,23 @@ check_prerequisites() {
         brew install goreleaser/tap/nfpm
         brew install nfpm
         return
-    fi    
+    fi
+
+    if command -V apt >/dev/null 2>&1; then
+        # Try installing it using apt package manager
+        user="$(id -un 2>/dev/null || true)"
+        if [ "$user" = "root" ]; then
+            echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | tee /etc/apt/sources.list.d/goreleaser.list
+            apt-get update
+            apt-get install -y nfpm
+            return
+        elif command -V sudo >/dev/null 2>&1; then
+            echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+            sudo apt-get update
+            sudo apt-get install -y nfpm
+            return
+        fi
+    fi
 
     echo "Missing dependency: nfpm"
     echo "  Please install nfpm and try again: https://nfpm.goreleaser.com/install/"
