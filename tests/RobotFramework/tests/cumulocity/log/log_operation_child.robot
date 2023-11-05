@@ -56,6 +56,11 @@ Custom Setup
     ThinEdgeIO.Connect Mapper    c8y
     ThinEdgeIO.Service Health Status Should Be Up    tedge-mapper-c8y
 
+    # Ensure device is registered in the cloud before starting the child device
+    # to avoid race conditions.
+    # See https://github.com/thin-edge/thin-edge.io/issues/2346#issuecomment-1793699608 for more details
+    Cumulocity.Device Should Exist    ${PARENT_SN}
+
     # Child
     ${CHILD_SN}=    Setup    skip_bootstrap=${True}
     Set Suite Variable    $CHILD_SN
