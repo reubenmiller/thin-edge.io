@@ -4,8 +4,8 @@ Library             Cumulocity
 Library             DateTime
 Library             ThinEdgeIO
 
-Suite Setup         Custom Setup
-Test Teardown       Get Logs
+Test Setup         Custom Setup
+Test Teardown       Test Teardown
 
 Test Tags           theme:c8y    theme:log
 
@@ -62,3 +62,13 @@ Custom Setup
     Set Suite Variable    $CHILD_XID    ${PARENT_SN}:device:${CHILD_SN}
     Setup Child Device
     Cumulocity.Device Should Exist    ${CHILD_XID}
+
+Test Teardown
+    # ${date_from}=    Get Suite Start Time
+    Set Device Context    ${CHILD_SN}
+    Cumulocity.Set Device    ${CHILD_XID}
+    Get Logs
+
+    Set Device Context    ${PARENT_SN}
+    Cumulocity.Set Device    ${PARENT_SN}
+    Get Logs
