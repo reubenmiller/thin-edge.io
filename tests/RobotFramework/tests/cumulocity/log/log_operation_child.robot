@@ -65,6 +65,13 @@ Custom Setup
     ${CHILD_SN}=    Setup    skip_bootstrap=${True}
     Set Suite Variable    $CHILD_SN
     Set Suite Variable    $CHILD_XID    ${PARENT_SN}:device:${CHILD_SN}
+
+    # Ensure device is registered in the cloud before starting the child device
+    # to avoid race conditions.
+    # See https://github.com/thin-edge/thin-edge.io/issues/2346#issuecomment-1793699608 for more details
+    ThinEdgeIO.Set Device Context    ${PARENT_SN}
+    Execute Command    tedge mqtt pub -r te/device/${CHILD_SN}// '{"@type":"child-device","name":"${CHILD_SN}"}'
+
     Setup Child Device
     Cumulocity.Device Should Exist    ${CHILD_XID}
 
