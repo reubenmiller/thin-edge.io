@@ -54,6 +54,8 @@ REQUIREMENTS=(
     "requirements/requirements.dev.txt"
 )
 
+PACKAGE_DEPENDENCIES=()
+
 # Support installing only selected device adapters to minimize
 # dependencies for specific test runners
 if [ $# -gt 0 ]; then
@@ -68,6 +70,9 @@ if [ $# -gt 0 ]; then
                         "requirements/requirements.adapter-${ADAPTER}.txt"
                     )
                 fi
+                PACKAGE_DEPENDENCIES+=(
+                    gcc build-essential python3-dev mosquitto-clients
+                )
                 ;;
             *)
                 echo "Invalid device test adapter. Only 'local', 'docker' or 'ssh' are supported"
@@ -82,6 +87,13 @@ else
         -r
         "requirements/requirements.adapter.txt"
     )
+fi
+
+# Install build pre-requisites
+if [ ${#PACKAGE_DEPENDENCIES[@]} -gt 0 ]; then
+    if command -V apt-get >/dev/null 2>&1; then
+        sudo apt-get install -y --no-install-recommends "${PACKAGE_DEPENDENCIES[@]}"
+    fi
 fi
 
 pip3 install "${REQUIREMENTS[@]}"
