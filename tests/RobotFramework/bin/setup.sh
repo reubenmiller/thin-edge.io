@@ -61,7 +61,7 @@ if [ $# -gt 0 ]; then
         ADAPTER="$1"
         case "$ADAPTER" in
             local|docker|ssh)
-                if [ -f "requirements.adapter-${1}.txt" ]; then
+                if [ -f "requirements/requirements.adapter-${1}.txt" ]; then
                     echo "Install device test adapter: $1"
                     REQUIREMENTS+=(
                         -r
