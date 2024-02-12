@@ -31,5 +31,14 @@ if [ -f /etc/mosquitto/mosquitto.conf ]; then
 fi
 
 # Initialize the tedge
-tedge init
+# Don't fail here as ostree environment don't allow user to be created until after the package
+id -u tedge ||:
+id -g tedge ||:
+ls -l /var/log ||:
+ls -l /etc/tedge ||:
+cat /etc/tedge/tedge.toml ||:
+TEDGE_LOGS_PATH=/etc/tedge/logs tedge config list ||:
+
+# tedge init || echo "tedge init failed, but continuing anyway"
+tedge init ||:
 tedge refresh-bridges
