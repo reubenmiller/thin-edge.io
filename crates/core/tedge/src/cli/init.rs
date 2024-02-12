@@ -4,6 +4,7 @@ use crate::Component;
 use anyhow::bail;
 use anyhow::Context;
 use clap::Subcommand;
+use tracing::warn;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use tedge_utils::file::change_user_and_group;
@@ -103,6 +104,7 @@ impl TEdgeInitCmd {
         }
 
         let config_dir = self.context.config_location.tedge_config_root_path.clone();
+        warn!("Creating config_dir");
         create_directory(
             &config_dir,
             PermissionEntry::new(
@@ -112,6 +114,7 @@ impl TEdgeInitCmd {
             ),
         )?;
 
+        warn!("Creating mosquitto-conf");
         create_directory(
             config_dir.join("mosquitto-conf"),
             PermissionEntry::new(
@@ -120,6 +123,7 @@ impl TEdgeInitCmd {
                 Some(0o775),
             ),
         )?;
+        warn!("Creating operations");
         create_directory(
             config_dir.join("operations"),
             PermissionEntry::new(
@@ -128,6 +132,7 @@ impl TEdgeInitCmd {
                 Some(0o775),
             ),
         )?;
+        warn!("Creating operations/c8y");
         create_directory(
             config_dir.join("operations").join("c8y"),
             PermissionEntry::new(
@@ -155,6 +160,7 @@ impl TEdgeInitCmd {
 
         let config = self.context.config_repository.load()?;
 
+        warn!("Creating logs.path. {:?}", config.logs.path.clone());
         create_directory(
             config.logs.path.clone(),
             PermissionEntry::new(
@@ -164,6 +170,7 @@ impl TEdgeInitCmd {
             ),
         )?;
 
+        warn!("Creating data.path. {:?}", &config.data.path);
         create_directory(
             &config.data.path,
             PermissionEntry::new(
