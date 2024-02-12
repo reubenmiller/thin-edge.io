@@ -1,5 +1,6 @@
 use futures::TryFutureExt;
 use nix::unistd::*;
+use tracing::info;
 use std::fs;
 use std::io;
 use std::io::Write;
@@ -25,8 +26,14 @@ pub enum FileError {
     #[error("User not found: {user:?}.")]
     UserNotFound { user: String },
 
+    #[error("User not found using id: {user:?}.")]
+    UserNotFoundUsingCLI { user: String },
+
     #[error("Group not found: {group:?}.")]
     GroupNotFound { group: String },
+
+    #[error("Group not found using id: {group:?}.")]
+    GroupNotFoundUsingCLI { group: String },
 
     #[error(transparent)]
     Errno(#[from] nix::errno::Errno),
@@ -346,7 +353,7 @@ pub fn overwrite_file(file: &Path, content: &str) -> Result<(), FileError> {
     }
 }
 
-pub fn change_user_and_group(file: &Path, user: &str, group: &str) -> Result<(), FileError> {
+pub fn change_user_and_group_by_lib(file: &Path, user: &str, group: &str) -> Result<(), FileError> {
     debug!(
         "Changing ownership of file: {:?} with user: {} and group: {}",
         file, user, group
@@ -378,7 +385,138 @@ pub fn change_user_and_group(file: &Path, user: &str, group: &str) -> Result<(),
     Ok(())
 }
 
-fn change_user(file: &Path, user: &str) -> Result<(), FileError> {
+/// Changes owning user/group of a file, but uses shell commands instead of libc to extract uid from
+/// the username.
+///
+/// It may be necessary because libc may not be aware of how certain distributions like Fedora IoT
+/// use an immutable filesystem, which can result in changes to users/groups not being immediately
+/// visible.
+pub fn change_user_and_group(
+    file: &Path,
+    user: &str,
+    group: &str,
+) -> Result<(), FileError> {
+    debug!(
+        "Changing ownership of file: {:?} with user: {} and group: {}",
+        file, user, group
+    );
+    let file_metadata = get_metadata(Path::new(file))?;
+
+    // let uid = get_uid_by_name(user)?;
+    let output = std::process::Command::new("id").arg("-u").arg(user).output()?;
+    let stdout = std::str::from_utf8(&output.stdout).expect("id -u should return utf-8 output");
+    info!("id -u output: {:?}", stdout);
+    // if stdout is not a single int, it means that such user/group doesn't exist
+    let uid = stdout.trim().parse().map_err(|_| FileError::UserNotFoundUsingCLI {
+        user: user.to_string(),
+    })?;
+    info!("user={} ({})", user, uid);
+
+    let uid = if uid == file_metadata.st_uid() {
+        None
+    } else {
+        Some(Uid::from_raw(uid))
+    };
+
+    // let gid = get_gid_by_name(group)?;
+    let output = std::process::Command::new("id").arg("-g").arg(group).output()?;
+    let stdout = std::str::from_utf8(&output.stdout).expect("id -g should return utf-8 output");
+    info!("id -g output: {:?}", stdout);
+    // if stdout is not a single int, it means that such user/group doesn't exist
+    let gid = stdout.trim().parse().map_err(|_| FileError::GroupNotFoundUsingCLI {
+        group: group.to_string(),
+    })?;
+    info!("group={} ({})", group, gid);
+
+    let gid = if gid == file_metadata.st_gid() {
+        None
+    } else {
+        Some(Gid::from_raw(gid))
+    };
+
+    info!("Calling chown using lib");
+    // if user and group are same as existing, then do not change
+    chown(file, uid, gid).map_err(|e| FileError::MetaDataError {
+        name: file.display().to_string(),
+        from: e.into(),
+    })?;
+
+    Ok(())
+}
+
+pub fn change_user(
+    file: &Path,
+    user: &str,
+) -> Result<(), FileError> {
+    debug!(
+        "Changing ownership of file: {:?} with user: {}",
+        file, user
+    );
+    let file_metadata = get_metadata(Path::new(file))?;
+
+    // let uid = get_uid_by_name(user)?;
+    let output = std::process::Command::new("id").arg("-u").arg(user).output()?;
+    let stdout = std::str::from_utf8(&output.stdout).expect("id -u should return utf-8 output");
+    info!("id -u output: {:?}", stdout);
+    // if stdout is not a single int, it means that such user/group doesn't exist
+    let uid = stdout.trim().parse().map_err(|_| FileError::UserNotFoundUsingCLI {
+        user: user.to_string(),
+    })?;
+    info!("user={} ({})", user, uid);
+
+    let uid = if uid == file_metadata.st_uid() {
+        None
+    } else {
+        Some(Uid::from_raw(uid))
+    };
+
+    info!("Calling chown using lib");
+    // if user and group are same as existing, then do not change
+    chown(file, uid, None).map_err(|e| FileError::MetaDataError {
+        name: file.display().to_string(),
+        from: e.into(),
+    })?;
+
+    Ok(())
+}
+
+pub fn change_group(
+    file: &Path,
+    group: &str,
+) -> Result<(), FileError> {
+    debug!(
+        "Changing ownership of file: {:?} with group: {}",
+        file, group
+    );
+    let file_metadata = get_metadata(Path::new(file))?;
+
+    // let gid = get_gid_by_name(group)?;
+    let output = std::process::Command::new("id").arg("-g").arg(group).output()?;
+    let stdout = std::str::from_utf8(&output.stdout).expect("id -g should return utf-8 output");
+    // if stdout is not a single int, it means that such user/group doesn't exist
+    info!("id -g output: {:?}", stdout);
+    let gid = stdout.trim().parse().map_err(|_| FileError::GroupNotFoundUsingCLI {
+        group: group.to_string(),
+    })?;
+    info!("group={} ({})", group, gid);
+
+    let gid = if gid == file_metadata.st_gid() {
+        None
+    } else {
+        Some(Gid::from_raw(gid))
+    };
+
+    info!("Calling chown using lib");
+    // if user and group are same as existing, then do not change
+    chown(file, None, gid).map_err(|e| FileError::MetaDataError {
+        name: file.display().to_string(),
+        from: e.into(),
+    })?;
+
+    Ok(())
+}
+
+fn change_user_by_lib(file: &Path, user: &str) -> Result<(), FileError> {
     let ud = get_user_by_name(user)
         .map(|u| u.uid())
         .ok_or_else(|| FileError::UserNotFound { user: user.into() })?;
@@ -396,7 +534,7 @@ fn change_user(file: &Path, user: &str) -> Result<(), FileError> {
     Ok(())
 }
 
-fn change_group(file: &Path, group: &str) -> Result<(), FileError> {
+fn change_group_by_lib(file: &Path, group: &str) -> Result<(), FileError> {
     let gd = get_group_by_name(group)
         .map(|g| g.gid())
         .ok_or_else(|| FileError::GroupNotFound {
