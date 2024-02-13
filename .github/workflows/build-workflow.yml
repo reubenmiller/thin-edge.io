@@ -2,17 +2,13 @@ name: build-workflow
 
 on:
   push:
+    branches: [ experiment-clang ]
     tags:
       - "*"
 
   merge_group:
   workflow_dispatch:
     inputs:
-      disable_cache:
-        description: Disable rust caching
-        type: boolean
-        required: false
-        default: false
       include:
         description: Only run tests matching tests with the given tags
         type: string
@@ -33,63 +29,107 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
 
 jobs:
   build:
-    name: Build ${{ matrix.job.target }}
-    runs-on: ubuntu-20.04
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.host_os }}
     strategy:
       fail-fast: false
       matrix:
-        job:
-          - { target: x86_64-unknown-linux-musl, cache: true }
-          - { target: aarch64-unknown-linux-musl, cache: true }
-          - { target: arm-unknown-linux-musleabihf, cache: true }
-          - { target: armv7-unknown-linux-musleabihf, cache: true }
+        target:
+          - aarch64-unknown-linux-musl
+          - arm-unknown-linux-musleabi
+          - arm-unknown-linux-musleabihf
+          - armv7-unknown-linux-musleabihf
+          - i686-unknown-linux-musl
+          - x86_64-unknown-linux-musl
+          - riscv64gc-unknown-linux-gnu
+          # Check: Debian also calls this "armel" (conflict with arm-unknown-linux-musleabi)
+          - armv5te-unknown-linux-musleabi
+        mode:
+          - --release
+
+        rust_channel:
+          - stable
+
+        include:
+          - target: aarch64-unknown-linux-musl
+            host_os: ubuntu-22.04
+
+          - target: arm-unknown-linux-musleabi
+            host_os: ubuntu-22.04
+
+          - target: arm-unknown-linux-musleabihf
+            host_os: ubuntu-22.04
+
+          - target: armv7-unknown-linux-musleabihf
+            host_os: ubuntu-22.04
+
+          - target: armv5te-unknown-linux-musleabi
+            host_os: ubuntu-22.04
+
+          - target: i686-unknown-linux-musl
+            host_os: ubuntu-22.04
+
+          - target: x86_64-unknown-linux-musl
+            host_os: ubuntu-22.04
+
+          - target: riscv64gc-unknown-linux-gnu
+            host_os: ubuntu-22.04
+          
+          - target: mips64el-unknown-linux-gnuabi64
+            mode: --release
+            rust_channel: "1.71.0" # No prebuilt toolchain for later versions.
+            host_os: ubuntu-22.04
+
+          - target: mipsel-unknown-linux-gnu
+            mode: --release
+            rust_channel: "1.71.0" # No prebuilt toolchain for later versions.
+            host_os: ubuntu-22.04
 
     steps:
+      - if: ${{ contains(matrix.host_os, 'ubuntu') }}
+        run: sudo apt-get update -y
+
+      # Checkout either the PR or the branch
+      - name: Checkout PR
+        if: ${{ github.event_name == 'pull_request_target' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }} # Check out the code of the PR. Only after the manual approval process
+          fetch-depth: 0
+
       - name: Checkout
         uses: actions/checkout@v4
+        if: ${{ github.event_name != 'pull_request_target' }}
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
           fetch-depth: 0
 
-      - name: Retrieve MSRV from workspace Cargo.toml
-        id: rust_version
-        uses: SebRollen/toml-action@v1.2.0
-        with:
-          file: Cargo.toml
-          field: "workspace.package.rust-version"
+      - run: rustup toolchain add --profile=minimal ${{ matrix.rust_channel }}
+      - run: rustup target add --toolchain=${{ matrix.rust_channel }} ${{ matrix.target }}
+      - run: mk/install-build-tools.sh --target=${{ matrix.target }}
+      - name: build tedge
+        run: |
+          . ./ci/build_scripts/version.sh
+          mk/cargo.sh +${{ matrix.rust_channel }} build -p tedge --target=${{ matrix.target }} ${{ matrix.mode }}
 
-      - name: Enable toolchain via github action
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust_version.outputs.value }}
-          targets: ${{ matrix.job.target }}
+      - name: build c8y-firmware-plugin
+        run: |
+          . ./ci/build_scripts/version.sh
+          mk/cargo.sh +${{ matrix.rust_channel }} build -p c8y-firmware-plugin --target=${{ matrix.target }} ${{ matrix.mode }}
 
-      - name: Enable cache
-        if: ${{ matrix.job.cache && !inputs.disable_cache }}
-        # https://github.com/marketplace/actions/rust-cache
-        uses: Swatinem/rust-cache@v2
-
-      # Install nfpm used to for linux packaging
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
-          cache: false
-      - run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
-
-      - uses: taiki-e/install-action@just
-      - name: Build for ${{ matrix.job.target }}
-        run: just release ${{ matrix.job.target }}
+      - name: Package
+        run: |
+          ./ci/build_scripts/build.sh ${{ matrix.target }} --skip-build --skip-test-packages --skip-deprecated-packages
 
       - name: Upload packages as zip
         # https://github.com/marketplace/actions/upload-a-build-artifact
         uses: actions/upload-artifact@v4
         with:
-            name: packages-${{ matrix.job.target }}
-            path: target/${{ matrix.job.target }}/packages/*.*
+            name: packages-${{ matrix.target }}
+            path: target/${{ matrix.target }}/packages/*.*
 
   approve:
     # Note: Use approval as a job so that the downstream jobs are only prompted once (if more than 1 matrix job is defined)
@@ -200,6 +240,11 @@ jobs:
           # Keep arm-unknown-linux-musleabihf in separate repo due to armhf conflict between raspbian and debian
           - { target: arm-unknown-linux-musleabihf,   repo: tedge-main-armv6,    component: main }
           - { target: armv7-unknown-linux-musleabihf, repo: tedge-main,          component: main }
+          - { target: arm-unknown-linux-musleabi,     repo: tedge-main,          component: main }
+          - { target: i686-unknown-linux-musl,        repo: tedge-main,          component: main }
+          - { target: riscv64gc-unknown-linux-gnu,    repo: tedge-main,          component: main }
+          # Check: Debian also calls this "armel" (conflict with arm-unknown-linux-musleabi)
+          # - { target: armv5te-unknown-linux-musleabi, repo: tedge-main,          component: main }
 
     steps:
       - name: Checkout
