@@ -65,6 +65,10 @@ check TARGET=DEFAULT_TARGET:
 release *ARGS:
     ci/build_scripts/build.sh {{ARGS}}
 
+# Release, building all binaries using clang and debian packages
+release-clang *ARGS:
+    mk/release.sh {{ARGS}}
+
 # Run unit tests
 test:
     cargo nextest run --no-fail-fast --all-features --all-targets
