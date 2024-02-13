@@ -113,16 +113,11 @@ jobs:
       - name: build tedge
         run: |
           . ./ci/build_scripts/version.sh
-          mk/cargo.sh +${{ matrix.rust_channel }} build -p tedge --target=${{ matrix.target }} ${{ matrix.mode }}
-
-      - name: build c8y-firmware-plugin
-        run: |
-          . ./ci/build_scripts/version.sh
-          mk/cargo.sh +${{ matrix.rust_channel }} build -p c8y-firmware-plugin --target=${{ matrix.target }} ${{ matrix.mode }}
+          mk/cargo.sh +${{ matrix.rust_channel }} build --target=${{ matrix.target }} ${{ matrix.mode }}
 
       - name: Package
         run: |
-          ./ci/build_scripts/build.sh ${{ matrix.target }} --skip-build --skip-test-packages --skip-deprecated-packages
+          ./ci/build_scripts/build.sh ${{ matrix.target }} --skip-build --skip-deprecated-packages
 
       - name: Upload packages as zip
         # https://github.com/marketplace/actions/upload-a-build-artifact
