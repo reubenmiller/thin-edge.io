@@ -3,7 +3,13 @@ use nix::unistd::*;
 use std::fs;
 use std::io;
 use std::io::Write;
+
+#[cfg(target_os = "linux")]
 use std::os::linux::fs::MetadataExt;
+
+#[cfg(target_os = "macos")]
+use std::os::macos::fs::MetadataExt;
+
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::path::PathBuf;
