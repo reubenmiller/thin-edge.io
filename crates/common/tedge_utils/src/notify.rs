@@ -4,8 +4,7 @@ use notify::event::AccessMode;
 use notify::event::CreateKind;
 use notify::event::RemoveKind;
 use notify::EventKind;
-// use notify::INotifyWatcher;
-use notify::FsEventWatcher;
+use notify::RecommendedWatcher;
 use notify::RecursiveMode;
 use notify::Watcher;
 use notify_debouncer_full as debouncer;
@@ -66,7 +65,7 @@ pub enum NotifyStreamError {
 }
 
 pub struct NotifyStream {
-    debouncer: debouncer::Debouncer<FsEventWatcher, debouncer::NoCache>,
+    debouncer: debouncer::Debouncer<RecommendedWatcher, debouncer::NoCache>,
     pub rx: Receiver<(PathBuf, FsEvent)>,
 }
 
