@@ -1,9 +1,17 @@
 use camino::Utf8Path;
+use tracing::instrument::WithSubscriber;
+use tracing_journald::layer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::Layer;
 
 use crate::system_services::SystemConfig;
 use crate::system_services::SystemServiceError;
 use std::io::IsTerminal;
 use std::str::FromStr;
+use tracing_subscriber;
+use tracing_journald;
+// use tracing_journald::{Priority, PriorityMappings, Subscriber};
 
 pub fn get_log_level(
     sname: &str,
@@ -26,18 +34,27 @@ pub fn get_log_level(
 /// Reports all the log events sent either with the `log` crate or the `tracing`
 /// crate.
 pub fn set_log_level(log_level: tracing::Level) {
-    let subscriber = tracing_subscriber::fmt()
+
+    let default_subscriber = tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_ansi(std::io::stderr().is_terminal())
         .with_timer(tracing_subscriber::fmt::time::UtcTime::rfc_3339());
 
-    if std::env::var("RUST_LOG").is_ok() {
-        subscriber
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .init();
-    } else {
-        subscriber.with_max_level(log_level).init();
+    let registry = tracing_subscriber::registry();
+    if let Ok(journald_layer) = tracing_journald::layer() {
+        registry.with(journald_layer.with_syslog_identifier("test".into())).init();
     }
+
+    // if std::env::var("RUST_LOG").is_ok() {
+    //     default_layer
+    //         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env());
+    // } else {
+    //     default_layer.with_max_level(log_level);
+    // }
+    // registry.with(default_layer);
+
+    // registry.init();
+    // .init();
 }
 
 #[cfg(test)]

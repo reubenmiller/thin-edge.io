@@ -51,6 +51,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
 toml = { workspace = true }
 tracing = { workspace = true }
+tracing-journald = { workspace = true }
 url = { workspace = true }
 which = { workspace = true }
 yansi = { workspace = true }
