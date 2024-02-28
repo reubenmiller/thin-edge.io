@@ -4,6 +4,7 @@ use crate::Component;
 use anyhow::bail;
 use anyhow::Context;
 use clap::Subcommand;
+use std::os::unix::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use tedge_utils::file::change_user_and_group;
@@ -81,23 +82,7 @@ impl TEdgeInitCmd {
                         format!("creating symlink for {component} to {}", tedge.display())
                     })?;
 
-                    let res = std::process::Command::new("chown")
-                        .arg("--no-dereference")
-                        .arg(&format!("{}:{}", stat.uid(), stat.gid()))
-                        .arg(&link)
-                        .output()
-                        .with_context(|| {
-                            format!(
-                                "executing chown to change ownership of symlink at {}",
-                                link.display()
-                            )
-                        })?;
-                    anyhow::ensure!(
-                        res.status.success(),
-                        "failed to change ownership of symlink at {}\n\nSTDERR: {}",
-                        link.display(),
-                        String::from_utf8_lossy(&res.stderr),
-                    )
+                    fs::lchown(&link, Some(stat.uid()), Some(stat.gid())).expect(format!("failed to change ownership of symlink at {}", link.display()).as_str());
                 }
             }
         }
