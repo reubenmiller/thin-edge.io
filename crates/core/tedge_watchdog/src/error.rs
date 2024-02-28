@@ -12,9 +12,11 @@ pub enum WatchdogError {
     #[error("The watchdog is not available on this platform")]
     WatchdogNotAvailable,
 
+    #[cfg(target_os = "linux")]
     #[error("MQTT receiver closed")]
     ChannelClosed,
 
+    #[cfg(target_os = "linux")]
     #[error("Fail to run `{cmd}`: {from}")]
     CommandExecError { cmd: String, from: std::io::Error },
 
@@ -36,6 +38,7 @@ pub enum WatchdogError {
     #[error(transparent)]
     ParseSystemdFile(#[from] std::io::Error),
 
+    #[cfg(target_os = "linux")]
     #[error("Did not find the WatchdogSec in {file}")]
     NoWatchdogSec { file: String },
 
