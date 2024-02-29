@@ -4,6 +4,7 @@ use crate::c8y::mapper::CumulocityMapper;
 use crate::collectd::mapper::CollectdMapper;
 use crate::core::component::TEdgeComponent;
 use clap::Parser;
+#[cfg(unix)]
 use flockfile::check_another_instance_is_not_running;
 use std::fmt;
 use tedge_config::system_services::get_log_level;
@@ -98,10 +99,13 @@ pub async fn run(mapper_opt: MapperOpt) -> anyhow::Result<()> {
     set_log_level(log_level);
 
     // Run only one instance of a mapper (if enabled)
-    let mut _flock = None;
-    if config.run.lock_files {
-        let run_dir = config.run.path.as_std_path();
-        _flock = check_another_instance_is_not_running(&mapper_opt.name.to_string(), run_dir)?;
+    #[cfg(unix)]
+    {
+        let mut _flock = None;
+        if config.run.lock_files {
+            let run_dir = config.run.path.as_std_path();
+            _flock = check_another_instance_is_not_running(&mapper_opt.name.to_string(), run_dir)?;
+        }
     }
 
     if mapper_opt.init {

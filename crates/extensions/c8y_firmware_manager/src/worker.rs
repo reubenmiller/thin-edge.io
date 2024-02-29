@@ -16,6 +16,11 @@ use log::info;
 use sha256::digest;
 use sha256::try_digest;
 use std::fs;
+#[cfg(unix)]
+use unix::fs::symlink;
+#[cfg(windows)]
+use std::os::windows::fs::symlink_file as symlink;
+#[cfg(unix)]
 use std::os::unix;
 use std::path::Path;
 use std::sync::Arc;
@@ -446,7 +451,7 @@ impl FirmwareManagerWorker {
 
         if !symlink_path.is_symlink() {
             fs::create_dir_all(symlink_dir_path)?;
-            unix::fs::symlink(original_file_path, &symlink_path)?;
+            symlink(original_file_path, &symlink_path)?;
         }
         Ok(symlink_path)
     }

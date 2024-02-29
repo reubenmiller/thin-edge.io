@@ -3,6 +3,7 @@ use camino::Utf8PathBuf;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::prelude::OpenOptionsExt;
 use std::path::Path;
 use std::path::PathBuf;
@@ -136,9 +137,22 @@ impl TempTedgeFile {
     }
 }
 
+#[cfg(unix)]
 pub fn with_exec_permission(file_path: &Path, content: &str) {
     let mut file = OpenOptions::new()
         .mode(0o744)
+        .create_new(true)
+        .write(true)
+        .open(file_path)
+        .unwrap();
+
+    file.write_all(content.as_bytes()).unwrap();
+    file.sync_all().unwrap();
+}
+
+#[cfg(windows)]
+pub fn with_exec_permission(file_path: &Path, content: &str) {
+    let mut file = OpenOptions::new()
         .create_new(true)
         .write(true)
         .open(file_path)

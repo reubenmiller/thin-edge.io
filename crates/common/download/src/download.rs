@@ -7,6 +7,7 @@ use backoff::ExponentialBackoff;
 use log::debug;
 use log::info;
 use log::warn;
+#[cfg(unix)]
 use nix::sys::statvfs;
 pub use partial_response::InvalidResponseError;
 use reqwest::header;
@@ -453,6 +454,14 @@ enum SaveChunksError {
     Io(#[from] std::io::Error),
 }
 
+#[cfg(windows)]
+#[allow(clippy::unnecessary_cast)]
+fn try_pre_allocate_space(_file: &File, _path: &Path, _file_len: u64) -> Result<(), DownloadError> {
+    info!("TODO: Windows does not currently support preallocating disk when downloading a file");
+    Ok(())
+}
+
+#[cfg(unix)]
 #[allow(clippy::unnecessary_cast)]
 fn try_pre_allocate_space(file: &File, path: &Path, file_len: u64) -> Result<(), DownloadError> {
     if file_len == 0 {

@@ -1870,6 +1870,7 @@ dependencies = [
  "shell-words",
  "tedge_test_utils",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

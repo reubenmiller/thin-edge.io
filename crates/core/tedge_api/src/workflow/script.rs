@@ -9,6 +9,7 @@ use serde_json::Value;
 use std::cmp::min;
 use std::fmt::Display;
 use std::fmt::Formatter;
+#[cfg(unix)]
 use std::os::unix::prelude::ExitStatusExt;
 use std::time::Duration;
 
@@ -155,8 +156,13 @@ impl ExitHandlers {
     ) -> Value {
         match outcome {
             Ok(output) => match output.status.code() {
+                #[cfg(unix)]
                 None => self
                     .state_update_on_kill(program, output.status.signal().unwrap_or(0) as u8)
+                    .into_json(),
+                #[cfg(windows)]
+                None => self
+                    .state_update_on_kill(program, 0_u8)
                     .into_json(),
                 Some(0) => {
                     match (

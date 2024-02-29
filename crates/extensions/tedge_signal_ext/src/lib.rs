@@ -1,7 +1,10 @@
 use async_trait::async_trait;
+#[cfg(unix)]
 use signal_hook::consts::signal::*;
+#[cfg(unix)]
 use signal_hook_tokio::Signals;
 use std::convert::Infallible;
+#[cfg(unix)]
 use tedge_actors::futures::StreamExt;
 use tedge_actors::Actor;
 use tedge_actors::Builder;
@@ -69,6 +72,7 @@ impl Actor for SignalActor {
         "Signal-Handler"
     }
 
+    #[cfg(unix)]
     async fn run(mut self) -> Result<(), RuntimeError> {
         let mut signals = Signals::new([SIGTERM, SIGINT, SIGQUIT]).unwrap(); // FIXME
         loop {
@@ -81,6 +85,25 @@ impl Actor for SignalActor {
                     }
                 }
                 else => return Ok(())
+            }
+        }
+    }
+    #[cfg(windows)]
+    async fn run(mut self) -> Result<(), RuntimeError> {
+        use tokio::signal::windows;
+        // Infos here:
+        // https://learn.microsoft.com/en-us/windows/console/handlerroutine
+        let mut signal_c = windows::ctrl_c().unwrap();
+        let mut signal_break = windows::ctrl_break().unwrap();
+        let mut signal_close = windows::ctrl_close().unwrap();
+        let mut signal_shutdown = windows::ctrl_shutdown().unwrap();
+        loop {
+            tokio::select! {
+                None = self.messages.recv() => return Ok(()),
+                _ = signal_c.recv() => self.messages.send(RuntimeAction::Shutdown).await?,
+                _ = signal_break.recv() => self.messages.send(RuntimeAction::Shutdown).await?,
+                _ = signal_close.recv() => self.messages.send(RuntimeAction::Shutdown).await?,
+                _ = signal_shutdown.recv() => self.messages.send(RuntimeAction::Shutdown).await?,
             }
         }
     }

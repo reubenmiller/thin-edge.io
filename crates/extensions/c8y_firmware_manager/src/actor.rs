@@ -19,6 +19,11 @@ use log::warn;
 use nanoid::nanoid;
 use std::collections::HashMap;
 use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::symlink as symlink;
+#[cfg(windows)]
+use std::os::windows::fs::symlink_file as symlink;
+use std::path::Path;
 use tedge_actors::fan_in_message_type;
 use tedge_actors::Actor;
 use tedge_actors::ClientMessageBox;

@@ -4,8 +4,16 @@ use crate::Component;
 use anyhow::bail;
 use anyhow::Context;
 use clap::Subcommand;
+#[cfg(unix)]
 use std::os::unix::fs;
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+
+#[cfg(unix)]
+use std::os::unix::fs::symlink as symlink;
+#[cfg(windows)]
+use std::os::windows::fs::symlink_file as symlink;
+
 use std::path::Path;
 use tedge_utils::file::change_user_and_group;
 use tedge_utils::file::create_directory;
@@ -32,6 +40,7 @@ impl TEdgeInitCmd {
     fn initialize_tedge(&self) -> anyhow::Result<()> {
         let executable_name =
             std::env::current_exe().context("retrieving the current executable name")?;
+        #[cfg(unix)]
         let stat = std::fs::metadata(&executable_name).with_context(|| {
             format!(
                 "reading metadata for the current executable ({})",
@@ -68,7 +77,7 @@ impl TEdgeInitCmd {
                 meta => {
                     let file_exists = meta.is_ok();
                     if file_exists {
-                        nix::unistd::unlink(&link).with_context(|| {
+                        std::fs::remove_file(&link).with_context(|| {
                             format!("removing old version of {component} at {}", link.display())
                         })?;
                     }
@@ -78,13 +87,14 @@ impl TEdgeInitCmd {
                     } else {
                         &*executable_name
                     };
-                    std::os::unix::fs::symlink(tedge, &link).with_context(|| {
+                    symlink(tedge, &link).with_context(|| {
                         format!("creating symlink for {component} to {}", tedge.display())
                     })?;
 
                     #[cfg(unix)]
-                    let res = std::process::Command::new("chown")
-                        .arg("--no-dereference")
+                    {
+                        let res = std::process::Command::new("chown")
+                        .arg("-h")
                         .arg(&format!("{}:{}", stat.uid(), stat.gid()))
                         .arg(&link)
                         .output()
@@ -94,16 +104,13 @@ impl TEdgeInitCmd {
                                 link.display()
                             )
                         })?;
-                    #[cfg(unix)]
-                    anyhow::ensure!(
-                        res.status.success(),
-                        "failed to change ownership of symlink at {}\n\nSTDERR: {}",
-                        link.display(),
-                        String::from_utf8_lossy(&res.stderr),
-                    )
-
-                    #[cfg(windows)]
-                    fs::lchown(&link, Some(stat.uid()), Some(stat.gid())).expect(format!("failed to change ownership of symlink at {}", link.display()).as_str());
+                        anyhow::ensure!(
+                            res.status.success(),
+                            "failed to change ownership of symlink at {}\n\nSTDERR: {}",
+                            link.display(),
+                            String::from_utf8_lossy(&res.stderr),
+                        )
+                    }
                 }
             }
         }
