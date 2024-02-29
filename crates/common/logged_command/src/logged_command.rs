@@ -1,6 +1,8 @@
 use log::error;
+#[cfg(unix)]
 use nix::unistd::Pid;
 use std::ffi::OsStr;
+#[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use std::process::Output;
 use std::process::Stdio;
@@ -113,6 +115,12 @@ fn update_stderr_message(mut output: Output, timeout: Duration) -> Result<Output
     Ok(output)
 }
 
+#[cfg(windows)]
+fn send_signal_to_stop_child(child: Option<u32>, signal_type: CmdStatus) {
+    todo!()
+}
+
+#[cfg(unix)]
 fn send_signal_to_stop_child(child: Option<u32>, signal_type: CmdStatus) {
     if let Some(pid) = child {
         let pid: Pid = nix::unistd::Pid::from_raw(pid as nix::libc::pid_t);
@@ -235,6 +243,8 @@ impl LoggedCommand {
                         .write_all(format!("exit status: {}\n\n", code).as_bytes())
                         .await?
                 };
+
+                #[cfg(unix)]
                 if let Some(signal) = &output.status.signal() {
                     logger
                         .write_all(format!("killed by signal: {}\n\n", signal).as_bytes())

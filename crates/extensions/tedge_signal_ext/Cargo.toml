@@ -12,9 +12,11 @@ repository = { workspace = true }
 [dependencies]
 async-trait = { workspace = true }
 signal-hook = { workspace = true }
-signal-hook-tokio = { workspace = true }
 tedge_actors = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
+
+[target.'cfg(unix)'.dependencies]
+signal-hook-tokio = { workspace = true }
 
 [lints]
 workspace = true

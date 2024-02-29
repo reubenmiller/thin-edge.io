@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::io;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 use anyhow::bail;
@@ -76,6 +77,7 @@ pub fn run(args: Args) -> anyhow::Result<()> {
         .context("Changing ownership of destination file failed")?;
     }
 
+    #[cfg(unix)]
     if let Some(mode) = args.mode {
         let mode = u32::from_str_radix(&mode, 8).context("Parsing mode failed")?;
         let permissions = fs::Permissions::from_mode(mode);
@@ -121,6 +123,16 @@ fn write_stdin_to_file_atomic(target_filepath: &Utf8Path) -> anyhow::Result<()> 
     Ok(())
 }
 
+#[cfg(windows)]
+fn chown_by_user_and_group_name(
+    filepath: &Utf8Path,
+    user_name: Option<&str>,
+    group_name: Option<&str>,
+) -> anyhow::Result<()> {
+    Ok(())
+}
+
+#[cfg(unix)]
 fn chown_by_user_and_group_name(
     filepath: &Utf8Path,
     user_name: Option<&str>,

@@ -1,4 +1,7 @@
+#[cfg(unix)]
 use nix::NixPath;
+use tracing::error;
+use tracing::info;
 use std::fs as std_fs;
 use std::io::Read;
 use std::io::Write;
@@ -56,6 +59,7 @@ pub async fn atomically_write_file_async(
     let tempfile = PathBuf::from(dest.as_ref()).with_extension("tmp");
 
     // Write the content on a temp file
+    info!("Opening temp file");
     let mut file = tokio_fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -64,6 +68,7 @@ pub async fn atomically_write_file_async(
 
     if let Err(err) = file.write_all(content).await {
         tokio_fs::remove_file(tempfile).await?;
+        error!("Failed to remove temp file");
         return Err(err);
     }
 
@@ -84,6 +89,16 @@ pub async fn atomically_write_file_async(
     Ok(())
 }
 
+#[cfg(windows)]
+fn parent_dir(file: &Path) -> PathBuf {
+    match file.parent() {
+        None => Path::new(".").into(),
+        // Some(path) if path.is_empty() => Path::new(".").into(),
+        Some(dir) => dir.into(),
+    }
+}
+
+#[cfg(unix)]
 fn parent_dir(file: &Path) -> PathBuf {
     match file.parent() {
         None => Path::new("/").into(),

@@ -17,8 +17,11 @@ camino.workspace = true
 clap.workspace = true
 nix.workspace = true
 path-clean.workspace = true
-uzers.workspace = true
+# uzers.workspace = true
 which.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+uzers.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true

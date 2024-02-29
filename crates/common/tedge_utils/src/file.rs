@@ -1,4 +1,5 @@
 use futures::TryFutureExt;
+#[cfg(unix)]
 use nix::unistd::*;
 use std::fs;
 use std::io;
@@ -9,12 +10,14 @@ use std::os::linux::fs::MetadataExt;
 
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::MetadataExt;
-
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::path::PathBuf;
 use tracing::debug;
+#[cfg(unix)]
 use uzers::get_group_by_name;
+#[cfg(unix)]
 use uzers::get_user_by_name;
 
 #[derive(thiserror::Error, Debug)]
@@ -34,6 +37,7 @@ pub enum FileError {
     #[error("Group not found: {group:?}.")]
     GroupNotFound { group: String },
 
+    #[cfg(unix)]
     #[error(transparent)]
     Errno(#[from] nix::errno::Errno),
 
@@ -131,6 +135,16 @@ pub fn create_file_with_user_group(
     perm_entry.create_file(file.as_ref(), default_content)
 }
 
+#[cfg(windows)]
+pub async fn move_file(
+    src_path: impl AsRef<Path>,
+    dest_path: impl AsRef<Path>,
+    new_file_permissions: PermissionEntry,
+) -> Result<(), FileMoveError> {
+    todo!()
+}
+
+#[cfg(unix)]
 /// Moves a file to a destination path.
 ///
 /// If source and destination are located on the same filesystem, a rename will
@@ -352,6 +366,11 @@ pub fn overwrite_file(file: &Path, content: &str) -> Result<(), FileError> {
     }
 }
 
+#[cfg(windows)]
+pub fn change_user_and_group(file: &Path, user: &str, group: &str) -> Result<(), FileError> {
+    Ok(())
+}
+#[cfg(unix)]
 pub fn change_user_and_group(file: &Path, user: &str, group: &str) -> Result<(), FileError> {
     debug!(
         "Changing ownership of file: {:?} with user: {} and group: {}",
@@ -384,6 +403,11 @@ pub fn change_user_and_group(file: &Path, user: &str, group: &str) -> Result<(),
     Ok(())
 }
 
+#[cfg(windows)]
+fn change_user(file: &Path, user: &str) -> Result<(), FileError> {
+    Ok(())
+}
+#[cfg(unix)]
 fn change_user(file: &Path, user: &str) -> Result<(), FileError> {
     let ud = get_user_by_name(user)
         .map(|u| u.uid())
@@ -402,6 +426,12 @@ fn change_user(file: &Path, user: &str) -> Result<(), FileError> {
     Ok(())
 }
 
+#[cfg(windows)]
+fn change_group(file: &Path, group: &str) -> Result<(), FileError> {
+    Ok(())
+}
+
+#[cfg(unix)]
 fn change_group(file: &Path, group: &str) -> Result<(), FileError> {
     let gd = get_group_by_name(group)
         .map(|g| g.gid())
@@ -422,6 +452,12 @@ fn change_group(file: &Path, group: &str) -> Result<(), FileError> {
     Ok(())
 }
 
+#[cfg(windows)]
+fn change_mode(file: &Path, mode: u32) -> Result<(), FileError> {
+    todo!()
+}
+
+#[cfg(unix)]
 fn change_mode(file: &Path, mode: u32) -> Result<(), FileError> {
     let mut perm = get_metadata(Path::new(file))?.permissions();
     perm.set_mode(mode);
@@ -447,6 +483,13 @@ pub fn get_filename(path: PathBuf) -> Option<String> {
     Some(filename)
 }
 
+#[cfg(windows)]
+/// Get uid from the user name
+pub fn get_uid_by_name(user: &str) -> Result<u32, FileError> {
+    Ok(0)
+}
+
+#[cfg(unix)]
 /// Get uid from the user name
 pub fn get_uid_by_name(user: &str) -> Result<u32, FileError> {
     let ud = get_user_by_name(user)
@@ -455,6 +498,13 @@ pub fn get_uid_by_name(user: &str) -> Result<u32, FileError> {
     Ok(ud)
 }
 
+#[cfg(windows)]
+/// Get gid from the group name
+pub fn get_gid_by_name(group: &str) -> Result<u32, FileError> {
+    Ok(0)
+}
+
+#[cfg(unix)]
 /// Get gid from the group name
 pub fn get_gid_by_name(group: &str) -> Result<u32, FileError> {
     let gd = get_group_by_name(group)

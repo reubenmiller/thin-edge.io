@@ -50,6 +50,17 @@ use tracing::error;
 use tracing::info;
 use tracing::warn;
 
+#[cfg(unix)]
+use std::os::unix::fs::symlink as symlink;
+#[cfg(windows)]
+use std::os::windows::fs::symlink_file as symlink;
+
+// #[cfg(windows)]
+// use std::os::windows::fs;
+
+// #[cfg(unix)]
+// use std::os::unix::fs;
+
 type IdDownloadRequest = (String, DownloadRequest);
 type IdDownloadResult = (String, DownloadResult);
 
@@ -231,7 +242,7 @@ impl FileCacheActor {
 
         if !symlink_path.is_symlink() {
             std::fs::create_dir_all(symlink_path.parent().unwrap())
-                .and_then(|_| std::os::unix::fs::symlink(original, &symlink_path))
+                .and_then(|_| symlink(original, &symlink_path))
                 .map_err(|e| RuntimeError::ActorError(e.into()))?;
         }
 

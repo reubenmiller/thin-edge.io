@@ -4,7 +4,9 @@ use crate::Component;
 use anyhow::bail;
 use anyhow::Context;
 use clap::Subcommand;
+#[cfg(unix)]
 use std::os::unix::fs;
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use tedge_utils::file::change_user_and_group;
@@ -65,6 +67,7 @@ impl TEdgeInitCmd {
                     "couldn't read metadata for {}. do you need to run with sudo?",
                     link.display()
                 ),
+                #[cfg(unix)]
                 meta => {
                     let file_exists = meta.is_ok();
                     if file_exists {
@@ -84,6 +87,8 @@ impl TEdgeInitCmd {
 
                     fs::lchown(&link, Some(stat.uid()), Some(stat.gid())).expect(format!("failed to change ownership of symlink at {}", link.display()).as_str());
                 }
+                #[cfg(windows)]
+                meta => {}
             }
         }
 

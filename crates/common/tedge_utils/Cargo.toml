@@ -45,7 +45,9 @@ tokio = { workspace = true, default_features = false, features = [
     "time",
 ] }
 tracing = { workspace = true }
-uzers = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+uzers.workspace = true
 
 [dev-dependencies]
 assert_matches = { workspace = true }

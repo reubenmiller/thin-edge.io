@@ -14,9 +14,13 @@ use crate::Capabilities;
 use anyhow::Context;
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
+#[cfg(unix)]
 use flockfile::check_another_instance_is_not_running;
+#[cfg(unix)]
 use flockfile::Flockfile;
+// #[cfg(unix)]
 use flockfile::FlockfileError;
+
 use log::error;
 use reqwest::Identity;
 use std::ffi::OsStr;
@@ -190,10 +194,23 @@ impl AgentConfig {
 #[derive(Debug)]
 pub struct Agent {
     config: AgentConfig,
+    #[cfg(unix)]
     _flock: Option<Flockfile>,
 }
 
 impl Agent {
+    #[cfg(windows)]
+    pub(crate) fn try_new(name: &str, config: AgentConfig) -> Result<Self, FlockfileError> {
+        use anyhow::Error;
+
+        info!("{} starting", &name);
+
+        Ok(Self {
+            config,
+        })
+    }
+
+    #[cfg(unix)]
     pub(crate) fn try_new(name: &str, config: AgentConfig) -> Result<Self, FlockfileError> {
         let mut flock = None;
         if config.use_lock {

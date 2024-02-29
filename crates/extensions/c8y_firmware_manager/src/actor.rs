@@ -15,7 +15,10 @@ use sha256::digest;
 use sha256::try_digest;
 use std::collections::HashMap;
 use std::fs;
-use std::os::unix::fs as unix_fs;
+#[cfg(unix)]
+use std::os::unix::fs::symlink as symlink;
+#[cfg(windows)]
+use std::os::windows::fs::symlink_file as symlink;
 use std::path::Path;
 use tedge_actors::fan_in_message_type;
 use tedge_actors::Actor;
@@ -725,7 +728,7 @@ impl FirmwareManagerActor {
 
         if !symlink_path.is_symlink() {
             fs::create_dir_all(symlink_dir_path)?;
-            unix_fs::symlink(original_file_path, &symlink_path)?;
+            symlink(original_file_path, &symlink_path)?;
         }
         Ok(symlink_path)
     }

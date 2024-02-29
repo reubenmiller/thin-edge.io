@@ -92,6 +92,16 @@ impl Server for ScriptActor {
     }
 }
 
+#[cfg(windows)]
+async fn kill_on_timeout(
+    pid: u32,
+    graceful_timeout: Duration,
+    forceful_timeout: Duration,
+) -> std::io::Error {
+    todo!()
+}
+
+#[cfg(unix)]
 async fn kill_on_timeout(
     pid: u32,
     graceful_timeout: Duration,

@@ -98,12 +98,15 @@ impl Actor for SoftwareManagerActor {
             );
         }
 
+        info!("Processing pending sm operation");
         self.process_pending_sm_operation().await?;
 
+        info!("Checking for single receiver");
         let mut input_receiver = self.input_receiver.take().ok_or(RuntimeError::ActorError(
             anyhow::anyhow!("actor can't be run more than once").into(),
         ))?;
 
+        info!("Configuring software types");
         self.output_sender
             .send(SoftwareCommand::SoftwareCommandMetadata(
                 SoftwareCommandMetadata {
@@ -112,6 +115,7 @@ impl Actor for SoftwareManagerActor {
             ))
             .await?;
 
+        info!("Waiting for messages");
         while let Some(request) = input_receiver.recv().await {
             tokio::select! {
                 _ = self.handle_request(request, &mut plugins, &operation_logs) => {
@@ -214,7 +218,15 @@ impl SoftwareManagerActor {
             }
             Ok(None) => (),
         };
-        self.state_repository.clear().await?;
+        info!("Clearing state repository");
+        match self.state_repository.clear().await {
+            Err(err) => {
+                // TODO: On Windows an Permission Denied error is thrown
+                error!("Failed to clear state repository. Continuing anyway. {}", err);
+            }
+            _ => (),
+        }
+        info!("Successfully cleared state repository");
         Ok(())
     }
 
