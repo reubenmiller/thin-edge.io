@@ -1,8 +1,10 @@
 use async_trait::async_trait;
+#[cfg(unix)]
 use signal_hook::consts::signal::*;
 #[cfg(unix)]
 use signal_hook_tokio::Signals;
 use std::convert::Infallible;
+#[cfg(unix)]
 use tedge_actors::futures::StreamExt;
 use tedge_actors::Actor;
 use tedge_actors::Builder;

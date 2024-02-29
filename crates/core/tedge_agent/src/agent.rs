@@ -201,8 +201,6 @@ pub struct Agent {
 impl Agent {
     #[cfg(windows)]
     pub(crate) fn try_new(name: &str, config: AgentConfig) -> Result<Self, FlockfileError> {
-        use anyhow::Error;
-
         info!("{} starting", &name);
 
         Ok(Self {

@@ -13,6 +13,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::io::BufWriter;
 use tokio::process::Child;
 use tokio::process::Command;
+use tracing::info;
 
 #[derive(Debug)]
 pub enum CmdStatus {
@@ -116,8 +117,8 @@ fn update_stderr_message(mut output: Output, timeout: Duration) -> Result<Output
 }
 
 #[cfg(windows)]
-fn send_signal_to_stop_child(child: Option<u32>, signal_type: CmdStatus) {
-    todo!()
+fn send_signal_to_stop_child(_child: Option<u32>, _signal_type: CmdStatus) {
+    info!("Windows does not currently support sending a stop signal to a child");
 }
 
 #[cfg(unix)]

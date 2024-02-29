@@ -94,11 +94,16 @@ impl Server for ScriptActor {
 
 #[cfg(windows)]
 async fn kill_on_timeout(
-    pid: u32,
+    _pid: u32,
     graceful_timeout: Duration,
-    forceful_timeout: Duration,
+    _forceful_timeout: Duration,
 ) -> std::io::Error {
-    todo!()
+    // TODO: Windows does not support killing a process on a timeout
+    tokio::time::sleep(graceful_timeout).await;
+    std::io::Error::new(
+        std::io::ErrorKind::Other,
+        "failed to kill the process after timeout",
+    )
 }
 
 #[cfg(unix)]

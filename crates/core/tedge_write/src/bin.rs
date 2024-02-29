@@ -125,9 +125,9 @@ fn write_stdin_to_file_atomic(target_filepath: &Utf8Path) -> anyhow::Result<()> 
 
 #[cfg(windows)]
 fn chown_by_user_and_group_name(
-    filepath: &Utf8Path,
-    user_name: Option<&str>,
-    group_name: Option<&str>,
+    _filepath: &Utf8Path,
+    _user_name: Option<&str>,
+    _group_name: Option<&str>,
 ) -> anyhow::Result<()> {
     Ok(())
 }

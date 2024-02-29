@@ -162,7 +162,7 @@ impl ExitHandlers {
                     .into_json(),
                 #[cfg(windows)]
                 None => self
-                    .state_update_on_kill(program, 0 as u8)
+                    .state_update_on_kill(program, 0_u8)
                     .into_json(),
                 Some(0) => {
                     match (

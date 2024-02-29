@@ -136,12 +136,50 @@ pub fn create_file_with_user_group(
 }
 
 #[cfg(windows)]
+/// Moves a file to a destination path.
+///
+/// If source and destination are located on the same filesystem, a rename will
+/// be used to avoid rewriting the file. If they are on different filesystems,
+/// copy and delete method will be used instead.
+///
+/// Function cannot move whole directories if copy and delete method is used.
+///
+/// If the destination directory does not exist, it will be created, as well as
+/// all parent directories.
+///
+/// This method returns
+/// - `Ok(())` when file was moved successfully
+/// - `Err(_)` when the source path does not exists or function has no
+///   permission to move file
 pub async fn move_file(
     src_path: impl AsRef<Path>,
     dest_path: impl AsRef<Path>,
-    new_file_permissions: PermissionEntry,
+    _new_file_permissions: PermissionEntry,
 ) -> Result<(), FileMoveError> {
-    todo!()
+    let src_path = src_path.as_ref();
+    let dest_path = dest_path.as_ref();
+
+    if !dest_path.exists() {
+        if let Some(dir_to) = dest_path.parent() {
+            tokio::fs::create_dir_all(dir_to)
+                .await
+                .map_err(|err| FileMoveError::new(src_path, dest_path, err))?;
+            debug!("Created parent directories for {:?}", dest_path);
+        }
+    }
+
+    // Copy source to destination using rename. If that one fails due to cross-filesystem, use copy and delete.
+    // As a ErrorKind::CrossesDevices is nightly feature we call copy and delete no matter what kind of error we get.
+    tokio::fs::rename(src_path, dest_path)
+        .or_else(|_| {
+            tokio::fs::copy(src_path, dest_path).and_then(|_| tokio::fs::remove_file(src_path))
+        })
+        .await
+        .map_err(|err| FileMoveError::new(src_path, dest_path, err))?;
+
+    debug!("Moved file from {:?} to {:?}", src_path, dest_path);
+    debug!("TODO: Changing file permissions is not supported on Windows");
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -367,7 +405,7 @@ pub fn overwrite_file(file: &Path, content: &str) -> Result<(), FileError> {
 }
 
 #[cfg(windows)]
-pub fn change_user_and_group(file: &Path, user: &str, group: &str) -> Result<(), FileError> {
+pub fn change_user_and_group(_file: &Path, _user: &str, _group: &str) -> Result<(), FileError> {
     Ok(())
 }
 #[cfg(unix)]
@@ -404,7 +442,7 @@ pub fn change_user_and_group(file: &Path, user: &str, group: &str) -> Result<(),
 }
 
 #[cfg(windows)]
-fn change_user(file: &Path, user: &str) -> Result<(), FileError> {
+fn change_user(_file: &Path, _user: &str) -> Result<(), FileError> {
     Ok(())
 }
 #[cfg(unix)]
@@ -427,7 +465,7 @@ fn change_user(file: &Path, user: &str) -> Result<(), FileError> {
 }
 
 #[cfg(windows)]
-fn change_group(file: &Path, group: &str) -> Result<(), FileError> {
+fn change_group(_file: &Path, _group: &str) -> Result<(), FileError> {
     Ok(())
 }
 
@@ -453,8 +491,9 @@ fn change_group(file: &Path, group: &str) -> Result<(), FileError> {
 }
 
 #[cfg(windows)]
-fn change_mode(file: &Path, mode: u32) -> Result<(), FileError> {
-    todo!()
+fn change_mode(_file: &Path, _mode: u32) -> Result<(), FileError> {
+    // No operation
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -485,7 +524,7 @@ pub fn get_filename(path: PathBuf) -> Option<String> {
 
 #[cfg(windows)]
 /// Get uid from the user name
-pub fn get_uid_by_name(user: &str) -> Result<u32, FileError> {
+pub fn get_uid_by_name(_user: &str) -> Result<u32, FileError> {
     Ok(0)
 }
 
@@ -500,7 +539,7 @@ pub fn get_uid_by_name(user: &str) -> Result<u32, FileError> {
 
 #[cfg(windows)]
 /// Get gid from the group name
-pub fn get_gid_by_name(group: &str) -> Result<u32, FileError> {
+pub fn get_gid_by_name(_group: &str) -> Result<u32, FileError> {
     Ok(0)
 }
 

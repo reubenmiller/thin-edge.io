@@ -456,8 +456,9 @@ enum SaveChunksError {
 
 #[cfg(windows)]
 #[allow(clippy::unnecessary_cast)]
-fn try_pre_allocate_space(file: &File, path: &Path, file_len: u64) -> Result<(), DownloadError> {
-    todo!()
+fn try_pre_allocate_space(_file: &File, _path: &Path, _file_len: u64) -> Result<(), DownloadError> {
+    info!("TODO: Windows does not currently support preallocating disk when downloading a file");
+    Ok(())
 }
 
 #[cfg(unix)]

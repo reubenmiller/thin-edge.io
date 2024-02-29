@@ -12,6 +12,7 @@ repository = { workspace = true }
 log = { workspace = true }
 nix = { workspace = true }
 shell-words = { workspace = true }
+tracing = { workspace = true }
 tokio = { workspace = true, features = [
     "fs",
     "io-util",

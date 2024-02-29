@@ -219,12 +219,9 @@ impl SoftwareManagerActor {
             Ok(None) => (),
         };
         info!("Clearing state repository");
-        match self.state_repository.clear().await {
-            Err(err) => {
-                // TODO: On Windows an Permission Denied error is thrown
-                error!("Failed to clear state repository. Continuing anyway. {}", err);
-            }
-            _ => (),
+        if let Err(err) = self.state_repository.clear().await {
+            // TODO: On Windows an Permission Denied error is thrown
+            error!("Failed to clear state repository. Continuing anyway. {}", err);
         }
         info!("Successfully cleared state repository");
         Ok(())

@@ -55,7 +55,7 @@ fn main() -> anyhow::Result<()> {
         }
         TEdgeOptMulticall::Component(Component::TedgeWrite(opt)) => tedge_write::bin::run(opt),
         TEdgeOptMulticall::Tedge { cmd, config_dir } => {
-            set_log_level(tracing::Level::WARN);
+            set_log_level(tracing::Level::DEBUG);
 
             let tedge_config_location =
                 tedge_config::TEdgeConfigLocation::from_custom_root(config_dir);
