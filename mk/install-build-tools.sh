@@ -17,7 +17,19 @@
 set -eux -o pipefail
 IFS=$'\n\t'
 
-target=$1
+toolchain=stable
+for arg in "$@"; do
+  case $arg in
+    --target=*)
+      target=${arg#*=}
+      ;;
+    +*)
+      toolchain=${arg#*+}
+      ;;
+    *)
+      ;;
+  esac
+done
 
 function install_packages {
   case "$OSTYPE" in
@@ -28,8 +40,8 @@ function install_packages {
 }
 
 use_clang=
-case $target in
---target*android*)
+case ${target-} in
+*android*)
   # https://blog.rust-lang.org/2023/01/09/android-ndk-update-r25.html says
   # "Going forward the Android platform will target the most recent LTS NDK,
   # allowing Rust developers to access platform features sooner. These updates
@@ -54,13 +66,13 @@ case $target in
 
   # XXX: Older Rust toolchain versions link with `-lgcc` instead of `-lunwind`;
   # see https://github.com/rust-lang/rust/pull/85806.
-  find -L "${ANDROID_NDK_ROOT:-${ANDROID_HOME}/ndk/$ndk_version}" -name libunwind.a \
+  find -L ${ANDROID_NDK_ROOT:-${ANDROID_HOME}/ndk/$ndk_version} -name libunwind.a \
           -execdir sh -c 'echo "INPUT(-lunwind)" > libgcc.a' \;
   ;;
 esac
 
-case $target in
---target=aarch64-unknown-linux-gnu)
+case ${target-} in
+aarch64-unknown-linux-gnu)
   # Clang is needed for code coverage.
   use_clang=1
   install_packages \
@@ -68,114 +80,114 @@ case $target in
     gcc-aarch64-linux-gnu \
     libc6-dev-arm64-cross
   ;;
---target=aarch64-unknown-linux-musl|--target=armv7-unknown-linux-musleabihf)
+aarch64-unknown-linux-musl|armv7-unknown-linux-musleabihf)
   use_clang=1
   install_packages \
     qemu-user
   ;;
---target=arm-unknown-linux-gnueabi)
+armv5te-unknown-linux-gnueabi)
   install_packages \
     qemu-user \
     gcc-arm-linux-gnueabi \
     libc6-dev-armel-cross
   ;;
---target=armv5te-unknown-linux-gnueabi)
-  install_packages \
-    qemu-user \
-    gcc-arm-linux-gnueabi \
-    libc6-dev-armel-cross
-  ;;
---target=armv5te-unknown-linux-musleabi)
+armv5te-unknown-linux-musleabi)
   use_clang=1
   install_packages \
     qemu-user \
     gcc-arm-linux-gnueabi \
     libc6-dev-armel-cross
   ;;
---target=arm-unknown-linux-musleabi)
+arm-unknown-linux-musleabi)
   use_clang=1
   install_packages \
     qemu-user \
     gcc-arm-linux-gnueabi \
     libc6-dev-armel-cross
   ;;
---target=arm-unknown-linux-gnueabihf|--target=armv7-unknown-linux-gnueabihf)
+arm-unknown-linux-gnueabi)
+  install_packages \
+    qemu-user \
+    gcc-arm-linux-gnueabi \
+    libc6-dev-armel-cross
+  ;;
+arm-unknown-linux-gnueabihf|armv7-unknown-linux-gnueabihf)
   install_packages \
     qemu-user \
     gcc-arm-linux-gnueabihf \
     libc6-dev-armhf-cross
   ;;
---target=arm-unknown-linux-musleabihf)
+arm-unknown-linux-musleabihf)
   use_clang=1
   install_packages \
     qemu-user \
     gcc-arm-linux-gnueabihf
   ;;
---target=i686-unknown-linux-gnu)
+i686-unknown-linux-gnu)
   use_clang=1
   install_packages \
     gcc-multilib \
     libc6-dev-i386
   ;;
---target=i686-unknown-linux-musl|--target=x86_64-unknown-linux-musl)
+i686-unknown-linux-musl|x86_64-unknown-linux-musl)
   use_clang=1
   ;;
---target=loongarch64-unknown-linux-gnu)
+loongarch64-unknown-linux-gnu)
   use_clang=1
   ;;
---target=mips-unknown-linux-gnu)
+mips-unknown-linux-gnu)
   install_packages \
     gcc-mips-linux-gnu \
     libc6-dev-mips-cross \
     qemu-user
   ;;
---target=mips64-unknown-linux-gnuabi64)
+mips64-unknown-linux-gnuabi64)
   install_packages \
     gcc-mips64-linux-gnuabi64 \
     libc6-dev-mips64-cross \
     qemu-user
   ;;
---target=mips64el-unknown-linux-gnuabi64|--target=mips64el-unknown-linux-muslabi64)
+mips64el-unknown-linux-gnuabi64)
   install_packages \
     gcc-mips64el-linux-gnuabi64 \
     libc6-dev-mips64el-cross \
     qemu-user
   ;;
---target=mipsel-unknown-linux-gnu)
+mipsel-unknown-linux-gnu)
   install_packages \
     gcc-mipsel-linux-gnu \
     libc6-dev-mipsel-cross \
     qemu-user
   ;;
---target=powerpc-unknown-linux-gnu)
+powerpc-unknown-linux-gnu)
   use_clang=1
   install_packages \
     gcc-powerpc-linux-gnu \
     libc6-dev-powerpc-cross \
     qemu-user
   ;;
---target=powerpc64-unknown-linux-gnu)
+powerpc64-unknown-linux-gnu)
   use_clang=1
   install_packages \
     gcc-powerpc64-linux-gnu \
     libc6-dev-ppc64-cross \
     qemu-user
   ;;
---target=powerpc64le-unknown-linux-gnu)
+powerpc64le-unknown-linux-gnu)
   use_clang=1
   install_packages \
     gcc-powerpc64le-linux-gnu \
     libc6-dev-ppc64el-cross \
     qemu-user
   ;;
---target=riscv64gc-unknown-linux-gnu)
+riscv64gc-unknown-linux-gnu)
   use_clang=1
   install_packages \
     gcc-riscv64-linux-gnu \
     libc6-dev-riscv64-cross \
     qemu-user
   ;;
---target=s390x-unknown-linux-gnu)
+s390x-unknown-linux-gnu)
   # Clang is needed for code coverage.
   use_clang=1
   install_packages \
@@ -183,11 +195,11 @@ case $target in
     gcc-s390x-linux-gnu \
     libc6-dev-s390x-cross
   ;;
---target=wasm32-unknown-unknown)
+wasm32-unknown-unknown)
   cargo install wasm-bindgen-cli --bin wasm-bindgen-test-runner
   use_clang=1
   ;;
---target=wasm32-wasi)
+wasm32-wasi)
   use_clang=1
   git clone \
       --branch linux-x86_64 \
@@ -195,24 +207,34 @@ case $target in
       https://github.com/briansmith/ring-toolchain \
       target/tools/linux-x86_64
   ;;
---target=*)
+*)
   ;;
 esac
 
-case "$OSTYPE" in
+if [ -n "${RING_COVERAGE-}" ]; then
+  use_clang=1
+fi
+
+case "${OSTYPE-}" in
 linux*)
-  ubuntu_codename=$(lsb_release --codename --short)
-  llvm_version=17
-  sudo apt-key add mk/llvm-snapshot.gpg.key
-  sudo add-apt-repository -y "deb http://apt.llvm.org/$ubuntu_codename/ llvm-toolchain-$ubuntu_codename-$llvm_version main"
-  sudo apt-get update
-  # We need to use `llvm-nm` in `mk/check-symbol-prefixes.sh`.
-  install_packages llvm-$llvm_version
   if [ -n "$use_clang" ]; then
-    install_packages clang-$llvm_version
+    ubuntu_codename=$(lsb_release --codename --short)
+    llvm_version=18
+    sudo apt-key add mk/llvm-snapshot.gpg.key
+    sudo add-apt-repository "deb http://apt.llvm.org/$ubuntu_codename/ llvm-toolchain-$ubuntu_codename-$llvm_version main"
+    sudo apt-get update
+    install_packages clang-$llvm_version llvm-$llvm_version
   fi
   ;;
 darwin*)
   brew install llvm
   ;;
 esac
+
+rustup toolchain install --profile=minimal ${toolchain}
+if [ -n "${target-}" ]; then
+  rustup target add --toolchain=${toolchain} ${target}
+fi
+if [ -n "${RING_COVERAGE-}" ]; then
+  rustup toolchain install --profile=minimal ${toolchain} --component llvm-tools-preview
+fi

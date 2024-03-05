@@ -38,6 +38,10 @@ jobs:
       fail-fast: false
       matrix:
         target:
+          # apple targets
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+          # linux targets
           - aarch64-unknown-linux-musl
           - arm-unknown-linux-musleabi
           - arm-unknown-linux-musleabihf
@@ -54,6 +58,12 @@ jobs:
           - stable
 
         include:
+          - target: aarch64-apple-darwin
+            host_os: macos-14
+          
+          - target: x86_64-apple-darwin
+            host_os: macos-13
+
           - target: aarch64-unknown-linux-musl
             host_os: ubuntu-22.04
 
@@ -230,6 +240,7 @@ jobs:
       fail-fast: false
       matrix:
         job:
+          # linux
           - { target: x86_64-unknown-linux-musl,      repo: tedge-main,          component: main }
           - { target: aarch64-unknown-linux-musl,     repo: tedge-main,          component: main }
           # Keep arm-unknown-linux-musleabihf in separate repo due to armhf conflict between raspbian and debian
@@ -240,6 +251,9 @@ jobs:
           - { target: riscv64gc-unknown-linux-gnu,    repo: tedge-main,          component: main }
           # Check: Debian also calls this "armel" (conflict with arm-unknown-linux-musleabi)
           # - { target: armv5te-unknown-linux-musleabi, repo: tedge-main,          component: main }
+          # apple
+          - { target: aarch64-apple-darwin,      repo: tedge-main,          component: main }
+          - { target: x86_64-apple-darwin,       repo: tedge-main,          component: main }
 
     steps:
       - name: Checkout

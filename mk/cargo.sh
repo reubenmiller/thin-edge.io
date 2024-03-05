@@ -48,14 +48,18 @@ for arg in "$@"; do
     --target=*)
       target=${arg#*=}
       ;;
+    +*)
+      toolchain=${arg#*+}
+      ;;
     *)
       ;;
   esac
 done
 
 # See comments in install-build-tools.sh.
-llvm_version=17
+llvm_version=18
 
+use_clang=
 case $target in
    aarch64-linux-android)
     export CC_aarch64_linux_android=$android_tools/aarch64-linux-android21-clang
@@ -63,15 +67,13 @@ case $target in
     export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$android_tools/aarch64-linux-android21-clang
     ;;
   aarch64-unknown-linux-gnu)
-    export CC_aarch64_unknown_linux_gnu=clang-$llvm_version
-    export AR_aarch64_unknown_linux_gnu=llvm-ar-$llvm_version
+    use_clang=1
     export CFLAGS_aarch64_unknown_linux_gnu="--sysroot=/usr/aarch64-linux-gnu"
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER="$qemu_aarch64"
     ;;
   aarch64-unknown-linux-musl)
-    export CC_aarch64_unknown_linux_musl=clang-$llvm_version
-    export AR_aarch64_unknown_linux_musl=llvm-ar-$llvm_version
+    use_clang=1
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER="$qemu_aarch64"
     ;;
@@ -82,8 +84,7 @@ case $target in
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABI_RUNNER="$qemu_arm_gnueabi"
     ;;
   arm-unknown-linux-musleabi)
-    export CC_arm_unknown_linux_musleabi=clang-$llvm_version
-    export AR_arm_unknown_linux_musleabi=llvm-ar-$llvm_version
+    use_clang=1
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUNNER="$qemu_arm_gnueabi"
     ;;
@@ -94,8 +95,7 @@ case $target in
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_GNUEABI_RUNNER="$qemu_arm_gnueabi"
     ;;
   armv5te-unknown-linux-musleabi)
-    export CC_arm_unknown_linux_musleabi=clang-$llvm_version
-    export AR_arm_unknown_linux_musleabi=llvm-ar-$llvm_version
+    use_clang=1
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_MUSLEABI_RUNNER="$qemu_arm_gnueabi"
     ;;
@@ -107,8 +107,7 @@ case $target in
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_RUNNER="$qemu_arm_gnueabihf"
     ;;
   arm-unknown-linux-musleabihf)
-    export CC_arm_unknown_linux_musleabihf=clang-$llvm_version
-    export AR_arm_unknown_linux_musleabihf=llvm-ar-$llvm_version
+    use_clang=1
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_RUNNER="$qemu_arm_gnueabihf"
     ;;
@@ -124,19 +123,16 @@ case $target in
     export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_RUNNER="$qemu_arm_gnueabihf"
     ;;
   armv7-unknown-linux-musleabihf)
-    export CC_armv7_unknown_linux_musleabihf=clang-$llvm_version
-    export AR_armv7_unknown_linux_musleabihf=llvm-ar-$llvm_version
+    use_clang=1
     export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUNNER="$qemu_arm_gnueabihf"
     ;;
   i686-unknown-linux-gnu)
-    export CC_i686_unknown_linux_gnu=clang-$llvm_version
-    export AR_i686_unknown_linux_gnu=llvm-ar-$llvm_version
+    use_clang=1
     export CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER=clang-$llvm_version
     ;;
   i686-unknown-linux-musl)
-    export CC_i686_unknown_linux_musl=clang-$llvm_version
-    export AR_i686_unknown_linux_musl=llvm-ar-$llvm_version
+    use_clang=1
     export CARGO_TARGET_I686_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
     ;;
   mips-unknown-linux-gnu)
@@ -157,65 +153,37 @@ case $target in
     export CARGO_TARGET_MIPS64EL_UNKNOWN_LINUX_GNUABI64_LINKER=mips64el-linux-gnuabi64-gcc
     export CARGO_TARGET_MIPS64EL_UNKNOWN_LINUX_GNUABI64_RUNNER="$qemu_mips64el"
     ;;
-  mips64el-unknown-linux-muslabi64)
-    export CC_mips64el_unknown_linux_muslabi64=clang-$llvm_version
-    export AR_mips64el_unknown_linux_muslabi64=llvm-ar-$llvm_version
-    export CARGO_TARGET_MIPS64EL_UNKNOWN_LINUX_MUSLABI64_RUSTFLAGS="$rustflags_self_contained"
-    ;;
   mipsel-unknown-linux-gnu)
     export CC_mipsel_unknown_linux_gnu=mipsel-linux-gnu-gcc
     export AR_mipsel_unknown_linux_gnu=mipsel-linux-gnu-gcc-ar
     export CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_GNU_LINKER=mipsel-linux-gnu-gcc
     export CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_GNU_RUNNER="$qemu_mipsel"
     ;;
-  mipsel-unknown-linux-musl)
-    export CC_mipsel_unknown_linux_musl=clang-$llvm_version
-    export AR_mipsel_unknown_linux_musl=llvm-ar-$llvm_version
-    export CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
-    ;;
   powerpc-unknown-linux-gnu)
-    export CC_powerpc_unknown_linux_gnu=clang-$llvm_version
-    export AR_powerpc_unknown_linux_gnu=llvm-ar-$llvm_version
+    use_clang=1
     export CFLAGS_powerpc_unknown_linux_gnu="--sysroot=/usr/powerpc-linux-gnu"
     export CARGO_TARGET_POWERPC_UNKNOWN_LINUX_GNU_LINKER=powerpc-linux-gnu-gcc
     export CARGO_TARGET_POWERPC_UNKNOWN_LINUX_GNU_RUNNER="$qemu_powerpc"
     ;;
   powerpc64-unknown-linux-gnu)
-    export CC_powerpc64_unknown_linux_gnu=clang-$llvm_version
-    export AR_powerpc64_unknown_linux_gnu=llvm-ar-$llvm_version
+    use_clang=1
     export CFLAGS_powerpc64_unknown_linux_gnu="--sysroot=/usr/powerpc64-linux-gnu"
     export CARGO_TARGET_POWERPC64_UNKNOWN_LINUX_GNU_LINKER=powerpc64-linux-gnu-gcc
     export CARGO_TARGET_POWERPC64_UNKNOWN_LINUX_GNU_RUNNER="$qemu_powerpc64"
     ;;
   powerpc64le-unknown-linux-gnu)
-    export CC_powerpc64le_unknown_linux_gnu=clang-$llvm_version
-    export AR_powerpc64le_unknown_linux_gnu=llvm-ar-$llvm_version
+    use_clang=1
     export CFLAGS_powerpc64le_unknown_linux_gnu="--sysroot=/usr/powerpc64le-linux-gnu"
     export CARGO_TARGET_POWERPC64LE_UNKNOWN_LINUX_GNU_LINKER=powerpc64le-linux-gnu-gcc
     export CARGO_TARGET_POWERPC64LE_UNKNOWN_LINUX_GNU_RUNNER="$qemu_powerpc64le"
     ;;
   riscv64gc-unknown-linux-gnu)
-    export CC_riscv64gc_unknown_linux_gnu=clang-$llvm_version
-    export AR_riscv64gc_unknown_linux_gnu=llvm-ar-$llvm_version
+    use_clang=1
     export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=riscv64-linux-gnu-gcc
     export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_RUNNER="$qemu_riscv64"
     ;;
-  riscv64gc-unknown-linux-musl)
-    # TODO: This fails at the last step
-    # error:    = note: rust-lld: error: unable to find library -lunwind
-    # ./mk/cargo.sh +nightly build -Z build-std -p tedge --target="riscv64gc-unknown-linux-musl" --release
-    # Only tried installing dependencies
-    # wget https://musl.cc/riscv64-linux-musl-cross.tgz
-    # tar xvzf riscv64-linux-musl-cross.tgz -C /opt/
-    # 
-    export CC_riscv64gc_unknown_linux_musl=clang-$llvm_version
-    export AR_riscv64gc_unknown_linux_musl=llvm-ar-$llvm_version
-    export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained -Clink-arg=-L -Clink-arg=/opt/riscv64-linux-musl-cross/riscv64-linux-musl   -L/opt/riscv64-linux-musl-cross/riscv64-linux-musl/lib -L/usr/lib/gcc-cross/riscv64-linux-gnu/12 -L/usr/lib/gcc-cross/riscv64-linux-gnu/12/include -L/opt/riscv64-linux-musl-cross/riscv64-linux-musl -L/opt/riscv64-linux-musl-cross/lib/gcc/riscv64-linux-musl/11.2.1 -L/opt/riscv64-linux-musl-cross/lib/gcc/riscv64-linux-musl/11.2.1/include -L/opt/riscv64-linux-musl-cross"
-    export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_MUSL_RUNNER="$qemu_riscv64"
-    ;;
   s390x-unknown-linux-gnu)
-    export CC_s390x_unknown_linux_gnu=clang-$llvm_version
-    export AR_s390x_unknown_linux_gnu=llvm-ar-$llvm_version
+    use_clang=1
     # XXX: Using -march=zEC12 to work around a z13 instruction bug in
     # QEMU 8.0.2 and earlier that causes `test_constant_time` to fail
     # (https://lists.gnu.org/archive/html/qemu-devel/2023-05/msg06965.html).
@@ -224,8 +192,7 @@ case $target in
     export CARGO_TARGET_S390X_UNKNOWN_LINUX_GNU_RUNNER="$qemu_s390x"
     ;;
   x86_64-unknown-linux-musl)
-    export CC_x86_64_unknown_linux_musl=clang-$llvm_version
-    export AR_x86_64_unknown_linux_musl=llvm-ar-$llvm_version
+    use_clang=1
     # XXX: Work around https://github.com/rust-lang/rust/issues/79555.
     if [ -n "${RING_COVERAGE-}" ]; then
       export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=clang-$llvm_version
@@ -234,26 +201,26 @@ case $target in
     fi
     ;;
   loongarch64-unknown-linux-gnu)
-    export CC_loongarch64_unknown_linux_gnu=clang-$llvm_version
-    export AR_loongarch64_unknown_linux_gnu=llvm-ar-$llvm_version
+    use_clang=1
     export CARGO_TARGET_LOONGARCH64_UNKNOWN_LINUX_GNU_LINKER=clang-$llvm_version
     ;;
   wasm32-unknown-unknown)
     # The first two are only needed for when the "wasm_c" feature is enabled.
-    export CC_wasm32_unknown_unknown=clang-$llvm_version
-    export AR_wasm32_unknown_unknown=llvm-ar-$llvm_version
+    use_clang=1
     export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner
     export WASM_BINDGEN_TEST_TIMEOUT=60
     ;;
   wasm32-wasi)
     # The first two are only needed for when the "wasm_c" feature is enabled.
-    export CC_wasm32_wasi=clang-$llvm_version
-    export AR_wasm32_wasi=llvm-ar-$llvm_version
+    use_clang=1
     export CARGO_TARGET_WASM32_WASI_RUNNER=target/tools/linux-x86_64/wasmtime/wasmtime
     ;;
   *)
     ;;
 esac
+
+# ${target} with hyphens replaced by underscores.
+target_lower=${target//-/_}
 
 if [ -n "${RING_COVERAGE-}" ]; then
   # XXX: Collides between release and debug.
@@ -262,18 +229,28 @@ if [ -n "${RING_COVERAGE-}" ]; then
   rm -f "$coverage_dir/*.profraw"
 
   export RING_BUILD_EXECUTABLE_LIST="$coverage_dir/executables"
-  truncate --size=0 "$RING_BUILD_EXECUTABLE_LIST"
+  # Create/truncate the file.
+  : > "$RING_BUILD_EXECUTABLE_LIST"
 
   # This doesn't work when profiling under QEMU. Instead mk/runner does
   # something similar but different.
   # export LLVM_PROFILE_FILE="$coverage_dir/%m.profraw"
 
-  # ${target} with hyphens replaced by underscores, lowercase and uppercase.
-  target_lower=${target//-/_}
-  target_upper=${target_lower^^}
+  target_upper=$(echo ${target_lower} | tr '[:lower:]' '[:upper:]')
 
-  cflags_var=CFLAGS_${target_lower}
-  declare -x "${cflags_var}=-fprofile-instr-generate -fcoverage-mapping ${!cflags_var-}"
+  case "$OSTYPE" in
+    linux*)
+      use_clang=1
+      cflags_var=CFLAGS_${target_lower}
+      declare -x "${cflags_var}=-fprofile-instr-generate -fcoverage-mapping ${!cflags_var-}"
+      ;;
+    darwin*)
+      # XXX: Don't collect code coverage for C because the installed version of Apple Clang
+      # doesn't necessarily have the same code coverage format as the Rust toolchain.
+      # TODO: Support "use_clang=1" for Apple targets and enable C code coverage.
+      # We don't have any Apple-specific C code, so this shouldn't matter much.
+      ;;
+  esac
 
   runner_var=CARGO_TARGET_${target_upper}_RUNNER
   declare -x "${runner_var}=mk/runner ${!runner_var-}"
@@ -282,17 +259,29 @@ if [ -n "${RING_COVERAGE-}" ]; then
   declare -x "${rustflags_var}=-Cinstrument-coverage ${!rustflags_var-}"
 fi
 
+if [ -n "${use_clang}" ]; then
+  cc_var=CC_${target_lower}
+  declare -x "${cc_var}=clang-${llvm_version}"
+
+  ar_var=AR_${target_lower}
+  declare -x "${ar_var}=llvm-ar-${llvm_version}"
+fi
+
 cargo "$@"
 
 if [ -n "${RING_COVERAGE-}" ]; then
-  while read -r executable; do
+  # Keep in sync with check-symbol-prefixes.sh.
+  # Use the host target-libdir, not the target target-libdir.
+  llvm_root="$(rustc +${toolchain} --print target-libdir)/../bin"
+
+  while read executable; do
     basename=$(basename "$executable")
-    llvm-profdata-$llvm_version merge -sparse "$coverage_dir/$basename.profraw" -o "$coverage_dir/$basename.profdata"
+    ${llvm_root}/llvm-profdata merge -sparse "$coverage_dir/$basename.profraw" -o "$coverage_dir/$basename.profdata"
     mkdir -p "$coverage_dir"/reports
-    llvm-cov-$llvm_version export \
-      --instr-profile "$coverage_dir/$basename.profdata" \
+    ${llvm_root}/llvm-cov export \
+      --instr-profile "$coverage_dir"/$basename.profdata \
       --format lcov \
       "$executable" \
-    > "$coverage_dir/reports/coverage-$basename.txt"
+    > "$coverage_dir"/reports/coverage-$basename.txt
   done < "$RING_BUILD_EXECUTABLE_LIST"
 fi
