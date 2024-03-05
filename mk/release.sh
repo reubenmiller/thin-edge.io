@@ -36,4 +36,4 @@ rustup target add --toolchain=stable "$TARGET"
 
 ./mk/cargo.sh +stable build -p tedge --target="$TARGET" --release
 
-./ci/build_scripts/build.sh "$TARGET" --skip-build --skip-test-packages
+./ci/build_scripts/build.sh "$TARGET" --skip-build
