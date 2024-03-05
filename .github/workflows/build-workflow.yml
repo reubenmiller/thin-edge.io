@@ -117,9 +117,8 @@ jobs:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
           fetch-depth: 0
 
-      - run: rustup toolchain add --profile=minimal ${{ matrix.rust_channel }}
-      - run: rustup target add --toolchain=${{ matrix.rust_channel }} ${{ matrix.target }}
-      - run: mk/install-build-tools.sh --target=${{ matrix.target }}
+      - run: mk/install-build-tools.sh +${{ matrix.rust_channel }} --target=${{ matrix.target }}
+        shell: sh
       - name: build tedge
         run: |
           . ./ci/build_scripts/version.sh
