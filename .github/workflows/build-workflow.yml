@@ -124,6 +124,11 @@ jobs:
           . ./ci/build_scripts/version.sh
           mk/cargo.sh +${{ matrix.rust_channel }} build --target=${{ matrix.target }} ${{ matrix.mode }}
 
+      - if: ${{ !contains(matrix.host_os, 'windows') }}
+        name: Test
+        run: |
+          mk/cargo.sh +${{ matrix.rust_channel }} test -vv --target=${{ matrix.target }} ${{ matrix.cargo_options }} ${{ matrix.mode }} --no-fail-fast --locked --all-features --all-targets
+
       - name: Package
         run: |
           ./ci/build_scripts/build.sh ${{ matrix.target }} --skip-build --skip-deprecated-packages
