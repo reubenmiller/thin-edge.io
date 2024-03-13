@@ -367,7 +367,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: containers/tedge
-          push: ${{ github.event_name != 'pull_request_target' }}
+          push: ${{ false && github.event_name != 'pull_request_target' }}
           platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -410,8 +410,8 @@ jobs:
           PUBLISH_OWNER: ${{ secrets.PUBLISH_OWNER }}
           PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
         run: |
-          just publish-linux-virtual --repo tedge-main
-          just publish-linux-virtual --repo tedge-main-armv6
+          just publish-linux-virtual --repo tedge-dev
+          just publish-linux-virtual --repo tedge-dev-armv6
 
   release:
     runs-on: ubuntu-latest
