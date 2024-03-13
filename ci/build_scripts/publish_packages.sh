@@ -183,7 +183,7 @@ get_user_friendly_arch() {
         *arm-unknown-linux-musleabihf*)
             easy_arch=armv6
             ;;
-        *arm-unknown-linux-musleabi)
+        *arm-unknown-linux-musleabi*)
             easy_arch=armv5
             ;;
         *armv5te-unknown-linux-*)
