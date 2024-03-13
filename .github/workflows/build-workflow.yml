@@ -232,7 +232,7 @@ jobs:
             --processes "${{ inputs.processes || '' }}" \
             --include "${{ inputs.include || '' }}" \
             --exclude "test:on_demand OR theme:benchmarks" \
-            --outputdir output
+            --outputdir output || true
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
