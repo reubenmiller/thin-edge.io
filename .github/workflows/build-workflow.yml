@@ -139,6 +139,13 @@ jobs:
         run: |
           mk/cargo.sh +${{ matrix.rust_channel }} test -vv --target=${{ matrix.target }} ${{ matrix.cargo_options }} ${{ matrix.mode }} --no-fail-fast --locked --all-features --all-targets
 
+      # Install nfpm used to for linux packaging
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: false
+      - run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+
       - name: Package
         run: |
           ./ci/build_scripts/build.sh ${{ matrix.target }} --skip-build --skip-deprecated-packages
