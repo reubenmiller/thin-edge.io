@@ -364,6 +364,8 @@ mod tests {
     use mqtt_channel::Topic;
     use serde_json::json;
     use std::collections::HashSet;
+    use std::thread::sleep;
+    use std::time::Duration;
     use tedge_api::alarm::ThinEdgeAlarm;
     use tedge_api::alarm::ThinEdgeAlarmData;
     use tedge_api::entity_store::EntityExternalId;
@@ -605,6 +607,8 @@ mod tests {
 
         assert_eq!(actual_c8y_event.event_type, "empty_event".to_string());
         assert_eq!(actual_c8y_event.text, "empty_event".to_string());
+        // delay before checking the time again to ensure an observable time difference
+        sleep(Duration::from_millis(10));
         assert!(actual_c8y_event.time < OffsetDateTime::now_utc());
         assert_matches!(actual_c8y_event.source, None);
         assert!(actual_c8y_event.extras.is_empty());
