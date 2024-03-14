@@ -55,7 +55,7 @@ jobs:
           - --release
 
         rust_channel:
-          - stable
+          - "1.70"
 
         include:
           - target: aarch64-apple-darwin
