@@ -59,9 +59,10 @@ jobs:
 
         include:
           - target: aarch64-apple-darwin
+            rust_channel: "1.72"
             host_os: macos-14
             cargo_options: --no-run
-            rust_channel: "1.72"
+            
           
           - target: x86_64-apple-darwin
             host_os: macos-14
