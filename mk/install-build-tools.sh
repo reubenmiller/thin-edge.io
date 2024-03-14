@@ -66,7 +66,7 @@ case ${target-} in
 
   # XXX: Older Rust toolchain versions link with `-lgcc` instead of `-lunwind`;
   # see https://github.com/rust-lang/rust/pull/85806.
-  find -L ${ANDROID_NDK_ROOT:-${ANDROID_HOME}/ndk/$ndk_version} -name libunwind.a \
+  find -L "${ANDROID_NDK_ROOT:-${ANDROID_HOME}/ndk/$ndk_version}" -name libunwind.a \
           -execdir sh -c 'echo "INPUT(-lunwind)" > libgcc.a' \;
   ;;
 esac
@@ -231,10 +231,10 @@ darwin*)
   ;;
 esac
 
-rustup toolchain install --profile=minimal ${toolchain}
+rustup toolchain install --profile=minimal "${toolchain}"
 if [ -n "${target-}" ]; then
-  rustup target add --toolchain=${toolchain} ${target}
+  rustup target add --toolchain="${toolchain}" "${target}"
 fi
 if [ -n "${RING_COVERAGE-}" ]; then
-  rustup toolchain install --profile=minimal ${toolchain} --component llvm-tools-preview
+  rustup toolchain install --profile=minimal "${toolchain}" --component llvm-tools-preview
 fi
