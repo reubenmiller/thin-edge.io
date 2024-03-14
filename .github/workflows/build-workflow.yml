@@ -58,11 +58,6 @@ jobs:
           - "1.70"
 
         include:
-          - target: aarch64-apple-darwin
-            mode: --release
-            rust_channel: "1.72" # ahash uses "stdsimd" feature which was stabilized in 1.72, https://github.com/tkaitchuck/aHash/issues/195
-            host_os: macos-14
-            cargo_options: --no-run
 
           - target: x86_64-apple-darwin
             host_os: macos-14
@@ -108,6 +103,12 @@ jobs:
             mode: --release
             rust_channel: "1.71.0" # No prebuilt toolchain for later versions.
             host_os: ubuntu-22.04
+            cargo_options: --no-run
+
+          - target: aarch64-apple-darwin
+            mode: --release
+            rust_channel: "1.72" # ahash uses "stdsimd" feature which was stabilized in 1.72, https://github.com/tkaitchuck/aHash/issues/195
+            host_os: macos-14
             cargo_options: --no-run
 
     steps:
