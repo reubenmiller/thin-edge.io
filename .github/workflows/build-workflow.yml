@@ -59,11 +59,11 @@ jobs:
 
         include:
           - target: aarch64-apple-darwin
-            # rust_channel: "1.72"
+            mode: --release
+            rust_channel: "1.72" # ahash uses "stdsimd" feature which was stabilized in 1.72, https://github.com/tkaitchuck/aHash/issues/195
             host_os: macos-14
             cargo_options: --no-run
-            
-          
+
           - target: x86_64-apple-darwin
             host_os: macos-14
 
