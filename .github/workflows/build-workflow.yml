@@ -19,6 +19,12 @@ on:
         type: string
         required: false
         default: "10"
+      run_rust_tests:
+        description: Run Rust tests (generally this is not required as the PR check will run full Rust tests)
+        type: boolean
+        required: false
+        default: false
+
   # Use a manual approval process before PR's are given access to
   # the secrets which are required to run the integration tests.
   # The PR code should be manually approved to see if it can be trusted.
@@ -135,7 +141,7 @@ jobs:
           . ./ci/build_scripts/version.sh
           mk/cargo.sh +${{ matrix.rust_channel }} build --target=${{ matrix.target }} ${{ matrix.mode }}
 
-      - if: ${{ !contains(matrix.host_os, 'windows') }}
+      - if: ${{ inputs.run_rust_tests && !contains(matrix.host_os, 'windows') }}
         name: Test
         run: |
           mk/cargo.sh +${{ matrix.rust_channel }} test -vv --target=${{ matrix.target }} ${{ matrix.cargo_options }} ${{ matrix.mode }} --no-fail-fast --locked --all-features --all-targets
