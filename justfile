@@ -101,3 +101,11 @@ publish-linux-virtual *ARGS='':
 # Publish linux packages for a specific target
 publish-linux-target TARGET=DEFAULT_TARGET *ARGS='':
     ./ci/build_scripts/publish_packages.sh --path "target/{{TARGET}}/packages" {{ARGS}}
+
+# Build helm chart
+release-helm:
+    helm package kubernetes/tedge --version "$(./ci/build_scripts/version.sh container 2>/dev/null)" --app-version "$(./ci/build_scripts/version.sh container 2>/dev/null)" -d "kubernetes"
+
+# Publish helm chart
+publish-helm:
+    cloudsmith upload helm --api-key "$PUBLISH_TOKEN" thinedge/tedge-dev kubernetes/*.tgz

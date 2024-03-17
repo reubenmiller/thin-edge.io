@@ -169,12 +169,20 @@ set_version_variables() {
         TARBALL_VERSION="${GIT_SEMVER//\~/-rc}"
     fi
 
+    # Helm chart
+    if [[ "$GIT_SEMVER" = *-rc* ]]; then
+        HELM_VERSION="${GIT_SEMVER//\~/-}"
+    else
+        HELM_VERSION="${GIT_SEMVER//\~/-rc.}"
+    fi
+
     export GIT_SEMVER
     export APK_VERSION
     export DEB_VERSION
     export RPM_VERSION
     export CONTAINER_VERSION
     export TARBALL_VERSION
+    export HELM_VERSION
 }
 
 
@@ -267,6 +275,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         container)
             echo "$CONTAINER_VERSION"
             ;;
+        helm)
+            echo "$HELM_VERSION"
+            ;;
         all)
             echo "GIT_SEMVER: $GIT_SEMVER"
             echo "APK_VERSION: $APK_VERSION"
@@ -274,6 +285,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             echo "RPM_VERSION: $RPM_VERSION"
             echo "CONTAINER_VERSION: $CONTAINER_VERSION"
             echo "TARBALL_VERSION: $TARBALL_VERSION"
+            echo "HELM_VERSION: $HELM_VERSION"
             ;;
         *)
             echo "$GIT_SEMVER"

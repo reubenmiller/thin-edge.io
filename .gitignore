@@ -46,6 +46,7 @@ dist/
 tmp/
 containers/tedge/packages/
 containers/tedge/*.tar
+kubernetes/*.tgz
 
 # Other files
 Makefile.toml
