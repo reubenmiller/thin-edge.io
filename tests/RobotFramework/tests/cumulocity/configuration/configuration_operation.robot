@@ -216,7 +216,7 @@ Get non existent configuration file From Device
     ${operation}=    Cumulocity.Get Configuration    ${config_type}
     Operation Should Be FAILED    ${operation}    failure_reason=.*No such file or directory.*
 
-Get Configuration from Device
+Get Configuration from Device2
     [Arguments]    ${test_name}    ${device}    ${external_id}    ${config_type}    ${device_file}
     Cumulocity.Set Device    ${external_id}
     ${operation}=    Cumulocity.Get Configuration    ${config_type}
