@@ -2,6 +2,7 @@
 use nix::NixPath;
 use tracing::error;
 use tracing::info;
+use tracing::warn;
 use std::fs as std_fs;
 use std::io::Read;
 use std::io::Write;
@@ -74,7 +75,10 @@ pub async fn atomically_write_file_async(
 
     // Ensure the content reach the disk
     file.flush().await?;
-    file.sync_all().await?;
+    if let Err(err) = file.sync_all().await {
+        // Note: Windows can fail here, even though it does write to disk
+        warn!("TODO: Could not sync data to disk. {}", err)
+    }
 
     // Move the temp file to its destination
     if let Err(err) = tokio_fs::rename(&tempfile, dest).await {
