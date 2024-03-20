@@ -18,9 +18,7 @@ use camino::Utf8PathBuf;
 use flockfile::check_another_instance_is_not_running;
 #[cfg(unix)]
 use flockfile::Flockfile;
-// #[cfg(unix)]
 use flockfile::FlockfileError;
-
 use log::error;
 use reqwest::Identity;
 use std::ffi::OsStr;

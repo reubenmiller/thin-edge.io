@@ -65,9 +65,7 @@ impl PackageMetadata {
             let new_path = PathBuf::from(format!("{}.deb", self.file_path().to_string_lossy()));
 
             #[cfg(unix)]
-            {
-                let _res = std::os::unix::fs::symlink(self.file_path(), &new_path);
-            }
+            let _res = std::os::unix::fs::symlink(self.file_path(), &new_path);
             self.file_path = new_path;
             self.remove_modified = true;
         }

@@ -55,12 +55,6 @@ use std::os::unix::fs::symlink as symlink;
 #[cfg(windows)]
 use std::os::windows::fs::symlink_file as symlink;
 
-// #[cfg(windows)]
-// use std::os::windows::fs;
-
-// #[cfg(unix)]
-// use std::os::unix::fs;
-
 type IdDownloadRequest = (String, DownloadRequest);
 type IdDownloadResult = (String, DownloadResult);
 
