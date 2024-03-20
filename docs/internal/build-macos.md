@@ -51,7 +51,11 @@ target/debug/tedge-agent --config-dir "$HOME/tedge"
 **Command: config_snapshot**
 
 ```sh
-./target/debug/tedge mqtt pub 'te/device/main///cmd/config_snapshot/local-1234' '{"status":"init","type":"tedge-configuration-plugin","tedgeUrl":"http://localhost:8005/tedge/file-transfer/config/tedge-configuration-plugin"}' -r
+./target/debug/tedge.exe mqtt pub 'te/device/main///cmd/config_snapshot/local-1234' '{"status":"init","type":"tedge-configuration-plugin","tedgeUrl":"http://localhost:8000/tedge/file-transfer/config/tedge-configuration-plugin"}' -r
+```
+
+```sh
+./target/debug/tedge.exe mqtt pub 'te/device/main///cmd/config_snapshot/local-1234' '{"status":"init","type":"tedge-configuration-plugin","tedgeUrl":"http://localhost:8000/tedge/file-transfer/config/tedge-configuration-plugin"}' -r
 ```
 
 **Command: software_list**
@@ -59,6 +63,10 @@ target/debug/tedge-agent --config-dir "$HOME/tedge"
 ```sh
 ./target/debug/tedge mqtt pub 'te/device/main///cmd/software_list/local-1234' '{"status":"init"}' -r
 ```
+
+
+## Windows
+
 
 
 ## Improvements
@@ -82,3 +90,26 @@ Expected: sm-plugin (and all components) should respect the `sudo.enable` settin
 ### Setting config-dir or the tedge.toml path using env would be useful
 
 
+
+### default /etc/tedge path is defined in multiple places
+
+* crates\common\tedge_config\src\tedge_config_cli\tedge_config_location.rs
+
+    ```rs
+    pub const DEFAULT_TEDGE_CONFIG_PATH: &str = "/etc/tedge";
+    ```
+
+* crates\common\tedge_config_macros\src\default.rs
+
+    ```rs
+    impl TEdgeConfigLocation {
+        pub fn tedge_config_root_path(&self) -> &Utf8Path {
+            "/etc/tedge".into()
+        }
+    }
+    ```
+
+
+### Remove platform specific crate calls
+
+* nix::unistd::unlink can be replaced with `std::fs::remove_file`
