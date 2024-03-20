@@ -10,6 +10,10 @@ homepage = { workspace = true }
 repository = { workspace = true }
 readme = "README.md"
 
+[[bin]]
+name = "tedge-agent"
+path = "src/main.rs"
+
 [dependencies]
 anstyle = { workspace = true }
 anyhow = { workspace = true }
