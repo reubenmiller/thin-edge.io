@@ -11,6 +11,7 @@ from typing import Any, Union, List, Dict
 import time
 from datetime import datetime
 import re
+import subprocess
 
 import dateparser
 from paho.mqtt import matcher
@@ -733,6 +734,31 @@ class ThinEdgeIO(DeviceLibrary):
 
         return value
 
+    @keyword("Execute Remote Access Command")
+    def c8ylp_execute_command(self, command, device: str = "", user: str = "root", exp_exit_code: int = 0, **kwargs):
+        if not device:
+            device = self.current.get_id()
+        cmd = [
+            "python3",
+            "-m",
+            "c8ylp",
+            "connect",
+            "ssh",
+            device,
+            "--env-file", ".env",
+            "--ssh-user", user,
+            "--",
+            command
+        ]
+        proc = subprocess.Popen(cmd, text=True, encoding="utf8", stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        timeout = kwargs.pop("timeout", 30)
+        proc.wait(timeout)
+
+        if exp_exit_code is not None:
+            assert proc.returncode == exp_exit_code
+        
+        return proc.stdout
 
 def to_date(value: relativetime_) -> datetime:
     if isinstance(value, datetime):
