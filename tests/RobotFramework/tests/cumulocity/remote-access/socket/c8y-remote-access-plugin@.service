@@ -10,7 +10,7 @@ ExecStart=/usr/bin/c8y-remote-access-plugin --child -
 StandardInput=socket
 # If set to journal, then the requestor does not receive any information about it
 # Note: If the thin-edge.io does not read from the socket, then it will be blocked.
-StandardOutput=journal
+#StandardOutput=journal
 
 [Install]
 WantedBy=default.target

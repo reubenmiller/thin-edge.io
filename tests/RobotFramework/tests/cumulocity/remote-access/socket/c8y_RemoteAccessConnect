@@ -1,8 +1,12 @@
 [exec]
-
 # Option 1: Support publishing directly to tcp stream (socket)
-socket_stream = "127.0.0.1:4444"
-# Option 2: Use socat to publish to socket
+#socket_stream = "127.0.0.1:4444"
+# Option 2: Use socat to publish to tcp stream (socket)
 #command = "/bin/sh -c \"echo \"$1\" | socat - TCP:127.0.0.1:4444\" --"
+# Option 3: publish to UNIX AX socket
+#command = "/bin/sh -c \"echo \"$1\" | socat - UNIX-CONNECT:/run/c8y-remote-access-plugin.sock\" --"
+
+# Option 4: Custom script to publish and monitor the socket connection
+command = "/usr/bin/publish_to_socket.sh --socket /run/c8y-remote-access-plugin.sock --response-ok CONNECTED --response-fail STOPPING"
 topic = "c8y/s/ds"
 on_message = "530"
