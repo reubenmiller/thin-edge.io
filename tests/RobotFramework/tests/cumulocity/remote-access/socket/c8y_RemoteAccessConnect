@@ -1,0 +1,8 @@
+[exec]
+
+# Option 1: Support publishing directly to tcp stream (socket)
+socket_stream = "127.0.0.1:4444"
+# Option 2: Use socat to publish to socket
+#command = "/bin/sh -c \"echo \"$1\" | socat - TCP:127.0.0.1:4444\" --"
+topic = "c8y/s/ds"
+on_message = "530"
