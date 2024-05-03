@@ -3,7 +3,12 @@ Description=c8y-remote-access-plugin Socket
 PartOf=c8y-remote-access-plugin.service
 
 [Socket]
-ListenStream=127.0.0.1:4444
+ListenStream=/run/c8y-remote-access-plugin.sock
+SocketMode=0660
+SocketUser=tedge
+SocketGroup=tedge
+
+#ListenStream=127.0.0.1:4444
 Accept=yes
 
 [Install]
