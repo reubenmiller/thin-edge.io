@@ -564,8 +564,10 @@ fn restart_mosquitto(
         &bridge_config.bridge_certfile,
         &bridge_config.bridge_keyfile,
     ] {
-        // TODO maybe ignore errors here
-        tedge_utils::file::change_user_and_group(path.as_ref(), user, group).unwrap();
+        // ignore errors here
+        if let Err(err) = tedge_utils::file::change_user_and_group(path.as_ref(), user, group) {
+            println!("Info: Could not change file ownership. Continuing anyway. {}\n", err);
+        }
     }
 
     if let Err(err) = service_manager.restart_service(SystemService::Mosquitto) {
