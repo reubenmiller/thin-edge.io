@@ -7,6 +7,7 @@
 #command = "/bin/sh -c \"echo \"$1\" | socat - UNIX-CONNECT:/run/c8y-remote-access-plugin.sock\" --"
 
 # Option 4: Custom script to publish and monitor the socket connection
-command = "/usr/bin/publish_to_socket.sh --socket /run/c8y-remote-access-plugin.sock --response-ok CONNECTED --response-fail STOPPING"
+#command = "/usr/bin/publish_to_socket.sh --socket /run/c8y-remote-access-plugin.sock --response-ok CONNECTED --response-fail STOPPING"
+command = "/usr/bin/convert_to_command.sh socket=/run/c8y-remote-access-plugin.sock response_ok=CONNECTED response_fail=STOPPING connection_string"
 topic = "c8y/s/ds"
 on_message = "530"
