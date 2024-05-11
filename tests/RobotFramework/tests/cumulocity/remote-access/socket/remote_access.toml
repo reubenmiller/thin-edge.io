@@ -1,0 +1,9 @@
+operation = "remote_access"
+
+[init]
+action = "proceed"
+on_success = "executing"
+
+[executing]
+script = "/usr/bin/publish_to_socket.sh --socket ${.payload.socket} --response-ok ${.payload.response_ok} --response-fail ${.payload.response_fail} ${.payload.connection_string}"
+on_success = "successful"
