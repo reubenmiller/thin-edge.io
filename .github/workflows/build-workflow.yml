@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "*"
+    branches:
+      - exp-upx-packaging
 
   merge_group:
   workflow_dispatch:
