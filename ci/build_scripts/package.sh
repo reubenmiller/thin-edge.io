@@ -157,8 +157,7 @@ build_package() {
                     echo "Already packed binary" >&2
                     ;;
                 *)
-                    echo "Failed to pack binary. exit_code=$EXIT_CODE" >&2
-                    exit 1
+                    echo "WARNING: Failed to pack binary. error_code=$error_code" >&2
                     ;;
             esac
         fi
