@@ -220,7 +220,7 @@ linux*)
     sudo apt-key add mk/llvm-snapshot.gpg.key
     sudo add-apt-repository "deb http://apt.llvm.org/$ubuntu_codename/ llvm-toolchain-$ubuntu_codename-$llvm_version main"
     sudo apt-get update
-    install_packages clang-$llvm_version llvm-$llvm_version
+    install_packages clang-$llvm_version llvm-$llvm_version upx-ucl
   fi
   ;;
 darwin*)

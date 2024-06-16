@@ -144,6 +144,13 @@ build_package() {
     echo
     echo "Building: name=$name pkg_arch=$PKG_ARCH, source=$source_dir"
 
+    # Compress binary using upx to minimize space required by thin-edge.io
+    if command -V upx >/dev/null 2>&1; then
+        if [ -f .build/tedge ]; then
+            upx --lzma --best .build/tedge
+        fi
+    fi
+
     COMMON_ARGS=(
         package
         -f "configuration/package_manifests/nfpm.$name.yaml"
