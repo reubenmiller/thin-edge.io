@@ -147,7 +147,13 @@ build_package() {
     # Compress binary using upx to minimize space required by thin-edge.io
     if command -V upx >/dev/null 2>&1; then
         if [ -f .build/tedge ]; then
-            upx --lzma --best .build/tedge
+            if ! upx --lzma --best .build/tedge; then
+                EXIT_CODE="$?"
+                if [ "$EXIT_CODE" -ne 2 ]; then
+                    echo "Failed to pack binary. exit_code=$EXIT_CODE" >&2
+                    exit 1
+                fi
+            fi
         fi
     fi
 
