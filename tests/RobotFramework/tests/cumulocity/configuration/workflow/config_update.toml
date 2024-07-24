@@ -1,0 +1,32 @@
+#:schema https://gist.githubusercontent.com/reubenmiller/4e28e8403fe0c54b7461ac7d1d6838c2/raw/4ad7e3bc3ce2e3a7542a5b4873a0196cbe91f35d/tedge.workflow.json
+
+operation = "config_update"
+on_error = "failed"
+
+[init]
+  action = "proceed"
+  on_success = "preprocess"
+
+[preprocess]
+  script = "/usr/bin/config_update.sh preprocess ${.payload.type}"
+  on_success = "scheduled"
+  # Proceed on any unexpected errors to ensure the operations status changed are handled
+  on_error = "scheduled"
+
+[scheduled]
+  action = "builtin"
+  on_success = "executing"
+
+[executing]
+  action = "builtin"
+  on_success = "postprocess"
+
+[postprocess]
+  script = "/usr/bin/config_update.sh postprocess ${.payload.type}"
+  on_success = "successful"
+
+[successful]
+ action = "cleanup"
+
+[failed]
+  action = "cleanup"
