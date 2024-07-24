@@ -1,0 +1,33 @@
+operation = "software_update"
+
+[init]
+action = "proceed"
+on_success = "confirm"
+
+[confirm]
+script = "/usr/bin/python3 /usr/bin/user_confirm.py ${.topic} ${.payload}"
+timeout_second = 86400
+# Confirm again if the script is killed for any reason (e.g. device restarting, process being killed by OOM Killer etc.)
+on_kill = "retry_confirm"
+on_exit.0 = "scheduled"
+on_exit.100 = { status = "failed", reason = "Operation was not confirmed by user" }
+on_exit._ = { status = "failed", reason = "Unexpected error in confirmation script" }
+
+[retry_confirm]
+# Wait before retrying the confirm step
+script = "/bin/sleep 5"
+on_success = "confirm"
+
+[scheduled]
+action = "builtin"
+on_success = "executing"
+
+[executing]
+action = "builtin"
+on_success = "successful"
+
+[successful]
+action = "cleanup"
+
+[failed]
+action = "cleanup"
