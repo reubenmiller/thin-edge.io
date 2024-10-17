@@ -5,6 +5,8 @@ sidebar_position: 15
 description: List of supported platforms, CPU architectures and resource usage
 ---
 
+import UserContext from '@site/src/components/UserContext';
+
 %%te%% can be run on any Linux based Operating System, such as; Debian/Ubuntu, Alpine, RHEL, Fedora, Pokey (Yocto) etc.
 
 In addition to a Linux based Operation system, the following requirements must also be fulfilled:
@@ -50,6 +52,31 @@ The following are the supported ARM processors:
 * ARM Cortex-A Family (e.g. ARMv7-A, ARMv8.2-A, ARMv9.2-A)
 
 Generally the newer ARM processors should be supported, as they are mostly based on the arm64/aarch64 architecture, however please let us know if something does not work as expected.
+
+### Network configuration
+
+If you using thin-edge.io in a controlled networked, for example, behind a corporate proxy or firewall/network manager like Palo Alto Networks, then the following port configuration is required to allow communication to the appropriate cloud (e.g. Cumulocity, AWS or Azure):
+
+|Destination|Direction|Port|Protocol|
+|-----------|---------|----|--------|
+|Per cloud url| Outgoing | 443 | TCP | HTTPS (Hypertext Transfer Protocol Secure) |
+|Per cloud url| Outgoing | 8883 | TCP | Secure MQTT (MQTT over TLS) |
+
+<UserContextForm settings="DEVICE_ID,C8Y_URL,AWS_URL,AZURE_AWS" />
+
+You can easily test the connection
+
+<UserContext>
+
+```sh
+timeout 5 openssl s_client -connect $C8Y_URL:8883 </dev/null && echo "MQTT (ssl) 8883: OK" || echo "MQTT (ssl) 8883: ERROR"
+
+timeout 5 openssl s_client -connect $C8Y_URL:443 </dev/null && echo "HTTPS (ssl) 443: OK" || echo "HTTPS (ssl) 443: ERROR"
+```
+
+</UserContext>
+
+
 
 ## Memory Usage
 

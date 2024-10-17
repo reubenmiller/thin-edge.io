@@ -12,7 +12,7 @@ import UserContextForm from '@site/src/components/UserContextForm';
 
 You can customize the documentation and commands shown on this page by providing relevant settings which will be reflected in the instructions. It makes it even easier to explore and use %%te%%.
 
-<UserContextForm settings="DEVICE_ID,C8Y_URL,C8Y_USER" />
+<UserContextForm settings="DEVICE_ID,   ,C8Y_USER" />
 
 The user context will be persisted in your web browser's local storage.
 :::
@@ -38,6 +38,13 @@ To follow this guide, you only need the following:
     ```
     sudo apt-get update && sudo apt-get upgrade
     ```
+
+- The following
+
+    |Port|Protocol|
+    |----|--------|
+    | 443 | TCP | HTTPS (Hypertext Transfer Protocol Secure) |
+    | 8883 | TCP | Secure MQTT (MQTT over TLS) |
 
 ## Steps
 
