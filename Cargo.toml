@@ -100,21 +100,6 @@ clap = { version = "4.5", features = [
 ] }
 clap_complete = { version = "4.5", features = ["unstable-dynamic"] }
 cryptoki = "0.8.0"
-rasn = "0.24.0"
-rasn-cms = "0.24.0"
-# Fork of x509-certificate which does not encode empty parameters of an AlgorithmIdentifier to ASN.1 NULL
-# The create purposefully uses the ASN.1 NULL value as it claims that some parsers will refuse
-# to parse it without it (despite the ASN.1 spec clearly marking this field as OPTIONAL).
-# Other libraries like openssl, and golang x509 libraries do not use ASN.1 NULL values for this which means
-# that the PEM encoded x509 certificate can have a different thumbprint to the cert produced by the Rust code.
-# Whilst this may not be a bug as the certificate should still be functionally equal, however the difference in
-# thumbprints can give the impression that the cert is functionality different.
-#
-# Note: the x509-certificate crate is also used by the higher level cms crate 'cryptographic-message-syntax' so
-# it also suffers from the same behaviour.
-# Note: Technically spec
-#  : See https://github.com/indygreg/cryptography-rs/blob/c078199a1b86191e19a53993691850769e7748d2/x509-certificate/src/rfc5280.rs#L73
-x509-certificate = { git = "https://github.com/reubenmiller/cryptography-rs", rev = "c32ccdaf76ccf185f136a2e8901dcf4cd4c2a72a" }
 csv = "1.1"
 darling = "0.20"
 doku = "0.21"
@@ -169,6 +154,8 @@ proc-macro2 = "1"
 proptest = "1.0"
 quote = "1"
 rand = "0.8"
+rasn = "0.24.0"
+rasn-cms = "0.24.0"
 rcgen = { version = "0.12", features = ["pem", "zeroize"] }
 regex = "1.4"
 reqwest = { version = "0.12", default-features = false }

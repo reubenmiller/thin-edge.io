@@ -23,9 +23,6 @@ cap = { workspace = true }
 certificate = { workspace = true, features = ["reqwest-blocking"] }
 clap = { workspace = true }
 clap_complete = { version = "4.5.42", features = ["unstable-dynamic"] }
-rasn = { workspace = true }
-rasn-cms = { workspace = true }
-x509-certificate = { workspace = true }
 doku = { workspace = true }
 humantime = { workspace = true }
 hyper = { workspace = true, default-features = false }
@@ -33,6 +30,9 @@ mime_guess = { workspace = true }
 mqtt_channel = { workspace = true }
 nix = { workspace = true }
 pad = { workspace = true }
+pem = { workspace = true }
+rasn = { workspace = true }
+rasn-cms = { workspace = true }
 reqwest = { workspace = true, features = [
     "blocking",
     "json",

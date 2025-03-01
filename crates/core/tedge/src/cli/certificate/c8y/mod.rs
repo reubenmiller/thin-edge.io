@@ -62,12 +62,19 @@ fn pk7_to_x509(pk7_base64: String) -> Result<String, IllFormedPk7Cert> {
     let pk7_ber = base64::decode(pk7_base64.replace(['\n', '\r'], ""))?;
     let content_info = rasn::ber::decode::<rasn_cms::ContentInfo>(&pk7_ber)?;
     let pk7 = rasn::ber::decode::<rasn_cms::SignedData>(content_info.content.as_bytes())?;
-    let x509_pem: Vec<_> = pk7.certificates.unwrap().to_vec().iter().map(|&c| {
-        let cert_der = rasn::der::encode(c).unwrap();
-        let cert = x509_certificate::X509Certificate::from_der(cert_der).unwrap();
-        cert.encode_pem().unwrap()
-    }).collect();
-
+    let x509_pem: Vec<_> = pk7
+        .certificates
+        .unwrap()
+        .to_vec()
+        .iter()
+        .map(|&c| {
+            let cert_der = rasn::der::encode(c).unwrap();
+            pem::encode(&pem::Pem {
+                tag: "CERTIFICATE".to_string(),
+                contents: cert_der,
+            })
+        })
+        .collect();
     Ok(x509_pem.join("\r\n"))
 }
 
