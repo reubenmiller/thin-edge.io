@@ -60,8 +60,13 @@ fn store_device_cert(cert_path: &Utf8PathBuf, pk7_base64: String) -> Result<(), 
 /// - BER [SignedData object](https://datatracker.ietf.org/doc/html/rfc2315.html#section-9.1)
 fn pk7_to_x509(pk7_base64: String) -> Result<String, IllFormedPk7Cert> {
     let pk7_ber = base64::decode(pk7_base64.replace(['\n', '\r'], ""))?;
-    let pk7 = cryptographic_message_syntax::SignedData::parse_ber(&pk7_ber)?;
-    let x509_pem: Vec<_> = pk7.certificates().map(|c| c.encode_pem()).collect();
+    let content_info = rasn::ber::decode::<rasn_cms::ContentInfo>(&pk7_ber)?;
+    let pk7 = rasn::ber::decode::<rasn_cms::SignedData>(content_info.content.as_bytes())?;
+    let x509_pem: Vec<_> = pk7.certificates.unwrap().to_vec().iter().map(|&c| {
+        let cert_der = rasn::der::encode(c).unwrap();
+        let cert = x509_certificate::X509Certificate::from_der(cert_der).unwrap();
+        cert.encode_pem().unwrap()
+    }).collect();
 
     Ok(x509_pem.join("\r\n"))
 }
@@ -72,7 +77,7 @@ pub enum IllFormedPk7Cert {
     NotBase64(#[from] base64::DecodeError),
 
     #[error(transparent)]
-    IllFormedCMS(#[from] cryptographic_message_syntax::CmsError),
+    IllFormedCMS(#[from] rasn::error::DecodeError),
 }
 
 #[cfg(test)]
@@ -97,15 +102,14 @@ AiAD0naayxieH0RVE1vJtdD3iCJHrzLNM3Eff2gNOhuzJAAAMQAAAAAAAAA=
 
         let expected_x509 = r#"
 -----BEGIN CERTIFICATE-----
-MIIBfTCCASKgAwIBAgIGAZU9kiLNMAwGCCqGSM49BAMCBQAwQjEWMBQGA1UEBhMN
-VW5pdGVkIFN0YXRlczETMBEGA1UEChMKQ3VtdWxvY2l0eTETMBEGA1UEAxMKbWFu
-YWdlbWVudDAeFw0yNTAyMjUxNDQ1NDJaFw0yNjAyMjQwOTQxNDRaMEYxGjAYBgNV
-BAMMEWRpZGllci1kZXZpY2UtMDAxMRIwEAYDVQQKDAlUaGluIEVkZ2UxFDASBgNV
-BAsMC1Rlc3QgRGV2aWNlMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE8EozRP+w
-CWRLa11tgj9i0i5XJcA8oeGMB5qcA4Z0wpvmcXnlwVHFAEXBVzrXZsTLHrfQoDEJ
-dRY8NueXSEqaojAMBggqhkjOPQQDAgUAA0cAMEQCICapYBWyzrDU36IVEtyOfdlD
-A0bW9HE3pwHz2X9LAgl1AiAD0naayxieH0RVE1vJtdD3iCJHrzLNM3Eff2gNOhuz
-JA==
+MIIBeTCCASCgAwIBAgIGAZU9kiLNMAoGCCqGSM49BAMCMEIxFjAUBgNVBAYTDVVu
+aXRlZCBTdGF0ZXMxEzARBgNVBAoTCkN1bXVsb2NpdHkxEzARBgNVBAMTCm1hbmFn
+ZW1lbnQwHhcNMjUwMjI1MTQ0NTQyWhcNMjYwMjI0MDk0MTQ0WjBGMRowGAYDVQQD
+DBFkaWRpZXItZGV2aWNlLTAwMTESMBAGA1UECgwJVGhpbiBFZGdlMRQwEgYDVQQL
+DAtUZXN0IERldmljZTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABPBKM0T/sAlk
+S2tdbYI/YtIuVyXAPKHhjAeanAOGdMKb5nF55cFRxQBFwVc612bEyx630KAxCXUW
+PDbnl0hKmqIwCgYIKoZIzj0EAwIDRwAwRAIgJqlgFbLOsNTfohUS3I592UMDRtb0
+cTenAfPZf0sCCXUCIAPSdprLGJ4fRFUTW8m10PeIIkevMs0zcR9/aA06G7Mk
 -----END CERTIFICATE-----
 "#
         .to_string();
@@ -135,40 +139,8 @@ JA==
             "Tue, 24 Feb 2026 09:41:44 +0000".to_string()
         );
 
-        // For unknown reasons, the base64 encoding differs
-        // when compared with the value computed using `openssl pkcs7 -print_certs`
-        let openssl_x509 = r#"
------BEGIN CERTIFICATE-----
-MIIBeTCCASCgAwIBAgIGAZU9kiLNMAoGCCqGSM49BAMCMEIxFjAUBgNVBAYTDVVu
-aXRlZCBTdGF0ZXMxEzARBgNVBAoTCkN1bXVsb2NpdHkxEzARBgNVBAMTCm1hbmFn
-ZW1lbnQwHhcNMjUwMjI1MTQ0NTQyWhcNMjYwMjI0MDk0MTQ0WjBGMRowGAYDVQQD
-DBFkaWRpZXItZGV2aWNlLTAwMTESMBAGA1UECgwJVGhpbiBFZGdlMRQwEgYDVQQL
-DAtUZXN0IERldmljZTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABPBKM0T/sAlk
-S2tdbYI/YtIuVyXAPKHhjAeanAOGdMKb5nF55cFRxQBFwVc612bEyx630KAxCXUW
-PDbnl0hKmqIwCgYIKoZIzj0EAwIDRwAwRAIgJqlgFbLOsNTfohUS3I592UMDRtb0
-cTenAfPZf0sCCXUCIAPSdprLGJ4fRFUTW8m10PeIIkevMs0zcR9/aA06G7Mk
------END CERTIFICATE-----
-"#
-        .to_string();
-
-        // However, the certificate contents match
-        let openssl_cert = PemCertificate::from_pem_string(&openssl_x509).unwrap();
-        assert_eq!(cert.subject().unwrap(), openssl_cert.subject().unwrap());
-        assert_eq!(cert.issuer().unwrap(), openssl_cert.issuer().unwrap());
-        assert_eq!(
-            cert.not_before().unwrap(),
-            openssl_cert.not_before().unwrap()
-        );
-        assert_eq!(cert.not_after().unwrap(), openssl_cert.not_after().unwrap());
-
-        // With an exception on the thumbprint
-        // assert_eq!(cert.thumbprint().unwrap(), openssl_cert.thumbprint().unwrap());
         assert_eq!(
             cert.thumbprint().unwrap(),
-            "A392A53D3D4263A32C779D06CDDE13A847F272B6".to_string()
-        );
-        assert_eq!(
-            openssl_cert.thumbprint().unwrap(),
             "9C68C7EC9A860366FB8D2697C53B2543D9EA525C".to_string()
         );
     }
