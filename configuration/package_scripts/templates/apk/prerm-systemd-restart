@@ -1,0 +1,10 @@
+ACTION=
+case "$0" in
+    *.*-deinstall) ACTION=remove; ;;
+esac
+
+if [ "$ACTION" = remove ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl stop #UNITFILES# >/dev/null || true
+    fi
+fi

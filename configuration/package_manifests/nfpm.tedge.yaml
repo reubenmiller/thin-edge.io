@@ -74,6 +74,12 @@ deb:
     Vcs-Git: ${CI_PROJECT_URL}
   compression: xz
 
+apk:
+  scripts:
+    # Alpine Linux uses pre/post upgrade instead of pre/post install
+    preupgrade: configuration/package_scripts/_generated/tedge/apk/preinst
+    postupgrade: configuration/package_scripts/_generated/tedge/apk/postinst
+
 contents:
   # binary
   - src: .build/tedge

@@ -1,0 +1,10 @@
+ACTION=
+case "$0" in
+    *.*-upgrade) ACTION=upgrade; ;;
+esac
+
+if [ "$ACTION" = upgrade ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl restart #UNITFILES# >/dev/null || true
+    fi
+fi

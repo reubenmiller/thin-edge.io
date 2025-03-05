@@ -1,7 +1,18 @@
 #!/bin/sh
 set -e
 
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-deinstall) ACTION=remove; ;;
+esac
 
+if [ "$ACTION" = remove ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl stop c8y-remote-access-plugin.socket >/dev/null || true
+    fi
+fi
+# End automatically added section
 
 ### Remove supported operation files
 c8y-remote-access-plugin --cleanup

@@ -1,7 +1,118 @@
 #!/bin/sh
 set -e
 
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-install) ACTION=install; ;;
+esac
 
+if [ "$ACTION" = install ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl enable tedge-mapper-aws.service >/dev/null || true
+    fi
+fi
+# End automatically added section
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-install) ACTION=install; ;;
+esac
+
+if [ "$ACTION" = install ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl enable tedge-mapper-az.service >/dev/null || true
+    fi
+fi
+# End automatically added section
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-install) ACTION=install; ;;
+esac
+
+if [ "$ACTION" = install ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl enable tedge-mapper-c8y.service >/dev/null || true
+    fi
+fi
+# End automatically added section
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-install) ACTION=install; ;;
+esac
+
+if [ "$ACTION" = install ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl enable tedge-mapper-collectd.service >/dev/null || true
+    fi
+fi
+# End automatically added section
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-install) ACTION=install; ;;
+esac
+
+if [ "$ACTION" = install ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl enable tedge-mapper-aws.target >/dev/null || true
+    fi
+fi
+# End automatically added section
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-install) ACTION=install; ;;
+esac
+
+if [ "$ACTION" = install ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl enable tedge-mapper-az.target >/dev/null || true
+    fi
+fi
+# End automatically added section
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-install) ACTION=install; ;;
+esac
+
+if [ "$ACTION" = install ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl enable tedge-mapper-c8y.target >/dev/null || true
+    fi
+fi
+# End automatically added section
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-upgrade) ACTION=upgrade; ;;
+esac
+
+if command -v tedgectl >/dev/null 2>&1; then
+    if [ "$ACTION" = upgrade ]; then
+        _dh_action=restart
+    else
+        _dh_action=start
+    fi
+
+    tedgectl $_dh_action tedge-mapper-aws.target tedge-mapper-az.target tedge-mapper-c8y.target >/dev/null || true
+fi
+# End automatically added section
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-upgrade) ACTION=upgrade; ;;
+esac
+
+if [ "$ACTION" = upgrade ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl restart tedge-mapper-aws.service tedge-mapper-az.service tedge-mapper-c8y.service tedge-mapper-collectd.service >/dev/null || true
+    fi
+fi
+# End automatically added section
 
 enable_start_service() {
     name="$1"

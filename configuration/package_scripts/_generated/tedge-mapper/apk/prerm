@@ -1,2 +1,14 @@
 #!/bin/sh
 set -e
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-deinstall) ACTION=remove; ;;
+esac
+
+if [ "$ACTION" = remove ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl stop tedge-mapper-aws.service tedge-mapper-az.service tedge-mapper-c8y.service tedge-mapper-collectd.service tedge-mapper-aws.target tedge-mapper-az.target tedge-mapper-c8y.target >/dev/null || true
+    fi
+fi
+# End automatically added section

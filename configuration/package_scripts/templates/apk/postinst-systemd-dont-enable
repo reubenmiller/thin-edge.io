@@ -1,0 +1,10 @@
+ACTION=
+case "$0" in
+    *.*-install) ACTION=install; ;;
+esac
+
+if [ "$ACTION" = install ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl enable #UNITFILE# >/dev/null || true
+    fi
+fi

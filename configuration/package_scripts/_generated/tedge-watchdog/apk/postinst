@@ -1,2 +1,30 @@
 #!/bin/sh
 set -e
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-install) ACTION=install; ;;
+esac
+
+if [ "$ACTION" = install ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl enable tedge-watchdog.service >/dev/null || true
+    fi
+fi
+# End automatically added section
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-upgrade) ACTION=upgrade; ;;
+esac
+
+if command -v tedgectl >/dev/null 2>&1; then
+    if [ "$ACTION" = upgrade ]; then
+        _dh_action=restart
+    else
+        _dh_action=start
+    fi
+
+    tedgectl $_dh_action tedge-watchdog.service >/dev/null || true
+fi
+# End automatically added section

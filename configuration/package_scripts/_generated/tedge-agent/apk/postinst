@@ -8,4 +8,15 @@ rm -f /var/lib/dpkg/info/tedge_agent.postrm
 # Remove older prerm maintainer scripts which would stop the tedge-agent service during an OTA
 rm -f /var/lib/dpkg/info/tedge_agent.prerm
 
+# Automatically added by thin-edge.io
+ACTION=
+case "$0" in
+    *.*-install) ACTION=install; ;;
+esac
 
+if [ "$ACTION" = install ]; then
+    if command -v tedgectl >/dev/null 2>&1; then
+        tedgectl enable tedge-agent.service >/dev/null || true
+    fi
+fi
+# End automatically added section

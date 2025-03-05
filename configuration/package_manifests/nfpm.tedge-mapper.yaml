@@ -31,6 +31,12 @@ deb:
   breaks:
     - tedge_mapper (<= 0.8.1)
 
+apk:
+  scripts:
+    # Alpine Linux uses pre/post upgrade instead of pre/post install
+    preupgrade: configuration/package_scripts/_generated/tedge-mapper/apk/preinst
+    postupgrade: configuration/package_scripts/_generated/tedge-mapper/apk/postinst
+
 contents:
   # service definitions
   - src: ./configuration/init/systemd/tedge-mapper-aws.service
