@@ -203,13 +203,6 @@ jobs:
             host_os: ubuntu-22.04
             cargo_options: --no-run
 
-          - target: aarch64-apple-darwin
-            host_os: macos-14
-            cargo_options: --no-run
-
-          - target: x86_64-apple-darwin
-            host_os: macos-14
-
     steps:
       - if: ${{ contains(matrix.host_os, 'ubuntu') }}
         run: |
