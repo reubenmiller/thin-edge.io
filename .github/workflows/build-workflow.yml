@@ -55,6 +55,7 @@ jobs:
           - armv5te-unknown-linux-musleabi
           - x86_64-unknown-linux-musl
           - i686-unknown-linux-musl
+          - riscv64gc-unknown-linux-gnu
           - aarch64-apple-darwin
           - x86_64-apple-darwin
         mode:
@@ -91,12 +92,11 @@ jobs:
             host_os: ubuntu-22.04
             cargo_options: --no-run
 
-          # Note: riscv64gc-unknown-linux-musl was only promoted to tier 2 status in 1.82
-          # However 1.78 does support riscv64gc-unknown-linux-gnu
-          - target: riscv64gc-unknown-linux-musl
+          # Note: riscv64gc-unknown-linux-musl is meant to be supported from 1.82
+          # but there are still some build problems which prevent it from being used.
+          # So stick to gnu build only
+          - target: riscv64gc-unknown-linux-gnu
             host_os: ubuntu-22.04
-            rust_channel: "1.82"
-            mode: --release
             cargo_options: --no-run
 
           - target: aarch64-apple-darwin
@@ -164,7 +164,6 @@ jobs:
           - armv5te-unknown-linux-gnueabi
           - x86_64-unknown-linux-gnu
           - i686-unknown-linux-gnu
-          - riscv64gc-unknown-linux-gnu
         mode:
           - --release
 
@@ -196,10 +195,6 @@ jobs:
             host_os: ubuntu-22.04
 
           - target: i686-unknown-linux-gnu
-            host_os: ubuntu-22.04
-            cargo_options: --no-run
-
-          - target: riscv64gc-unknown-linux-gnu
             host_os: ubuntu-22.04
             cargo_options: --no-run
 
