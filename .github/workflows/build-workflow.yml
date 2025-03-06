@@ -142,6 +142,113 @@ jobs:
             name: packages-${{ matrix.target }}
             path: target/${{ matrix.target }}/packages/*.*
 
+  build-gnu:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.host_os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Note: Targets which requires a non-default rust_channel
+        # then they should not be included in the .target list, but
+        # rather in the include section.
+        # This is just how Github processes matrix jobs
+        target:
+          - aarch64-unknown-linux-gnu
+          - armv7-unknown-linux-gnueabihf
+          - arm-unknown-linux-gnueabihf
+          - arm-unknown-linux-gnueabi
+          - armv5te-unknown-linux-gnueabi
+          - x86_64-unknown-linux-gnu
+          - i686-unknown-linux-gnu
+          - riscv64gc-unknown-linux-gnu
+        mode:
+          - --release
+
+        rust_channel:
+          - "1.78"
+        
+        binaries:
+          - --bin tedge-p11-server
+
+        include:
+          - target: aarch64-unknown-linux-gnu
+            host_os: ubuntu-22.04
+            cargo_options: --no-run
+          
+          - target: armv7-unknown-linux-gnueabihf
+            host_os: ubuntu-22.04
+            cargo_options: --no-run
+
+          - target: arm-unknown-linux-gnueabihf
+            host_os: ubuntu-22.04
+            cargo_options: --no-run
+
+          - target: arm-unknown-linux-gnueabi
+            host_os: ubuntu-22.04
+            cargo_options: --no-run
+
+          - target: armv5te-unknown-linux-gnueabi
+            host_os: ubuntu-22.04
+            cargo_options: --no-run
+
+          - target: x86_64-unknown-linux-gnu
+            host_os: ubuntu-22.04
+
+          - target: i686-unknown-linux-gnu
+            host_os: ubuntu-22.04
+            cargo_options: --no-run
+
+          - target: riscv64gc-unknown-linux-gnu
+            host_os: ubuntu-22.04
+            cargo_options: --no-run
+
+          - target: aarch64-apple-darwin
+            host_os: macos-14
+            cargo_options: --no-run
+
+          - target: x86_64-apple-darwin
+            host_os: macos-14
+
+    steps:
+      - if: ${{ contains(matrix.host_os, 'ubuntu') }}
+        run: |
+          sudo apt-get update -y
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
+          fetch-depth: 0
+
+      - run: mk/install-build-tools.sh +${{ matrix.rust_channel }} --target=${{ matrix.target }}
+        shell: sh
+      - name: Build
+        run: |
+          . ./ci/build_scripts/version.sh
+          mk/cargo.sh +${{ matrix.rust_channel }} build ${{ matrix.binaries }} --target=${{ matrix.target }} ${{ matrix.mode }}
+
+      - if: ${{ inputs.run_rust_tests && !contains(matrix.host_os, 'windows') }}
+        name: Test
+        run: |
+          mk/cargo.sh +${{ matrix.rust_channel }} test ${{ matrix.binaries }} -vv --target=${{ matrix.target }} ${{ matrix.cargo_options }} ${{ matrix.mode }} --no-fail-fast --locked --all-features --all-targets
+
+      # Install nfpm used to for linux packaging
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: false
+      - run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+
+      - name: Package
+        run: |
+          ./ci/build_scripts/build.sh ${{ matrix.target }} --skip-build --skip-deprecated-packages
+
+      - name: Upload packages as zip
+        # https://github.com/marketplace/actions/upload-a-build-artifact
+        uses: actions/upload-artifact@v4
+        with:
+            name: packages-${{ matrix.target }}
+            path: target/${{ matrix.target }}/packages/*.*
+
   # Note: Validate that all build jobs completed successfully
   # If a Runner failues on the setup, it can leave a job marked as "skipped"
   # and this does not cause the entire job to fail, instead it silently continues
@@ -153,7 +260,7 @@ jobs:
   #
   check-build:
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build, build-gnu]
     if: always()
     steps:
     - name: Fail on workflow error
