@@ -82,7 +82,6 @@ aarch64-unknown-linux-musl|armv7-unknown-linux-musleabihf)
     qemu-user
   ;;
 armv5te-unknown-linux-gnueabi)
-  use_clang=1
   install_packages \
     qemu-user \
     gcc-arm-linux-gnueabi \

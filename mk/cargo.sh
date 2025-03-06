@@ -88,6 +88,12 @@ case $target in
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUNNER="$qemu_arm_gnueabi"
     ;;
+  armv5te-unknown-linux-gnueabi)
+    export CC_armv5te_unknown_linux_gnueabi=arm-linux-gnueabi-gcc
+    export AR_armv5te_unknown_linux_gnueabi=arm-linux-gnueabi-gcc-ar
+    export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_GNUEABI_LINKER=arm-linux-gnueabi-gcc
+    export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_GNUEABI_RUNNER="$qemu_arm_gnueabi"
+    ;;
   armv5te-unknown-linux-musleabi)
     use_clang=1
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
