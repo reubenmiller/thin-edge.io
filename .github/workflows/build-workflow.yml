@@ -167,9 +167,6 @@ jobs:
 
         rust_channel:
           - "1.78"
-        
-        binaries:
-          - --bin tedge-p11-server
 
         include:
           - target: aarch64-unknown-linux-gnu
@@ -218,12 +215,12 @@ jobs:
       - name: Build
         run: |
           . ./ci/build_scripts/version.sh
-          mk/cargo.sh +${{ matrix.rust_channel }} build ${{ matrix.binaries }} --target=${{ matrix.target }} ${{ matrix.mode }}
+          mk/cargo.sh +${{ matrix.rust_channel }} build --target=${{ matrix.target }} ${{ matrix.mode }}
 
       - if: ${{ inputs.run_rust_tests && !contains(matrix.host_os, 'windows') }}
         name: Test
         run: |
-          mk/cargo.sh +${{ matrix.rust_channel }} test ${{ matrix.binaries }} -vv --target=${{ matrix.target }} ${{ matrix.cargo_options }} ${{ matrix.mode }} --no-fail-fast --locked --all-features --all-targets
+          mk/cargo.sh +${{ matrix.rust_channel }} test -vv --target=${{ matrix.target }} ${{ matrix.cargo_options }} ${{ matrix.mode }} --no-fail-fast --locked --all-features --all-targets
 
       # Install nfpm used to for linux packaging
       - uses: actions/setup-go@v5
