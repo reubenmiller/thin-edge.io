@@ -182,6 +182,11 @@ case $target in
     export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=riscv64-linux-gnu-gcc
     export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_RUNNER="$qemu_riscv64"
     ;;
+  riscv64gc-unknown-linux-musl)
+    use_clang=1
+    export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
+    export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_MUSL_RUNNER="$qemu_riscv64"
+    ;;
   s390x-unknown-linux-gnu)
     use_clang=1
     # XXX: Using -march=zEC12 to work around a z13 instruction bug in
