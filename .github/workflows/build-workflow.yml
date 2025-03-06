@@ -2,6 +2,7 @@ name: build-workflow
 
 on:
   push:
+    branches: [feat-tedge-p11-server-packaging]
     tags:
       - "*"
 
