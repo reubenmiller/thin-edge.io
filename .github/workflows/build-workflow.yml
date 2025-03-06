@@ -92,7 +92,7 @@ jobs:
             host_os: ubuntu-22.04
             cargo_options: --no-run
 
-          - target: riscv64gc-unknown-linux-gnu
+          - target: riscv64gc-unknown-linux-musl
             host_os: ubuntu-22.04
             cargo_options: --no-run
 
