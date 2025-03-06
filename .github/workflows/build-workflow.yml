@@ -92,8 +92,12 @@ jobs:
             host_os: ubuntu-22.04
             cargo_options: --no-run
 
+          # Note: riscv64gc-unknown-linux-musl was only promoted to tier 2 status in 1.82
+          # However 1.78 does support riscv64gc-unknown-linux-gnu
           - target: riscv64gc-unknown-linux-musl
             host_os: ubuntu-22.04
+            rust_channel: "1.82"
+            mode: --release
             cargo_options: --no-run
 
           - target: aarch64-apple-darwin
