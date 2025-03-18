@@ -2,6 +2,7 @@ name: build-workflow
 
 on:
   push:
+    branches: [ci-example-android-build]
     tags:
       - "*"
 
@@ -57,6 +58,10 @@ jobs:
           - riscv64gc-unknown-linux-gnu
           - aarch64-apple-darwin
           - x86_64-apple-darwin
+          - aarch64-linux-android
+          - armv7-linux-androideabi
+          - x86_64-linux-android
+          - i686-linux-android
         mode:
           - --release
 
@@ -101,6 +106,22 @@ jobs:
 
           - target: x86_64-apple-darwin
             host_os: macos-14
+
+          - target: aarch64-linux-android
+            host_os: ubuntu-22.04
+            cargo_options: --no-run
+
+          - target: armv7-linux-androideabi
+            host_os: ubuntu-22.04
+            cargo_options: --no-run
+
+          - target: x86_64-linux-android
+            host_os: ubuntu-22.04
+            cargo_options: --no-run
+
+          - target: i686-linux-android
+            host_os: ubuntu-22.04
+            cargo_options: --no-run
 
     steps:
       - if: ${{ contains(matrix.host_os, 'ubuntu') }}
@@ -281,6 +302,11 @@ jobs:
           - { target: riscv64gc-unknown-linux-gnu,    repo: tedge-main,          component: main }
           - { target: aarch64-apple-darwin,      repo: tedge-main,          component: main }
           - { target: x86_64-apple-darwin,       repo: tedge-main,          component: main }
+          # Android targets: for experiments only!
+          - { target: aarch64-linux-android,     repo: tedge-main,          component: main }
+          - { target: armv7-linux-androideabi,   repo: tedge-main,          component: main }
+          - { target: x86_64-linux-android,      repo: tedge-main,          component: main }
+          - { target: i686-linux-android,        repo: tedge-main,          component: main }
 
     steps:
       - name: Checkout
