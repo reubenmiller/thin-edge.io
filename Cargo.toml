@@ -155,7 +155,7 @@ proc-macro2 = "1"
 proptest = "1.0"
 quote = "1"
 rand = "0.8"
-rcgen = { version = "0.13", default-features = false, features = ["pem", "zeroize", "aws_lc_rs"] }
+rcgen = { version = "0.12", default-features = false, features = ["pem", "zeroize", "aws_lc_rs"] }
 regex = "1.4"
 reqwest = { version = "0.12", default-features = false }
 ron = "0.8"
