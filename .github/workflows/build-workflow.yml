@@ -2,6 +2,7 @@ name: build-workflow
 
 on:
   push:
+    branches: [build-aws-lc-rs]
     tags:
       - "*"
 
