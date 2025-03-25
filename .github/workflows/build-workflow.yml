@@ -2,6 +2,7 @@ name: build-workflow
 
 on:
   push:
+    branches: [ci-build-libc-targets]
     tags:
       - "*"
 
