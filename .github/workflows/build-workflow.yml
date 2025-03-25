@@ -57,6 +57,15 @@ jobs:
           - riscv64gc-unknown-linux-gnu
           - aarch64-apple-darwin
           - x86_64-apple-darwin
+
+          # libc targets
+          - aarch64-unknown-linux-gnu
+          - armv7-unknown-linux-gnueabihf
+          - arm-unknown-linux-gnueabihf
+          - arm-unknown-linux-gnueabi
+          - armv5te-unknown-linux-gnueabi
+          - x86_64-unknown-linux-gnu
+          - i686-unknown-linux-gnu
         mode:
           - --release
 
