@@ -67,6 +67,7 @@ COPY files/packages/ /setup/packages/
 
 COPY files/mqtt-logger.service /etc/systemd/system/
 COPY files/mqtt-logger /usr/bin/
+COPY files/custom-registration.sh /usr/bin/
 RUN systemctl enable mqtt-logger.service
 
 # Custom mosquitto config
