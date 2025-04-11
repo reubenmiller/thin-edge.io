@@ -9,10 +9,16 @@ Type=oneshot
 User=root
 
 ; Only run service is if the certificate needs renewal
-ExecCondition=/usr/bin/tedge-cert-renewer.sh needs-renewal %i
+ExecCondition=/usr/bin/tedge cert needs-renewal %i
 
 ; Run renewal
-ExecStart=/usr/bin/tedge-cert-renewer.sh renew %i
+ExecStartPre=/usr/bin/tedge cert renew %i
+
+; Reconnect
+ExecStart=/usr/bin/tedge reconnect %i
+
+; Cleanup
+ExecStopPost=sh -c 'rm -f "$(tedge config get %i.device.cert_path).new"'
 
 [Install]
 WantedBy=multi-user.target

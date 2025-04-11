@@ -144,11 +144,6 @@ contents:
     packager: rpm
 
   # cert renewal
-  - src: ./configuration/contrib/tedge-cert-renewer.sh
-    dst: /usr/bin/tedge-cert-renewer.sh
-    file_info:
-      mode: 0755
-
   - src: ./configuration/init/systemd/tedge-cert-renewer.target
     dst: /lib/systemd/system/tedge-cert-renewer.target
     file_info:
