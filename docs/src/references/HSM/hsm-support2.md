@@ -21,6 +21,26 @@ The user context will be persisted in your web browser's local storage.
 
 This section describes how to use %%te%% with a Hardware Security Module (HSM) by way of an PKCS#11 interface.
 
+A Hardware Security Module (HSM) is a physical computing device that safeguards and manages digital keys for strong authentication and provides cryptoprocessing. It is used to protect sensitive data and cryptographic operations by providing a secure, tamper-resistant environment. HSMs are commonly used in applications requiring high levels of security, such as digital signatures, encryption, and key management.
+
+Using certificates for authentication offers several advantages over passwords, especially in the context of device security and IoT:
+
+1.  **Stronger Security:** Certificates use public-key cryptography, which is significantly more secure than password-based authentication. Passwords can be guessed, brute-forced, or compromised through phishing attacks. Certificates rely on cryptographic keys that are much harder to crack.
+
+2.  **No Shared Secrets (for private key):** With certificates, the private key remains on the device (or in the HSM). Only the public key is shared. This means there's no password that needs to be transmitted over the network, reducing the risk of interception.
+
+3.  **Tamper Resistance (with HSM):** When used with an HSM, the private key is stored in a secure, tamper-resistant hardware module. This prevents the private key from being extracted or copied, even if the device's software is compromised. Passwords, even if hashed, are often stored in software and are more vulnerable.
+
+4.  **Automated Management:** Certificate lifecycle management (issuance, renewal, revocation) can be automated, reducing the manual effort and potential for human error associated with managing passwords for a large number of devices.
+
+5.  **Identity Verification:** Certificates provide a verifiable identity for the device, signed by a trusted Certificate Authority (CA). This allows the cloud platform to verify the authenticity of the device connecting to it. Passwords only prove knowledge of a secret, not the identity of the entity possessing it.
+
+6.  **Reduced Attack Surface:** By eliminating the need to store and transmit passwords, the attack surface for credential theft is significantly reduced.
+
+7.  **Compliance:** Many industry regulations and security standards require the use of strong authentication methods like certificates, especially for sensitive data or critical infrastructure.
+
+In summary, using certificates, particularly in conjunction with an HSM, provides a more robust, scalable, and secure method for authenticating devices compared to traditional password-based approaches.
+
 ## Overview
 
 %%te%% supports HSM via the PKCS#11 interface (a.k.a. cryptoki) to allow the usage of private keys generated and stored by HSMs to be used when establishing the connection to the cloud.
@@ -157,6 +177,91 @@ ENROL_TOKEN=$(c8y deviceregistration register-ca --id "$DEVICE_ID" --one-time-pa
 
 
 ## HSM Specific instructions
+
+### SoftHSM2
+
+:::note
+SoftHSM2 is a software-based implementation of a Hardware Security Module (HSM) that can be used for testing and development purposes. It should not be used in production as it does not use any hardware to secure private keys.
+:::
+
+1. Install SoftHSM2 (to create the token and key) and `p11tool` (to view the [PKCS #11 URI][p11uri]
+   of the key).
+
+    ```sh
+    sudo apt-get install -y softhsm2 gnutls-bin
+    ```
+
+    [p11uri]: https://www.rfc-editor.org/rfc/rfc7512
+
+For SoftHSM configuration, see [SoftHSM README](https://github.com/softhsm/softHSMv2?tab=readme-ov-file#configure-1).
+
+2. Add tedge and current user to `softhsm` group. Only users belonging to `softhsm` group can view
+   and manage SoftHSM tokens. After adding your own user, remember to logout and login for changes
+   to take effect. Alternatively, you can just run `softhsm2-util` and `p11tool` with `sudo`.
+
+   ```sh
+    sudo usermod -a -G softhsm tedge
+    sudo usermod -a -G softhsm $(id -un)
+   ```
+
+3. Create a new SoftHSM token. You'll be prompted for a PIN for a regular user and security officer
+   (SO). The rest of the guide assumes PIN=123456, but you're free to use a different one.
+
+    ```sh
+    softhsm2-util --init-token --slot 0 --label my-token
+    ```
+
+4. Import the private key to the created token. Make sure to use the correct PIN value for a regular
+   user from the previous step.
+
+    ```sh
+    PUB_PRIV_KEY=$(
+        cat "$(tedge config get device.key_path)" && cat "$(tedge config get device.cert_path)"
+    )
+    softhsm2-util \
+        --import <(echo "$PUB_PRIV_KEY") \
+        --token my-token \
+        --label my-key \
+        --id 01 \
+        --pin 123456 \
+    ```
+
+5. Get the URI of the key
+
+    First, see what tokens are available
+
+    ```sh
+    p11tool --list-tokens
+    ```
+
+    ```sh title="Output"
+    ...
+    Token 2:
+        URL: pkcs11:model=SoftHSM%20v2;manufacturer=SoftHSM%20project;serial=83f9cf49039c051a;token=my-token
+        Label: my-token
+        Type: Generic token
+        Flags: RNG, Requires login
+        Manufacturer: SoftHSM project
+        Model: SoftHSM v2
+        Serial: 83f9cf49039c051a
+        Module: /usr/lib/x86_64-linux-gnu/softhsm/libsofthsm2.so
+    ...
+    ```
+
+    Now check if the private key object is in the token. You may need to login, provide the regular
+    user PIN and also provide token URL(URI) if multiple tokens are connected:
+
+    ```sh
+    p11tool --login --set-pin=123456 --list-privkeys "pkcs11:model=SoftHSM%20v2;manufacturer=SoftHSM%20project;serial=83f9cf49039c051a;token=my-token"
+    ```
+    ```sh title="Output"
+    Object 0:
+        URL: pkcs11:model=SoftHSM%20v2;manufacturer=SoftHSM%20project;serial=83f9cf49039c051a;token=my-token;id=%01;object=my-key;type=private
+        Type: Private key (EC/ECDSA-SECP256R1)
+        Label: my-key
+        Flags: CKA_PRIVATE; CKA_SENSITIVE;
+        ID: 01
+    ```
 
 ### Yubikey
 
