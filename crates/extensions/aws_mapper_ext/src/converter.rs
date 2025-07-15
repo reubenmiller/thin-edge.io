@@ -92,8 +92,11 @@ impl AwsConverter {
             | Channel::Alarm {
                 alarm_type: type_name,
             } => self.convert_telemetry_message(input, source, &type_name),
-
+            Channel::EntityTwinData { fragment_key } => {
+                self.convert_twin_message(&source, input, &fragment_key)
+            }
             Channel::Health => self.convert_health_message(&source, input),
+            Channel::EntityMetadata => self.convert_meta_data_message(&source, input),
 
             _ => Ok(vec![]),
         }
@@ -117,6 +120,36 @@ impl AwsConverter {
                 Ok(vec![])
             }
         }
+    }
+
+    fn convert_meta_data_message(
+        &self,
+        source: &EntityTopicId,
+        input: &MqttMessage,
+    ) -> Result<Vec<MqttMessage>, ConversionError> {
+        let topic_prefix = &self.topic_prefix;
+        let source = normalize_name(source);
+        let out_topic = Topic::new_unchecked(&format!("{topic_prefix}/td/{source}"));
+
+        let output = MqttMessage::new(&out_topic, input.payload_bytes());
+        self.size_threshold.validate(&output)?;
+        Ok(vec![output])
+    }
+
+    fn convert_twin_message(
+        &self,
+        source: &EntityTopicId,
+        input: &MqttMessage,
+        telemetry_type: &String,
+    ) -> Result<Vec<MqttMessage>, ConversionError> {
+        let topic_prefix = &self.topic_prefix;
+        let source = normalize_name(source);
+        let out_topic =
+            Topic::new_unchecked(&format!("{topic_prefix}/td/{source}/twin/{telemetry_type}"));
+
+        let output = MqttMessage::new(&out_topic, input.payload_bytes());
+        self.size_threshold.validate(&output)?;
+        Ok(vec![output])
     }
 
     fn convert_telemetry_message(

@@ -97,6 +97,7 @@ impl AzureConverter {
             Channel::Measurement { .. }
             | Channel::Event { .. }
             | Channel::Alarm { .. }
+            | Channel::EntityTwinData { .. }
             | Channel::Health => match self.with_timestamp(input) {
                 Ok(payload) => {
                     let output = MqttMessage::new(&self.mapper_config.out_topic, payload);
