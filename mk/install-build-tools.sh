@@ -70,9 +70,6 @@ case ${target-} in
   ;;
 esac
 
-install_packages \
-    gcc-multilib
-
 case ${target-} in
 aarch64-unknown-linux-gnu)
   # Clang is needed for code coverage.
@@ -226,6 +223,10 @@ linux*)
     sudo add-apt-repository "deb http://apt.llvm.org/$ubuntu_codename/ llvm-toolchain-$ubuntu_codename-$llvm_version main"
     sudo apt-get update
     install_packages clang-$llvm_version llvm-$llvm_version
+
+    # TODO: only install gcc-multilib on amd64
+    install_packages gcc-multilib ||:
+    install_packages build-essential
   fi
   ;;
 darwin*)
