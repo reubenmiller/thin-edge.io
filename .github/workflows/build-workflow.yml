@@ -2,6 +2,7 @@ name: build-workflow
 
 on:
   push:
+    branches: [debug-tedge-flows-build]
     tags:
       - "*"
 
