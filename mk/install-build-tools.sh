@@ -70,8 +70,14 @@ case ${target-} in
   ;;
 esac
 
-install_packages \
-    gcc-multilib
+case "$(uname -m)" in
+  aarch64|arm64)
+    # gcc-multilib isn't available on aarch64
+    ;;
+  *)
+    install_packages gcc-multilib
+    ;;
+esac
 
 case ${target-} in
 aarch64-unknown-linux-gnu)
