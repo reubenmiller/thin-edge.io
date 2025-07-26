@@ -57,7 +57,7 @@ for arg in "$@"; do
 done
 
 # See comments in install-build-tools.sh.
-llvm_version=18
+llvm_version=19
 
 use_clang=
 case $target in
@@ -88,7 +88,9 @@ case $target in
     use_clang=1
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUNNER="$qemu_arm_gnueabi"
-    export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=/usr/arm-linux-musleabi"
+    # export BINDGEN_EXTRA_CLANG_ARGS="-latomic"
+    # export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=/usr/arm-linux-gnueabi -I/usr/arm-linux-gnueabi/include"
+    # export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=/usr/arm-linux-musleabi"
     ;;
   armv5te-unknown-linux-gnueabi)
     export CC_armv5te_unknown_linux_gnueabi=arm-linux-gnueabi-gcc
