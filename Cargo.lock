@@ -692,9 +692,9 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.72.0"
+version = "0.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f72209734318d0b619a5e0f5129918b848c416e122a3c4ce054e03cb87b726f"
+checksum = "f49d8fed880d473ea71efb9bf597651e77201bdd4893efe54c9e5d65ae04ce6f"
 dependencies = [
  "bitflags 2.9.0",
  "cexpr",
@@ -705,7 +705,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "shlex",
  "syn 2.0.101",
 ]
@@ -3425,9 +3425,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-crate"
-version = "3.2.0"
+version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ecf48c7ca261d60b74ab1a7b20da18bede46776b2e55535cb958eb595c5fa7b"
+checksum = "edce586971a4dfaa28950c6f18ed55e0406c1ab88bbce2c6f6293a7aaba73d35"
 dependencies = [
  "toml_edit",
 ]
@@ -3507,7 +3507,7 @@ dependencies = [
  "pin-project-lite",
  "quinn-proto",
  "quinn-udp",
- "rustc-hash",
+ "rustc-hash 2.1.1",
  "rustls 0.23.27",
  "socket2",
  "thiserror 2.0.12",
@@ -3527,7 +3527,7 @@ dependencies = [
  "lru-slab",
  "rand 0.9.1",
  "ring",
- "rustc-hash",
+ "rustc-hash 2.1.1",
  "rustls 0.23.27",
  "rustls-pki-types",
  "slab",
@@ -3899,7 +3899,7 @@ dependencies = [
 [[package]]
 name = "rquickjs"
 version = "0.9.0"
-source = "git+https://github.com/reubenmiller/rquickjs?rev=d504fabb33170446026f026a7ff54df78c18601f#d504fabb33170446026f026a7ff54df78c18601f"
+source = "git+https://github.com/reubenmiller/rquickjs?rev=e143b7bb625ef7e62be6955497c4d7a7a0ef0337#e143b7bb625ef7e62be6955497c4d7a7a0ef0337"
 dependencies = [
  "rquickjs-core",
  "rquickjs-macro",
@@ -3908,7 +3908,7 @@ dependencies = [
 [[package]]
 name = "rquickjs-core"
 version = "0.9.0"
-source = "git+https://github.com/reubenmiller/rquickjs?rev=d504fabb33170446026f026a7ff54df78c18601f#d504fabb33170446026f026a7ff54df78c18601f"
+source = "git+https://github.com/reubenmiller/rquickjs?rev=e143b7bb625ef7e62be6955497c4d7a7a0ef0337#e143b7bb625ef7e62be6955497c4d7a7a0ef0337"
 dependencies = [
  "async-lock",
  "hashbrown 0.15.3",
@@ -3919,7 +3919,7 @@ dependencies = [
 [[package]]
 name = "rquickjs-macro"
 version = "0.9.0"
-source = "git+https://github.com/reubenmiller/rquickjs?rev=d504fabb33170446026f026a7ff54df78c18601f#d504fabb33170446026f026a7ff54df78c18601f"
+source = "git+https://github.com/reubenmiller/rquickjs?rev=e143b7bb625ef7e62be6955497c4d7a7a0ef0337#e143b7bb625ef7e62be6955497c4d7a7a0ef0337"
 dependencies = [
  "convert_case",
  "fnv",
@@ -3935,7 +3935,7 @@ dependencies = [
 [[package]]
 name = "rquickjs-sys"
 version = "0.9.0"
-source = "git+https://github.com/reubenmiller/rquickjs?rev=d504fabb33170446026f026a7ff54df78c18601f#d504fabb33170446026f026a7ff54df78c18601f"
+source = "git+https://github.com/reubenmiller/rquickjs?rev=e143b7bb625ef7e62be6955497c4d7a7a0ef0337#e143b7bb625ef7e62be6955497c4d7a7a0ef0337"
 dependencies = [
  "bindgen",
  "cc",
@@ -4035,6 +4035,12 @@ name = "rustc-demangle"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
+
+[[package]]
+name = "rustc-hash"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "rustc-hash"

@@ -86,19 +86,25 @@ aarch64-unknown-linux-gnu)
   install_packages \
     qemu-user \
     gcc-aarch64-linux-gnu \
-    libc6-dev-arm64-cross
+    libc6-arm64-cross \
+    libc6-dev-arm64-cross \
+    crossbuild-essential-arm64
   ;;
 aarch64-unknown-linux-musl)
   use_clang=1
   install_packages \
     qemu-user \
     gcc-aarch64-linux-gnu \
-    libc6-dev-arm64-cross
+    libc6-arm64-cross \
+    libc6-dev-arm64-cross \
+    crossbuild-essential-arm64
   ;;
 armv7-unknown-linux-musleabihf)
   use_clang=1
   install_packages \
-    qemu-user
+    qemu-user \
+    gcc-arm-linux-gnueabihf \
+    libc6-dev-armhf-cross
   ;;
 armv5te-unknown-linux-gnueabi)
   install_packages \
@@ -237,10 +243,10 @@ linux*)
   if [ -n "$use_clang" ]; then
     ubuntu_codename=$(lsb_release --codename --short)
     llvm_version=19
-    sudo apt-key add mk/llvm-snapshot.gpg.key
-    sudo add-apt-repository "deb http://apt.llvm.org/$ubuntu_codename/ llvm-toolchain-$ubuntu_codename-$llvm_version main"
-    sudo apt-get update
-    install_packages clang-$llvm_version llvm-$llvm_version
+    # sudo apt-key add mk/llvm-snapshot.gpg.key
+    # sudo add-apt-repository "deb http://apt.llvm.org/$ubuntu_codename/ llvm-toolchain-$ubuntu_codename-$llvm_version main"
+    # sudo apt-get update
+    # install_packages clang-$llvm_version llvm-$llvm_version
   fi
   ;;
 darwin*)
