@@ -140,6 +140,8 @@ i686-unknown-linux-gnu)
   ;;
 i686-unknown-linux-musl|x86_64-unknown-linux-musl)
   use_clang=1
+  install_packages \
+    libc6-dev-i386
   ;;
 loongarch64-unknown-linux-gnu)
   use_clang=1
