@@ -291,6 +291,7 @@ if [ "$BUILD" = 1 ] && [ ${#BINARIES[@]} -gt 0 ]; then
                 ;;
             clang)
                 # shellcheck disable=SC2086
+                install_zig_tools
                 ./mk/install-build-tools.sh $TOOLCHAIN --target="$BINARY_TARGET"
                 ;;
             *)

@@ -295,9 +295,14 @@ if [ -n "${use_clang}" ]; then
   declare -x "${ar_var}=llvm-ar-${llvm_version}"
 fi
 
-export TARGET_OVERRIDE="$target"
-echo running: cargo "$@" -v
-cargo "$@" -v
+# export CC_ENABLE_DEBUG_OUTPUT=1
+
+# build quickjs first using zigbuild
+cargo-zigbuild build --target="$target" --release -p rquickjs
+
+# export TARGET_OVERRIDE="$target"
+echo running: cargo "$@"
+cargo "$@"
 
 if [ -n "${RING_COVERAGE-}" ]; then
   # Keep in sync with check-symbol-prefixes.sh.
