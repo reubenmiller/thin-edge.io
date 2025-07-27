@@ -91,7 +91,7 @@ case $target in
     use_clang=1
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUNNER="$qemu_arm_gnueabi"
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi -D__STDC_NO_ATOMICS__=1'
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi --target=arm-unknown-linux-musleabi -D__STDC_NO_ATOMICS__=1'
     export CFLAGS_arm_unknown_linux_musleabi="-D__STDC_NO_ATOMICS__=1"
     ;;
   armv5te-unknown-linux-gnueabi)
@@ -111,7 +111,7 @@ case $target in
     use_clang=1
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_RUNNER="$qemu_arm_gnueabihf"
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf'
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf --target=arm-unknown-linux-musleabihf'
     ;;
   arm-unknown-linux-gnueabihf)
     # XXX: clang cannot build the sha256 and x25519 assembly.
@@ -135,7 +135,7 @@ case $target in
     use_clang=1
     export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUNNER="$qemu_arm_gnueabihf"
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf'
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf --target=armv7-unknown-linux-musleabihf'
     ;;
   i686-unknown-linux-gnu)
     use_clang=1

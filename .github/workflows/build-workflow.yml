@@ -142,7 +142,7 @@ jobs:
             cargo_options: --no-run
 
           - target: arm-unknown-linux-musleabi
-            build_with: zig
+            build_with: auto
             host_os: ubuntu-24.04
             cargo_options: --no-run
 
