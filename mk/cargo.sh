@@ -104,7 +104,7 @@ case $target in
     use_clang=1
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_MUSLEABI_RUNNER="$qemu_arm_gnueabi"
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi -D__STDC_NO_ATOMICS__=1 --target=armv5te-unknown-linux-musleabi'
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi --target=armv5te-unknown-linux-musleabi -D__STDC_NO_ATOMICS__=1'
     export CFLAGS_armv5te_unknown_linux_musleabi="-D__STDC_NO_ATOMICS__=1"
     ;;
   arm-unknown-linux-musleabihf)
