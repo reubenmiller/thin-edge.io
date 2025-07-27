@@ -100,7 +100,7 @@ aarch64-unknown-linux-musl)
     crossbuild-essential-arm64
 
   # Download and extract musl sysroot for aarch64 from GitHub release
-  MUSL_SYSROOT_DIR="$HOME/.musl-cross/aarch64-linux-musl"
+  MUSL_SYSROOT_DIR="$HOME/.musl-cross/aarch64-unknown-linux-musl"
   MUSL_TARBALL="aarch64-unknown-linux-musl.tar.xz"
   MUSL_URL="https://github.com/cross-tools/musl-cross/releases/download/20250520/${MUSL_TARBALL}"
   if [ ! -d "$MUSL_SYSROOT_DIR" ]; then

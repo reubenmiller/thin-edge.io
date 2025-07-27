@@ -79,7 +79,7 @@ case $target in
     use_clang=1
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER="$qemu_aarch64"
-    MUSL_SYSROOT_DIR="$HOME/.musl-cross/aarch64-linux-musl"
+    MUSL_SYSROOT_DIR="$HOME/.musl-cross/aarch64-unknown-linux-musl"
     export CFLAGS_aarch64_unknown_linux_musl="--sysroot=$MUSL_SYSROOT_DIR"
     export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$MUSL_SYSROOT_DIR --target=aarch64-unknown-linux-musl"
     ;;
