@@ -79,7 +79,7 @@ case $target in
     use_clang=1
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER="$qemu_aarch64"
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/aarch64-linux-gnu'
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/aarch64-linux-gnu --target=aarch64-unknown-linux-musl'
     ;;
   arm-unknown-linux-gnueabi)
     export CC_arm_unknown_linux_gnueabi=arm-linux-gnueabi-gcc
@@ -104,7 +104,7 @@ case $target in
     use_clang=1
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_MUSLEABI_RUNNER="$qemu_arm_gnueabi"
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi -D__STDC_NO_ATOMICS__=1'
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi -D__STDC_NO_ATOMICS__=1 --target=armv5te-unknown-linux-musleabi'
     export CFLAGS_armv5te_unknown_linux_musleabi="-D__STDC_NO_ATOMICS__=1"
     ;;
   arm-unknown-linux-musleabihf)
