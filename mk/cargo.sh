@@ -59,7 +59,7 @@ done
 # export TARGET="$target"
 
 # See comments in install-build-tools.sh.
-llvm_version=19
+llvm_version=20
 
 use_clang=
 case $target in
