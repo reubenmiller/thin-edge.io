@@ -3899,7 +3899,7 @@ dependencies = [
 [[package]]
 name = "rquickjs"
 version = "0.9.0"
-source = "git+https://github.com/reubenmiller/rquickjs?rev=d4c993a3f89c97c744c1e2e10fcec044a44318b2#d4c993a3f89c97c744c1e2e10fcec044a44318b2"
+source = "git+https://github.com/reubenmiller/rquickjs?rev=b5f5416f0545f91c12a5c0bd7fc90524f0399344#b5f5416f0545f91c12a5c0bd7fc90524f0399344"
 dependencies = [
  "rquickjs-core",
  "rquickjs-macro",
@@ -3908,7 +3908,7 @@ dependencies = [
 [[package]]
 name = "rquickjs-core"
 version = "0.9.0"
-source = "git+https://github.com/reubenmiller/rquickjs?rev=d4c993a3f89c97c744c1e2e10fcec044a44318b2#d4c993a3f89c97c744c1e2e10fcec044a44318b2"
+source = "git+https://github.com/reubenmiller/rquickjs?rev=b5f5416f0545f91c12a5c0bd7fc90524f0399344#b5f5416f0545f91c12a5c0bd7fc90524f0399344"
 dependencies = [
  "async-lock",
  "hashbrown 0.15.3",
@@ -3919,7 +3919,7 @@ dependencies = [
 [[package]]
 name = "rquickjs-macro"
 version = "0.9.0"
-source = "git+https://github.com/reubenmiller/rquickjs?rev=d4c993a3f89c97c744c1e2e10fcec044a44318b2#d4c993a3f89c97c744c1e2e10fcec044a44318b2"
+source = "git+https://github.com/reubenmiller/rquickjs?rev=b5f5416f0545f91c12a5c0bd7fc90524f0399344#b5f5416f0545f91c12a5c0bd7fc90524f0399344"
 dependencies = [
  "convert_case",
  "fnv",
@@ -3935,7 +3935,7 @@ dependencies = [
 [[package]]
 name = "rquickjs-sys"
 version = "0.9.0"
-source = "git+https://github.com/reubenmiller/rquickjs?rev=d4c993a3f89c97c744c1e2e10fcec044a44318b2#d4c993a3f89c97c744c1e2e10fcec044a44318b2"
+source = "git+https://github.com/reubenmiller/rquickjs?rev=b5f5416f0545f91c12a5c0bd7fc90524f0399344#b5f5416f0545f91c12a5c0bd7fc90524f0399344"
 dependencies = [
  "bindgen",
  "cc",
