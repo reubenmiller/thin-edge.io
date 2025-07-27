@@ -81,7 +81,8 @@ case $target in
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER="$qemu_aarch64"
     MUSL_SYSROOT_DIR="$HOME/.musl-cross/aarch64-unknown-linux-musl/aarch64-unknown-linux-musl/sysroot"
     export CFLAGS_aarch64_unknown_linux_musl="--sysroot=$MUSL_SYSROOT_DIR"
-    export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$MUSL_SYSROOT_DIR --target=aarch64-unknown-linux-musl"
+    export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$MUSL_SYSROOT_DIR"
+    # export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$MUSL_SYSROOT_DIR --target=aarch64-unknown-linux-musl"
     ;;
   arm-unknown-linux-gnueabi)
     export CC_arm_unknown_linux_gnueabi=arm-linux-gnueabi-gcc
@@ -113,7 +114,8 @@ case $target in
     use_clang=1
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_RUNNER="$qemu_arm_gnueabihf"
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf --target=arm-unknown-linux-musleabihf'
+    # export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf --target=arm-unknown-linux-musleabihf'
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf'
     ;;
   arm-unknown-linux-gnueabihf)
     # XXX: clang cannot build the sha256 and x25519 assembly.
@@ -137,7 +139,9 @@ case $target in
     use_clang=1
     export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUNNER="$qemu_arm_gnueabihf"
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf --target=armv7-unknown-linux-musleabihf'
+    # Works on macos if left out
+    # export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf --target=armv7-unknown-linux-musleabihf'
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf'
     ;;
   i686-unknown-linux-gnu)
     use_clang=1
