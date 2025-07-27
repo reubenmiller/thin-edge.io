@@ -79,7 +79,9 @@ case $target in
     use_clang=1
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER="$qemu_aarch64"
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/aarch64-linux-gnu --target=aarch64-unknown-linux-musl'
+    MUSL_SYSROOT_DIR="$HOME/.musl-cross/aarch64-linux-musl"
+    export CFLAGS_aarch64_unknown_linux_musl="--sysroot=$MUSL_SYSROOT_DIR"
+    export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$MUSL_SYSROOT_DIR --target=aarch64-unknown-linux-musl"
     ;;
   arm-unknown-linux-gnueabi)
     export CC_arm_unknown_linux_gnueabi=arm-linux-gnueabi-gcc

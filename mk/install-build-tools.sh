@@ -98,6 +98,19 @@ aarch64-unknown-linux-musl)
     libc6-arm64-cross \
     libc6-dev-arm64-cross \
     crossbuild-essential-arm64
+
+  # Download and extract musl sysroot for aarch64 (testing only)
+  MUSL_SYSROOT_DIR="$HOME/.musl-cross/aarch64-linux-musl"
+  MUSL_VERSION="1.2.5"
+  MUSL_TARBALL="aarch64-linux-musl-cross-${MUSL_VERSION}.tgz"
+  MUSL_URL="https://musl.cc/${MUSL_TARBALL}"
+  if [ ! -d "$MUSL_SYSROOT_DIR" ]; then
+    echo "Downloading musl sysroot for aarch64 version $MUSL_VERSION..."
+    mkdir -p "$HOME/.musl-cross"
+    curl -L -o /tmp/$MUSL_TARBALL "$MUSL_URL"
+    tar -xzf /tmp/$MUSL_TARBALL -C "$HOME/.musl-cross" --strip-components=1
+    rm /tmp/$MUSL_TARBALL
+  fi
   ;;
 armv7-unknown-linux-musleabihf)
   use_clang=1
