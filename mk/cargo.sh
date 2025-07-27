@@ -298,7 +298,7 @@ fi
 # export CC_ENABLE_DEBUG_OUTPUT=1
 
 # build quickjs first using zigbuild
-cargo-zigbuild build --target="$target" --release -p rquickjs
+#cargo-zigbuild +"${toolchain}" zigbuild --target="$target" --release -p rquickjs
 
 # export TARGET_OVERRIDE="$target"
 echo running: cargo "$@"
