@@ -91,10 +91,8 @@ case $target in
     use_clang=1
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUNNER="$qemu_arm_gnueabi"
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi'
-    # export BINDGEN_EXTRA_CLANG_ARGS="-latomic"
-    # export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=/usr/arm-linux-gnueabi -I/usr/arm-linux-gnueabi/include"
-    # export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=/usr/arm-linux-musleabi"
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi -D__STDC_NO_ATOMICS__=1'
+    export CFLAGS_arm_unknown_linux_musleabi="-D__STDC_NO_ATOMICS__=1"
     ;;
   armv5te-unknown-linux-gnueabi)
     export CC_armv5te_unknown_linux_gnueabi=arm-linux-gnueabi-gcc
@@ -106,14 +104,14 @@ case $target in
     use_clang=1
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_MUSLEABI_RUNNER="$qemu_arm_gnueabi"
-    # export BINDGEN_EXTRA_CLANG_ARGS="-latomic"
-    # export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi --target=armv5te-unknown-linux-musleabi -fcuda-short-ptr'
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi'
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi -D__STDC_NO_ATOMICS__=1'
+    export CFLAGS_armv5te_unknown_linux_musleabi="-D__STDC_NO_ATOMICS__=1"
     ;;
   arm-unknown-linux-musleabihf)
     use_clang=1
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_RUNNER="$qemu_arm_gnueabihf"
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf'
     ;;
   arm-unknown-linux-gnueabihf)
     # XXX: clang cannot build the sha256 and x25519 assembly.
@@ -222,6 +220,7 @@ case $target in
     else
       export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
     fi
+    # export BINDGEN_EXTRA_CLANG_ARGS="--target=riscv64-unknown-linux-gnu"
     ;;
   x86_64-linux-android)
     export CC_x86_64_linux_android=$android_tools/x86_64-linux-android24-clang
@@ -299,6 +298,8 @@ fi
 
 # build quickjs first using zigbuild
 #cargo-zigbuild +"${toolchain}" zigbuild --target="$target" --release -p rquickjs
+
+export LIBCLANG_PATH="/usr/lib/llvm-${llvm_version}/lib"
 
 # export TARGET_OVERRIDE="$target"
 echo running: cargo "$@"

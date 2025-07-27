@@ -147,13 +147,15 @@ arm-unknown-linux-gnueabihf|armv7-unknown-linux-gnueabihf)
   ;;
 i686-unknown-linux-gnu)
   use_clang=1
+  # Note: packages are generally only available on amd64
   install_packages \
-    libc6-dev-i386
+    libc6-dev-i386 ||:
   ;;
 i686-unknown-linux-musl|x86_64-unknown-linux-musl)
   use_clang=1
+  # Note: packages are generally only available on amd64
   install_packages \
-    libc6-dev-i386
+    libc6-dev-i386 ||:
   ;;
 loongarch64-unknown-linux-gnu)
   use_clang=1
@@ -243,10 +245,18 @@ linux*)
   if [ -n "$use_clang" ]; then
     ubuntu_codename=$(lsb_release --codename --short)
     llvm_version=20
-    sudo apt-key add mk/llvm-snapshot.gpg.key
-    sudo add-apt-repository "deb http://apt.llvm.org/$ubuntu_codename/ llvm-toolchain-$ubuntu_codename-$llvm_version main"
-    sudo apt-get update
-    install_packages clang-$llvm_version llvm-$llvm_version
+    if ! command -V "clang-${llvm_version}" >/dev/null 2>&1; then
+      sudo apt-key add mk/llvm-snapshot.gpg.key
+      sudo add-apt-repository "deb http://apt.llvm.org/$ubuntu_codename/ llvm-toolchain-$ubuntu_codename-$llvm_version main"
+      sudo apt-get update
+      install_packages clang-$llvm_version llvm-$llvm_version
+    fi
+
+    # required for aws-lc-rs and other packages that required bindgen
+    if ! command -V cmake >/dev/null 2>&1; then
+      install_packages cmake
+    fi
+    cargo install --force --locked bindgen-cli
   fi
   ;;
 darwin*)

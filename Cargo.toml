@@ -165,7 +165,7 @@ regex = "1.4"
 reqwest = { version = "0.12", default-features = false }
 ron = "0.8"
 rpassword = "5.0"
-rquickjs = { git = "https://github.com/reubenmiller/rquickjs", rev = "287a3d2ff49067a51cd5d00fc690182519e9d147", default-features = false }
+rquickjs = { git = "https://github.com/reubenmiller/rquickjs", rev = "d4c993a3f89c97c744c1e2e10fcec044a44318b2", default-features = false }
 rstest = "0.16.0"
 rumqttc = { git = "https://github.com/jarhodes314/rumqtt", rev = "8c489faf6af910956c97b55587ff3ecb2ac4e96f" }
 rumqttd = "0.19"
