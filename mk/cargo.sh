@@ -56,10 +56,8 @@ for arg in "$@"; do
   esac
 done
 
-# export TARGET="$target"
-
 # See comments in install-build-tools.sh.
-llvm_version=20
+llvm_version=18
 
 use_clang=
 case $target in
