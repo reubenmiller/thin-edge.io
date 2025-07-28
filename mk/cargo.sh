@@ -80,7 +80,6 @@ case $target in
     MUSL_SYSROOT_DIR="$HOME/.musl-cross/aarch64-unknown-linux-musl/aarch64-unknown-linux-musl/sysroot"
     export CFLAGS_aarch64_unknown_linux_musl="--sysroot=$MUSL_SYSROOT_DIR"
     export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$MUSL_SYSROOT_DIR"
-    # export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$MUSL_SYSROOT_DIR --target=aarch64-unknown-linux-musl"
     ;;
   arm-unknown-linux-gnueabi)
     export CC_arm_unknown_linux_gnueabi=arm-linux-gnueabi-gcc
@@ -93,8 +92,7 @@ case $target in
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABI_RUNNER="$qemu_arm_gnueabi"
     export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi -D__STDC_NO_ATOMICS__=1'
-    # export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi --target=arm-unknown-linux-musleabi -D__STDC_NO_ATOMICS__=1'
-    export CFLAGS_arm_unknown_linux_musleabi="-D__STDC_NO_ATOMICS__=1"
+    export CFLAGS_arm_unknown_linux_musleabi="--sysroot=/usr/arm-linux-gnueabi -D__STDC_NO_ATOMICS__=1"
     ;;
   armv5te-unknown-linux-gnueabi)
     export CC_armv5te_unknown_linux_gnueabi=arm-linux-gnueabi-gcc
@@ -107,14 +105,12 @@ case $target in
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_MUSLEABI_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARMV5TE_UNKNOWN_LINUX_MUSLEABI_RUNNER="$qemu_arm_gnueabi"
     export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi -D__STDC_NO_ATOMICS__=1'
-    # export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabi --target=armv5te-unknown-linux-musleabi -D__STDC_NO_ATOMICS__=1'
-    export CFLAGS_armv5te_unknown_linux_musleabi="-D__STDC_NO_ATOMICS__=1"
+    export CFLAGS_armv5te_unknown_linux_musleabi="--sysroot=/usr/arm-linux-gnueabi -D__STDC_NO_ATOMICS__=1"
     ;;
   arm-unknown-linux-musleabihf)
     use_clang=1
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARM_UNKNOWN_LINUX_MUSLEABIHF_RUNNER="$qemu_arm_gnueabihf"
-    # export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf --target=arm-unknown-linux-musleabihf'
     export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf'
     ;;
   arm-unknown-linux-gnueabihf)
@@ -139,13 +135,9 @@ case $target in
     use_clang=1
     export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUNNER="$qemu_arm_gnueabihf"
-    # Works on macos if left out
-    # export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf --target=armv7-unknown-linux-musleabihf'
     MUSL_SYSROOT_DIR="$HOME/.musl-cross/armv7-unknown-linux-musleabihf/armv7-unknown-linux-musleabihf/sysroot"
     export CFLAGS_armv7_unknown_linux_musleabihf="--sysroot=$MUSL_SYSROOT_DIR"
     export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$MUSL_SYSROOT_DIR"
-    # export CFLAGS_armv7_unknown_linux_musleabihf="--sysroot=/usr/arm-linux-gnueabihf -mfloat-abi=hard"
-    # export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf -mfloat-abi=hard'
     ;;
   i686-unknown-linux-gnu)
     use_clang=1
@@ -204,7 +196,6 @@ case $target in
     ;;
   riscv64gc-unknown-linux-gnu)
     use_clang=1
-    # export BINDGEN_EXTRA_CLANG_ARGS="--target=riscv64-unknown-linux-gnu"
     export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_LINKER=riscv64-linux-gnu-gcc
     export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_GNU_RUNNER="$qemu_riscv64"
     ;;
@@ -230,7 +221,6 @@ case $target in
     else
       export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
     fi
-    # export BINDGEN_EXTRA_CLANG_ARGS="--target=riscv64-unknown-linux-gnu"
     ;;
   x86_64-linux-android)
     export CC_x86_64_linux_android=$android_tools/x86_64-linux-android24-clang
@@ -304,19 +294,7 @@ if [ -n "${use_clang}" ]; then
   declare -x "${ar_var}=llvm-ar-${llvm_version}"
 fi
 
-export CC_ENABLE_DEBUG_OUTPUT=1
-
-# build quickjs first using zigbuild
-#cargo-zigbuild +"${toolchain}" zigbuild --target="$target" --release -p rquickjs
-
-export LIBCLANG_PATH="/usr/lib/llvm-${llvm_version}/lib"
-
-# export TARGET_OVERRIDE="$target"
-echo "---- debug env begin -----"
-env
-echo "---- debug env end -----"
-echo running: cargo "$@"
-cargo "$@" -vv
+cargo "$@"
 
 if [ -n "${RING_COVERAGE-}" ]; then
   # Keep in sync with check-symbol-prefixes.sh.

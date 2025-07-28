@@ -70,14 +70,14 @@ case ${target-} in
   ;;
 esac
 
-case "$(uname -m)" in
-  aarch64|arm64)
-    # gcc-multilib isn't available on aarch64
-    ;;
-  *)
-    install_packages gcc-multilib
-    ;;
-esac
+install_packages_on_amd64() {
+  case "$(uname -m)" in
+    *amd64*|*x86_64*)
+      install_packages "$@"
+      ;;
+  esac
+}
+
 
 case ${target-} in
 aarch64-unknown-linux-gnu)
@@ -171,15 +171,14 @@ arm-unknown-linux-gnueabihf|armv7-unknown-linux-gnueabihf)
   ;;
 i686-unknown-linux-gnu)
   use_clang=1
-  # Note: packages are generally only available on amd64
-  install_packages \
-    libc6-dev-i386 ||:
+  install_packages_on_amd64 \
+    libc6-dev-i386
   ;;
 i686-unknown-linux-musl|x86_64-unknown-linux-musl)
   use_clang=1
   # Note: packages are generally only available on amd64
-  install_packages \
-    libc6-dev-i386 ||:
+  # install_packages_on_amd64 \
+  #   libc6-dev-i386
   ;;
 loongarch64-unknown-linux-gnu)
   use_clang=1
