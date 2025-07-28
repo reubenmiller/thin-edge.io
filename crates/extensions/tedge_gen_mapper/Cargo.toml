@@ -13,8 +13,9 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 camino = { workspace = true, features = ["serde1"] }
 rquickjs = { workspace = true, default-features = false, features = [
-    "bindgen",
-    "update-bindings",
+    # disable bindgen and rely on pre-generated bindings due to problems
+    # generating the binding at build time with clang
+    #"bindgen",
     "futures",
     "macro",
     "parallel",
