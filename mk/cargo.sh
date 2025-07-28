@@ -150,7 +150,7 @@ case $target in
   i686-unknown-linux-musl)
     use_clang=1
     export CARGO_TARGET_I686_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
-    MUSL_SYSROOT_DIR="$HOME/.musl-cross/i686-unknown-linux-musl/i686-unknown-linux-musl"
+    MUSL_SYSROOT_DIR="$HOME/.musl-cross/i686-unknown-linux-musl/i686-unknown-linux-musl/sysroot"
     export CFLAGS_i686_unknown_linux_musl="--sysroot=$MUSL_SYSROOT_DIR"
     export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$MUSL_SYSROOT_DIR"
     ;;
@@ -210,7 +210,7 @@ case $target in
     use_clang=1
     export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_RISCV64GC_UNKNOWN_LINUX_MUSL_RUNNER="$qemu_riscv64"
-    MUSL_SYSROOT_DIR="$HOME/.musl-cross/riscv64-unknown-linux-musl/riscv64-unknown-linux-musl"
+    MUSL_SYSROOT_DIR="$HOME/.musl-cross/riscv64-unknown-linux-musl/riscv64-unknown-linux-musl/sysroot"
     export CFLAGS_riscv64gc_unknown_linux_musl="--sysroot=$MUSL_SYSROOT_DIR"
     export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$MUSL_SYSROOT_DIR"
     ;;
@@ -231,7 +231,7 @@ case $target in
     else
       export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS="$rustflags_self_contained"
     fi
-    MUSL_SYSROOT_DIR="$HOME/.musl-cross/x86_64-unknown-linux-musl/x86_64-unknown-linux-musl"
+    MUSL_SYSROOT_DIR="$HOME/.musl-cross/x86_64-unknown-linux-musl/x86_64-unknown-linux-musl/sysroot"
     export CFLAGS_x86_64_unknown_linux_musl="--sysroot=$MUSL_SYSROOT_DIR"
     export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$MUSL_SYSROOT_DIR"
     ;;
