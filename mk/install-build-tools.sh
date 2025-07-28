@@ -268,18 +268,11 @@ case "${OSTYPE-}" in
 linux*)
   if [ -n "$use_clang" ]; then
     ubuntu_codename=$(lsb_release --codename --short)
-    llvm_version=19
+    llvm_version=20
     sudo apt-key add mk/llvm-snapshot.gpg.key
     sudo add-apt-repository "deb http://apt.llvm.org/$ubuntu_codename/ llvm-toolchain-$ubuntu_codename-$llvm_version main"
     sudo apt-get update
     install_packages clang-$llvm_version llvm-$llvm_version
-    # if ! command -V "clang-${llvm_version}" >/dev/null 2>&1; then
-    # fi
-    # required for aws-lc-rs and other packages that required bindgen
-    # if ! command -V cmake >/dev/null 2>&1; then
-    #   install_packages cmake
-    # fi
-    # cargo install --locked bindgen-cli
   fi
   ;;
 darwin*)
