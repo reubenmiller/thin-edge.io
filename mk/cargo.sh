@@ -143,7 +143,8 @@ case $target in
     export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUNNER="$qemu_arm_gnueabihf"
     # Works on macos if left out
     # export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf --target=armv7-unknown-linux-musleabihf'
-    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf'
+    export CFLAGS_armv7_unknown_linux_musleabihf="--sysroot=/usr/arm-linux-gnueabihf -mfloat-abi=hard"
+    export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf -mfloat-abi=hard'
     ;;
   i686-unknown-linux-gnu)
     use_clang=1
