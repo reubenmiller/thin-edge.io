@@ -310,6 +310,9 @@ fi
 export LIBCLANG_PATH="/usr/lib/llvm-${llvm_version}/lib"
 
 # export TARGET_OVERRIDE="$target"
+echo "---- debug env begin -----"
+env
+echo "---- debug env end -----"
 echo running: cargo "$@"
 cargo "$@"
 
