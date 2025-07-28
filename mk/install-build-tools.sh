@@ -117,6 +117,18 @@ armv7-unknown-linux-musleabihf)
     qemu-user \
     gcc-arm-linux-gnueabihf \
     libc6-dev-armhf-cross
+  
+  # Download and extract musl sysroot for aarch64 from GitHub release
+  MUSL_SYSROOT_DIR="$HOME/.musl-cross/armv7-unknown-linux-musleabihf"
+  MUSL_TARBALL="armv7-unknown-linux-musleabihf.tar.xz"
+  MUSL_URL="https://github.com/cross-tools/musl-cross/releases/download/20250520/${MUSL_TARBALL}"
+  if [ ! -d "$MUSL_SYSROOT_DIR" ]; then
+    echo "Downloading musl sysroot for armv7-unknown-linux-musleabihf from $MUSL_URL ..."
+    mkdir -p "$HOME/.musl-cross"
+    curl -L -o /tmp/$MUSL_TARBALL "$MUSL_URL"
+    tar -xJf /tmp/$MUSL_TARBALL -C "$HOME/.musl-cross"
+    rm /tmp/$MUSL_TARBALL
+  fi
   ;;
 armv5te-unknown-linux-gnueabi)
   install_packages \
@@ -268,7 +280,7 @@ linux*)
     if ! command -V cmake >/dev/null 2>&1; then
       install_packages cmake
     fi
-    cargo install --force --locked bindgen-cli
+    cargo install --locked bindgen-cli
   fi
   ;;
 darwin*)
