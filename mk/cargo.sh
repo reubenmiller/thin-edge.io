@@ -139,7 +139,7 @@ case $target in
     ;;
   armv7-unknown-linux-musleabihf)
     use_clang=1
-    export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="$rustflags_self_contained --target=$target"
+    export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUSTFLAGS="$rustflags_self_contained"
     export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_MUSLEABIHF_RUNNER="$qemu_arm_gnueabihf"
     # Works on macos if left out
     # export BINDGEN_EXTRA_CLANG_ARGS='--sysroot=/usr/arm-linux-gnueabihf --target=armv7-unknown-linux-musleabihf'
@@ -302,7 +302,7 @@ if [ -n "${use_clang}" ]; then
   declare -x "${ar_var}=llvm-ar-${llvm_version}"
 fi
 
-# export CC_ENABLE_DEBUG_OUTPUT=1
+export CC_ENABLE_DEBUG_OUTPUT=1
 
 # build quickjs first using zigbuild
 #cargo-zigbuild +"${toolchain}" zigbuild --target="$target" --release -p rquickjs
@@ -314,7 +314,7 @@ echo "---- debug env begin -----"
 env
 echo "---- debug env end -----"
 echo running: cargo "$@"
-cargo "$@"
+cargo "$@" -vv
 
 if [ -n "${RING_COVERAGE-}" ]; then
   # Keep in sync with check-symbol-prefixes.sh.
