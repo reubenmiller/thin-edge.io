@@ -1,0 +1,5 @@
+[input]
+mqtt.topics = ["sensor/raw/temperature", "sensor/raw/pressure"]
+
+[[steps]]
+script = "/usr/share/tedge/flows/simple.mjs"

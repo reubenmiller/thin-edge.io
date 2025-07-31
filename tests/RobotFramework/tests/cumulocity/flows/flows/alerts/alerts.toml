@@ -1,0 +1,7 @@
+[input]
+mqtt.topics = ["te/device/main///m/temperature"]
+
+[[steps]]
+script = "/usr/share/tedge/flows/alerts.mjs"
+config.high = 85
+config.warn = 65
