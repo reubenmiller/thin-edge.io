@@ -1,0 +1,23 @@
+name: update-community-projects
+on:
+  workflow_dispatch:
+jobs:
+  run_tasks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{secrets.ACTIONS_PAT}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          token: ${{secrets.ACTIONS_PAT}}
+      - run: |
+          git config --global user.email "info@thin-edge.io"
+          git config --global user.name "Versioneer"
+      - uses: taiki-e/install-action@just
+      - name: Run task
+        run: |
+          ci/admin/update-community-projects.sh
