@@ -41,8 +41,20 @@ contents:
       mode: 0644
     packager: deb
 
+  - src: ./configuration/init/systemd/tedge-agent@.service
+    dst: /lib/systemd/system/tedge-agent@.service
+    file_info:
+      mode: 0644
+    packager: deb
+
   - src: ./configuration/init/systemd/tedge-agent.service
     dst: /lib/systemd/system/tedge-agent.service
+    file_info:
+      mode: 0644
+    packager: rpm
+
+  - src: ./configuration/init/systemd/tedge-agent@.service
+    dst: /lib/systemd/system/tedge-agent@.service
     file_info:
       mode: 0644
     packager: rpm

@@ -1,0 +1,19 @@
+[Unit]
+Description=tedge-agent child agent instance (%i)
+After=syslog.target network.target mosquitto.service
+
+[Service]
+User=tedge
+Environment=TEDGE_RUN_LOCK_FILES=false
+Environment=TEDGE_CONFIG_DIR="/etc/tedge-agent/%i"
+Environment=TEDGE_AGENT_STATE_PATH="/data/tedge-agent/%i"
+Environment=TEDGE_MQTT_DEVICE_TOPIC_ID="device/%i//"
+EnvironmentFile=-"/etc/tedge-agent/%i/env"
+ExecStartPre=+-/usr/bin/tedge init
+ExecStart=/usr/bin/tedge-agent --mqtt-device-topic-id "$TEDGE_MQTT_DEVICE_TOPIC_ID"
+Restart=on-failure
+RestartPreventExitStatus=255
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
