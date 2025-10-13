@@ -1,0 +1,25 @@
+operation = "parameter_update"
+
+[init]
+  action = "proceed"
+  on_success = "executing"
+
+[executing]
+  action = "proceed"
+  on_success = "prepare"
+
+[prepare]
+  script = "/usr/bin/parameter_update.sh prepare ${.payload}"
+  on_success = "run"
+  on_error = { status = "failed", reason = "failed to detect which parameter update type was given" }
+
+[run]
+  script = "/usr/bin/parameter_update.sh set ${.payload.type} ${.payload.parameters}"
+  on_success = "successful"
+  on_error = { status = "failed", reason = "Command returned a non-zero exit code" }
+
+[successful]
+  action = "cleanup"
+
+[failed]
+  action = "cleanup"
