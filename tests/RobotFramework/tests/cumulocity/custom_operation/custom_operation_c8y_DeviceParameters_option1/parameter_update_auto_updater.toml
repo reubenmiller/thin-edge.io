@@ -1,0 +1,20 @@
+operation = "parameter_update_auto_updater"
+
+[init]
+  action = "proceed"
+  on_success = "executing"
+
+[executing]
+  action = "proceed"
+  on_success = "run"
+
+[run]
+  script = "/usr/bin/parameter_update_auto_updater.sh --topic ${.topic.root_prefix}/${.topic.target} --fragment ${.payload.fragment} --parameters ${.payload.parameters}"
+  on_success = "successful"
+  on_error = { status = "failed", reason = "Command returned a non-zero exit code" }
+
+[successful]
+  action = "cleanup"
+
+[failed]
+  action = "cleanup"
