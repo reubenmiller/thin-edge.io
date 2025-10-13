@@ -1,0 +1,51 @@
+#!/bin/sh
+set -e
+COMMAND="$1"
+shift
+
+update_parameters() {
+    MESSAGE="$1"
+    ENABLED=$(echo "$MESSAGE" | jq -r '.enabled // false')
+    INTERVAL=$(echo "$MESSAGE" | jq -r '.interval // "weekly"')
+
+    # create event
+    text="Changing auto updater. enabled=$ENABLED, interval=$INTERVAL"
+    timestamp=""
+    detect_change="false"
+
+    tedge mqtt pub -q 1 'c8y/s/us' "408,\"${text}\",${timestamp},${detect_change},AutoUpdater.enabled,BOOLEAN,$ENABLED,AutoUpdater.interval,STRING,\"$INTERVAL\""
+
+    # Workaround: manually update the digital twin property though normally this is done by the Device Parameter microservice
+    # tedge mqtt pub -r te/device/main///twin/AutoUpdater "{\"enabled\":$ENABLED,\"interval\":\"$INTERVAL\"}"
+}
+
+init_parameters() {
+    # TODO: Does it make sense to have an init command, and a get?
+    # create event
+    text="Publishing initial values: auto update. enabled=$ENABLED, interval=$INTERVAL"
+    timestamp=""
+    detect_change="false"
+    ENABLED=false
+    INTERVAL="unset"
+    tedge mqtt pub -q 1 'c8y/s/us' "408,\"${text}\",${timestamp},${detect_change},AutoUpdater.enabled,BOOLEAN,$ENABLED,AutoUpdater.interval,STRING,\"$INTERVAL\""
+}
+
+get() {
+    echo "{\"enabled\":true,\"interval\":\"daily\"}"
+}
+
+case "$COMMAND" in
+    init)
+        init_parameters
+        ;;
+    set)
+        update_parameters "$@"
+        ;;
+    get)
+        get "$@"
+        ;;
+    *)
+        echo "Unknown command. name=$COMMAND" >&2
+        exit 1
+        ;;
+esac
