@@ -1,20 +1,45 @@
 #!/bin/sh
 set -e
-MESSAGE="$1"
+
+FRAGMENT=""
+TARGET=""
+PARAMETERS=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --topic)
+            TARGET="$2"
+            shift
+            ;;
+        --fragment)
+            FRAGMENT="$2"
+            shift
+            ;;
+        --parameters)
+            PARAMETERS="$2"
+            shift
+            ;;
+    esac
+    shift
+done
 
 echo "Processing the parameters: $MESSAGE" >&2
 
-ENABLED=$(echo "$MESSAGE" | jq -r '.enabled // false')
-INTERVAL=$(echo "$MESSAGE" | jq -r '.interval // "weekly"')
+ENABLED=$(echo "$PARAMETERS" | jq -r '.enabled // false')
+INTERVAL=$(echo "$PARAMETERS" | jq -r '.interval // "weekly"')
 
 # Do something with the values
 
 # create event
-text="Changing auto updater. enabled=$ENABLED, interval=$INTERVAL"
-timestamp=""
-detect_change="false"
+TEXT="Changing auto updater. enabled=$ENABLED, interval=$INTERVAL"
 
-tedge mqtt pub -q 1 'c8y/s/us' "408,\"${text}\",${timestamp},${detect_change},AutoUpdater.enabled,BOOLEAN,$ENABLED,AutoUpdater.interval,STRING,\"$INTERVAL\""
+# Option 1: Send event and also update the managed object manually
+PAYLOAD=$(printf '{"text":"%s","%s":%s}' "$TEXT" "$FRAGMENT" "$PARAMETERS" )
+tedge mqtt pub -q 1 "$TARGET/e/c8y_ParameterUpdate" "$PAYLOAD"
+tedge mqtt pub -r "$TARGET/twin/AutoUpdater" "{\"enabled\":$ENABLED,\"interval\":\"$INTERVAL\"}"
 
-# Workaround: manually update the digital twin property though normally this is done by the Device Parameter microservice
-tedge mqtt pub -r te/device/main///twin/AutoUpdater "{\"enabled\":$ENABLED,\"interval\":\"$INTERVAL\"}"
+# Option 2: Let the server (Device Parameter microservice) update the managed object fragment
+# by processing the c8y_ParameterUpdate event
+# TIMESTAMP=""
+# DETECT_CHANGE="false"
+# tedge mqtt pub -q 1 'c8y/s/us' "408,\"${TEXT}\",${TIMESTAMP},${DETECT_CHANGE},AutoUpdater.enabled,BOOLEAN,$ENABLED,AutoUpdater.interval,STRING,\"$INTERVAL\""

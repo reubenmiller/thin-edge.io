@@ -9,7 +9,7 @@ operation = "parameter_update_auto_updater"
   on_success = "run"
 
 [run]
-  script = "/usr/bin/parameter_update_auto_updater.sh ${.payload.parameters}"
+  script = "/usr/bin/parameter_update_auto_updater.sh --topic ${.topic.root_prefix}/${.topic.target} --fragment ${.payload.fragment} --parameters ${.payload.parameters}"
   on_success = "successful"
   on_error = { status = "failed", reason = "Command returned a non-zero exit code" }
 
