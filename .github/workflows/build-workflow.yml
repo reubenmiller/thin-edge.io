@@ -1,6 +1,8 @@
 name: build-workflow
 
 on:
+  schedule:
+    - cron: '0 14 * * *'
   push:
     tags:
       - "*"
@@ -34,7 +36,18 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check-branch:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Fail if not on ci-mqtt-service-daily-run
+        run: |
+          if [[ "${GITHUB_REF##*/}" != "ci-mqtt-service-daily-run" ]]; then
+            echo "Not running on ci-mqtt-service-daily-run branch. Exiting."
+            exit 1
+          fi
   cargo-test:
+    if: github.event_name != 'schedule'
     name: Run cargo test
     runs-on: ubuntu-24.04
     steps:
@@ -121,6 +134,8 @@ jobs:
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.host_os }}
+    needs: [check-branch]
+    if: github.event_name != 'schedule' || needs.check-branch.result == 'success'
     strategy:
       fail-fast: false
       matrix:
