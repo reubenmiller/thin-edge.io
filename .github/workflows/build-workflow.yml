@@ -2,7 +2,7 @@ name: build-workflow
 
 on:
   schedule:
-    - cron: '0 14 * * *'
+    - cron: '15 2 * * *'
   push:
     tags:
       - "*"
