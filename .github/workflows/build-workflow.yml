@@ -315,6 +315,9 @@ jobs:
           echo 'C8Y_PASSWORD="${{ secrets.C8Y_PASSWORD }}"' >> .env
           echo 'CA_KEY="${{ secrets.CA_KEY || '' }}"' >> .env
           echo 'CA_PUB="${{ secrets.CA_PUB || '' }}"' >> .env
+          if [ -n "${{ secrets.C8Y_MQTT }}" ]; then
+            echo 'C8Y_MQTT="${{ secrets.C8Y_MQTT }}"' >> .env
+          fi
 
       - uses: actions/setup-python@v5
         with:
