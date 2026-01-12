@@ -221,6 +221,7 @@ get_package_arch() {
         riscv64gc-unknown-linux-*) pkg_arch=riscv64 ;;
         mips64el-unknown-linux-*abi64) pkg_arch=mips64le ;;
         mipsel-unknown-linux-*) pkg_arch=mipsle ;;
+        *loongarch64-unknown-linux-*) pkg_arch=loongarch64 ;;
         aarch64-apple-darwin) pkg_arch=arm64 ;;
         x86_64-apple-darwin) pkg_arch=amd64 ;;
         *)

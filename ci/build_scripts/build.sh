@@ -105,6 +105,7 @@ TOOLCHAIN="${TOOLCHAIN:-+1.85}"
 # Note: Minimum version that is supported with riscv64gc-unknown-linux-gnu is 2.27
 GLIBC_VERSION="${GLIBC_VERSION:-2.17}"
 RISCV_GLIBC_VERSION="${RISCV_GLIBC_VERSION:-2.27}"
+LOONGARCH64_GLIBC_VERSION="${LOONGARCH64_GLIBC_VERSION:-2.36}"
 OVERRIDE_BINARIES=()
 ARTIFACT_DIR="${ARTIFACT_DIR:-}"
 ZIGLANG_BIN=()
@@ -335,6 +336,11 @@ if [ "$BUILD" = 1 ] && [ ${#BINARIES[@]} -gt 0 ]; then
                         # riscv is a newer processor so the minimum glibc version is higher than for other targets
                         if [ -n "$RISCV_GLIBC_VERSION" ]; then
                             BINARY_TARGET="${BINARY_TARGET}.${RISCV_GLIBC_VERSION}"
+                        fi
+                        ;;
+                    loongarch64-unknown-linux-gnu)
+                        if [ -n "$LOONGARCH64_GLIBC_VERSION" ]; then
+                            BINARY_TARGET="${BINARY_TARGET}.${LOONGARCH64_GLIBC_VERSION}"
                         fi
                         ;;
                     *gnu*)

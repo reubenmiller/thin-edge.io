@@ -206,6 +206,9 @@ get_user_friendly_arch() {
         *riscv64gc-unknown-linux-*)
             easy_arch=riscv64
             ;;
+        *loongarch64-unknown-linux-*)
+            easy_arch=loongarch64
+            ;;
         *aarch64-apple-darwin*)
             easy_arch=macos-arm64
             ;;
