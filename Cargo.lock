@@ -5226,6 +5226,7 @@ dependencies = [
  "async-trait",
  "camino",
  "futures",
+ "glob",
  "humantime",
  "rquickjs",
  "serde",
