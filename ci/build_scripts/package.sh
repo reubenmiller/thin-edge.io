@@ -39,7 +39,7 @@ Flags:
     --help|-h   Show this help
     --version <string>      Use a specific version
     --output <path>         Output directory where the packages will be written to
-    --types <csv_string>    CSV list of packages types. Accepted values: deb, rpm, apk, tarball
+    --types <csv_string>    CSV list of packages types. Accepted values: deb, rpm, apk, ipk, tarball
     --clean                 Clean the output directory before writing any packages to it
 
 Env:
@@ -120,7 +120,7 @@ fi
 if [ -z "$PACKAGE_TYPES" ]; then
     case "$TARGET" in
         *android*) PACKAGE_TYPES="tarball" ;;
-        *linux*|all) PACKAGE_TYPES="deb,apk,rpm,tarball" ;;
+        *linux*|all) PACKAGE_TYPES="deb,apk,rpm,ipk,tarball" ;;
         *apple*) PACKAGE_TYPES="tarball" ;;
         *) PACKAGE_TYPES="tarball" ;;
     esac
@@ -174,6 +174,11 @@ build_package() {
     if [[ "$PACKAGE_TYPES" =~ apk ]]; then
         env GIT_SEMVER="${APK_VERSION:-$GIT_SEMVER}" RELEASE="r0" nfpm "${COMMON_ARGS[@]}" --packager apk
     fi
+
+    # IPK (opkg) / OpenWRT
+    if [[ "$PACKAGE_TYPES" =~ ipk ]]; then
+        env GIT_SEMVER="${IPK_VERSION:-$GIT_SEMVER}" nfpm "${COMMON_ARGS[@]}" --packager ipk
+    fi
 }
 
 build_virtual_package() {
@@ -194,6 +199,10 @@ build_virtual_package() {
 
     if [[ "$PACKAGE_TYPES" =~ apk ]]; then
         env GIT_SEMVER="${APK_VERSION:-$GIT_SEMVER}" RELEASE="r0" nfpm "${COMMON_ARGS[@]}" --packager apk
+    fi
+
+    if [[ "$PACKAGE_TYPES" =~ ipk ]]; then
+        env GIT_SEMVER="${IPK_VERSION:-$GIT_SEMVER}" nfpm "${COMMON_ARGS[@]}" --packager ipk
     fi
 
     # Expect to build at least 1 virtual package to prevent silent errors

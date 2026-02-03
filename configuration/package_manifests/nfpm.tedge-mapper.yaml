@@ -143,6 +143,13 @@ contents:
       mode: 0644
     packager: rpm
 
+  # ipk
+  - src: ./configuration/init/procd/tedge-mapper-c8y
+    dst: /etc/init.d/tedge-mapper-c8y
+    file_info:
+      mode: 0755
+    packager: ipk
+
   # cert renewal
   - src: ./configuration/init/systemd/tedge-cert-renewer.target
     dst: /lib/systemd/system/tedge-cert-renewer.target
@@ -254,3 +261,10 @@ overrides:
       postinstall: configuration/package_scripts/_generated/tedge-mapper/deb/postinst
       preremove: configuration/package_scripts/_generated/tedge-mapper/deb/prerm
       postremove: configuration/package_scripts/_generated/tedge-mapper/deb/postrm
+
+  ipk:
+    scripts:
+      preinstall: configuration/package_scripts/_generated/tedge-mapper/ipk/preinst
+      postinstall: configuration/package_scripts/_generated/tedge-mapper/ipk/postinst
+      preremove: configuration/package_scripts/_generated/tedge-mapper/ipk/prerm
+      postremove: configuration/package_scripts/_generated/tedge-mapper/ipk/postrm

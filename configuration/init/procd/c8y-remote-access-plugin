@@ -1,0 +1,7 @@
+config c8y-remote-access-plugin 'c8y-remote-access-plugin'
+    option enabled '1'
+    option command '/usr/bin/c8y-remote-access-plugin-socket.sh'
+    option respawn '1'
+    option respawn_threshold '3600'
+    option respawn_timeout '5'
+    option respawn_retry '5'

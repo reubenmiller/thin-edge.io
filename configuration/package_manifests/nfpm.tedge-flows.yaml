@@ -63,3 +63,10 @@ overrides:
       postinstall: configuration/package_scripts/_generated/tedge-flows/deb/postinst
       preremove: configuration/package_scripts/_generated/tedge-flows/deb/prerm
       postremove: configuration/package_scripts/_generated/tedge-flows/deb/postrm
+
+  ipk:
+    scripts:
+      preinstall: configuration/package_scripts/_generated/tedge-flows/ipk/preinst
+      postinstall: configuration/package_scripts/_generated/tedge-flows/ipk/postinst
+      preremove: configuration/package_scripts/_generated/tedge-flows/ipk/prerm
+      postremove: configuration/package_scripts/_generated/tedge-flows/ipk/postrm

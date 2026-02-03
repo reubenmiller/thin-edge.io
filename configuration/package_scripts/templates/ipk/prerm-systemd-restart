@@ -1,0 +1,3 @@
+for name in "#UNITFILES#"; do
+	/etc/init.d/"${name%.*}" stop ||:
+done

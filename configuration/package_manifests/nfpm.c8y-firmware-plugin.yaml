@@ -37,6 +37,18 @@ contents:
       mode: 0644
     packager: rpm
 
+  - src: ./configuration/init/procd/c8y-remote-access-plugin-socket.sh
+    dst: /usr/bin/c8y-remote-access-plugin-wrapper.sh
+    file_info:
+      mode: 0755
+    packager: ipk
+
+  - src: ./configuration/init/procd/c8y-remote-access-plugin
+    dst: /etc/init.d/
+    file_info:
+      mode: 0755
+    packager: ipk
+
 overrides:
   apk:
     scripts:
@@ -58,3 +70,13 @@ overrides:
       postinstall: configuration/package_scripts/_generated/c8y-firmware-plugin/deb/postinst
       preremove: configuration/package_scripts/_generated/c8y-firmware-plugin/deb/prerm
       postremove: configuration/package_scripts/_generated/c8y-firmware-plugin/deb/postrm
+
+  ipk:
+    depends:
+      # required for socket activation as the binary does not support reading from sockets directly
+      - socat
+    scripts:
+      preinstall: configuration/package_scripts/_generated/c8y-firmware-plugin/ipk/preinst
+      postinstall: configuration/package_scripts/_generated/c8y-firmware-plugin/ipk/postinst
+      preremove: configuration/package_scripts/_generated/c8y-firmware-plugin/ipk/prerm
+      postremove: configuration/package_scripts/_generated/c8y-firmware-plugin/ipk/postrm

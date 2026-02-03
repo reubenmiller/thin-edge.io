@@ -60,6 +60,16 @@ overrides:
         - c8y-remote-access-plugin (= ${DEB_VERSION})
         - c8y-firmware-plugin (= ${DEB_VERSION})
 
+  ipk:
+    depends:
+        - mosquitto
+        - tedge (= ${IPK_VERSION})
+        - tedge-mapper (= ${IPK_VERSION})
+        - tedge-agent (= ${IPK_VERSION})
+        - tedge-watchdog (= ${IPK_VERSION})
+        - c8y-remote-access-plugin (= ${IPK_VERSION})
+        - c8y-firmware-plugin (= ${IPK_VERSION})
+
 deb:
   fields:
     Multi-Arch: allowed

@@ -1,0 +1,65 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=10
+
+USE_PROCD=1
+
+SERVICE_NAME="tedge-agent"
+SERVICE_USER="tedge"
+SERVICE_GROUP="tedge"
+SERVICE_BIN="/usr/bin/tedge-agent"
+SERVICE_CONF="/etc/tedge-agent.conf"
+
+start_service() {
+	# --- pre-start setup (runs as root) ---
+    # [ -O "$CONFIG_FILE" ] || return 1
+    [ "$(stat -c %a "$SERVICE_CONF")" -le 644 ] || return 1
+
+    if [ -r "$SERVICE_CONF" ]; then
+		. "$SERVICE_CONF"
+	fi
+
+	# mkdir -p "$RUNDIR" || return 1
+	# chown "$SERVICE_USER:$SERVICE_GROUP" "$RUNDIR" || return 1
+    /usr/bin/tedge init ||:
+
+	[ -x "$SERVICE_BIN" ] || {
+		logger -t "$SERVICE_NAME" "Binary not found: $SERVICE_BIN"
+		return 1
+	}
+
+	# --- procd service instance ---
+	procd_open_instance
+
+	# command to run
+	procd_set_param command "$SERVICE_BIN"
+
+    
+    # export all TEDGE_* variables to procd
+    for var in $(set | sed -n 's/^\(TEDGE_[A-Za-z0-9_]*\)=.*/\1/p'); do
+		eval "val=\${$var}"
+		procd_set_param env "$var=$val"
+	done
+
+	# drop privileges
+	procd_set_param user "$SERVICE_USER"
+	procd_set_param group "$SERVICE_GROUP"
+
+	# logging → logd
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+
+	# restart on crash
+	procd_set_param respawn
+
+	# optional: nice-to-have
+	procd_set_param term_timeout 60
+
+	procd_close_instance
+}
+
+stop_service() {
+	# optional cleanup
+	rm -rf "$RUNDIR"
+}
