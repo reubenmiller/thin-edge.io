@@ -1,0 +1,61 @@
+#!/bin/sh
+set -e
+
+### Add include to mosquitto.conf so tedge specific conf will be loaded
+if [ -f /etc/mosquitto/mosquitto.conf ]; then
+    if ! grep -q "include_dir /etc/tedge/mosquitto-conf" "/etc/mosquitto/mosquitto.conf"; then
+        # Insert `include_dir /etc/tedge/mosquitto-conf` before any `include_dir`
+        # directive so that all other partial conf files inherit the
+        # `per_listener_settings` defined in /etc/tedge/mosquitto-conf.
+        # `per_listener_settings` has to be defined once, before other listener
+        # settings or else it causes the following error:
+        #
+        # Error: per_listener_settings must be set before any other security
+        # settings.
+        # Match any included_dir directive as different distributions have different default settings:
+        #  On Fedora: `#include_dir`. mosquitto does not use a /etc/mosquitto/conf.d folder
+        #  On Debian: `include_dir /etc/mosquitto/conf.d`. Uses a conf.d folder, so the tedge setting must be before this
+
+        # Check if `include_dir` or `#include_dir` (as the latter could be a future problem if the user uncomments it)
+        if grep -qE '^#?include_dir' /etc/mosquitto/mosquitto.conf; then
+            # insert tedge include_dir before the first `included_dir` (but only the first!)
+            mosquitto_conf=$(awk '!found && /^#?include_dir/ \
+            { print "include_dir /etc/tedge/mosquitto-conf"; found=1 }1' \
+            /etc/mosquitto/mosquitto.conf)
+            echo "$mosquitto_conf" > /etc/mosquitto/mosquitto.conf
+        else
+            # config does not contain any include_dir directive, so we can safely append it
+            echo "include_dir /etc/tedge/mosquitto-conf" >> /etc/mosquitto/mosquitto.conf
+        fi
+    fi
+fi
+
+# Initialize the tedge
+tedge init
+
+if ! tedge refresh-bridges; then
+    # Ignore errors whilst recreating bridges
+    # as it can fail if the user has removed settings like c8y.url
+    # and not run 'tedge disconnect c8y'
+    code="$?"
+    echo "WARNING: 'tedge refresh-bridges' failed. code=$code" >&2
+fi
+
+# Create completion scripts
+# Note: Generate completion scripts during post installation
+# to ensure the tedge binary is already installed at its intended location
+# as the generated completion scripts will use the full binary path at
+# the time of calling the `tedge completions` command
+if [ -d /usr/share/zsh/vendor-completions ]; then
+    echo "Adding zsh completion script" >&2
+    tedge completions zsh > /usr/share/zsh/vendor-completions/_tedge ||:
+fi
+
+if [ -d /usr/share/bash-completion/completions ]; then
+    echo "Adding bash completion script" >&2
+    tedge completions bash > /usr/share/bash-completion/completions/tedge ||:
+fi
+
+if [ -d /usr/share/fish/completions ]; then
+    tedge completions fish > /usr/share/fish/completions/tedge.fish ||:
+fi

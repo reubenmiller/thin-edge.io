@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+# Automatically added by thin-edge.io
+for name in "c8y-remote-access-plugin.socket"; do
+	/etc/init.d/"${name%.*}" stop ||:
+done
+
+# End automatically added section
+
+### Remove supported operation files
+c8y-remote-access-plugin --cleanup

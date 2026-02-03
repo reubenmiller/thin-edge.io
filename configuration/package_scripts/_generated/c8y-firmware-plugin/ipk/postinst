@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+# Automatically added by thin-edge.io
+if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+	name="c8y-firmware-plugin.service"
+	/etc/init.d/"${name%.*}" enable ||:
+fi
+# End automatically added section
+# Automatically added by thin-edge.io
+if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+	if [ -n "$2" ]; then
+		_dh_action=restart
+	else
+		_dh_action=start
+	fi
+	# TODO: iterate over the unit files
+	for name in "c8y-firmware-plugin.service"; do
+		/etc/init.d/"${name%.*}" $_dh_action ||:
+	done
+fi
+# End automatically added section

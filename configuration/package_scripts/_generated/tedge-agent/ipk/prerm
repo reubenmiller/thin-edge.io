@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+# Automatically added by thin-edge.io
+for name in "tedge-agent.service"; do
+	/etc/init.d/"${name%.*}" stop ||:
+done
+
+# End automatically added section

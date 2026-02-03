@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+
+# Automatically added by thin-edge.io
+if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+	name="c8y-remote-access-plugin.socket"
+	/etc/init.d/"${name%.*}" enable ||:
+fi
+# End automatically added section
+# Automatically added by thin-edge.io
+if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
+	for name in "c8y-remote-access-plugin.socket"; do
+		/etc/init.d/"${name%.*}" start ||:
+	done
+fi
+# End automatically added section
+
+### Create supported operation files
+c8y-remote-access-plugin --init

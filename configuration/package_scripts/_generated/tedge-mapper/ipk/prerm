@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+# Automatically added by thin-edge.io
+for name in "tedge-mapper-aws.service tedge-mapper-az.service tedge-mapper-c8y.service tedge-mapper-collectd.service tedge-mapper-aws.target tedge-mapper-az.target tedge-mapper-c8y.target"; do
+	/etc/init.d/"${name%.*}" stop ||:
+done
+
+# End automatically added section
