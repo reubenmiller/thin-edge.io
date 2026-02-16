@@ -1,0 +1,14 @@
+[Unit]
+Description=ttyd for access to a console via the remote access passthrough feature
+After=syslog.target network.target
+
+[Service]
+User=root
+RuntimeDirectory=ttyd
+ExecStart=/usr/bin/ttyd -t enableSixel=true -p 7681 --cwd /etc/tedge --writable zsh
+Restart=on-failure
+RestartPreventExitStatus=255
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

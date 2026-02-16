@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+set -e
+
+EXIT_OK=0
+EXIT_NOT_SUPPORTED=1
+EXIT_ERROR=1
+
+TEDGE_CONFIG_DIR=${TEDGE_CONFIG_DIR:-/etc/tedge}
+FILE="${FILE:-}"
+MODULE_NAME="${MODULE_NAME:-}"
+MODULE_VERSION="${MODULE_VERSION:-}"
+MAPPER="${MAPPER:-flows}"
+PRESERVE_CONFIG_ON_DELETE="${PRESERVE_CONFIG_ON_DELETE:-1}"
+MAPPERS_BASE_DIR="$TEDGE_CONFIG_DIR/mappers"
+
+PARAMS_FILE="params.toml"
+
+usage() {
+    cat <<EOT
+flow software management plugin
+
+SUBCOMMANDS
+
+ $0 prepare
+ $0 install <MODULE_NAME> [--mapper <STRING>] [--module-version <STRING>] [--file <PATH>]
+ $0 remove <MODULE_NAME> [--mapper <STRING>] [--module-version <STRING>]
+ $0 list
+ $0 finalize
+
+ARGUMENTS
+
+ --name <STRING>        Flow name. If not provided then the filename will be used
+ --mapper <STRING>      Mapper name where the flow should be installed. Defaults to 'flows'
+ --file <PATH>          File path
+EOT
+}
+
+POSITIONAL_ARGS=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --module-version)
+            MODULE_VERSION="$2"
+            shift
+            ;;
+        --file)
+            FILE="$2"
+            shift
+            ;;
+        --mapper)
+            MAPPER="$2"
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        --*|-*)
+            echo "Ignoring unknown flag. '$1'" >&2
+            shift
+            ;;
+        *)
+            POSITIONAL_ARGS+=("$1")
+            ;;
+    esac
+    shift
+done
+
+set -- "${POSITIONAL_ARGS[@]}"
+
+if [ $# -ge 1 ]; then
+    COMMAND="$1"
+fi
+
+if [ $# -ge 2 ]; then
+    MODULE_NAME="$2"
+fi
+
+# detect syntax <mapper>/<name>, where the <mapper> must exist
+# case "$MODULE_NAME" in
+#     */*)
+#         name=$(echo "$MODULE_NAME" | cut -d/ -f1)
+#         if [ -d "$TEDGE_CONFIG_DIR/mappers/$name" ]; then
+#             MAPPER="$name"
+#             MODULE_NAME=$(echo "$MODULE_NAME" | cut -d/ -f2-)
+#             echo "Detected mapper name in the flow. mapper=$MAPPER, module_name=$MODULE_NAME" >&2
+#         fi
+#         ;;
+# esac
+
+MAPPER_DIR="$TEDGE_CONFIG_DIR/mappers/$MAPPER/flows"
+MAPPER_NAME=
+
+list() {
+    find "$MAPPERS_BASE_DIR/" -maxdepth 1 -type d | while read -r CURRENT_MAPPER_DIR; do
+        name=$(basename "$CURRENT_MAPPER_DIR")
+        if [ "$name" != mappers ]; then
+            # echo "$name"
+            # MAPPER_NAME="$name"
+            # MAPPER_DIR="$MAPPERS_BASE_DIR/$name/flows"
+            list_for_mapper "$name"
+        fi
+    done
+}
+
+list_for_mapper() {
+    MAPPER_PREFIX=
+    MAPPER_NAME=
+    if [ $# -ge 1 ]; then
+        MAPPER_NAME="$1"
+        MAPPER_DIR="$MAPPERS_BASE_DIR/$MAPPER_NAME/flows"
+        MAPPER_PREFIX="$MAPPER_NAME/"
+    fi
+
+    if [ ! -d "$MAPPER_DIR" ]; then
+        echo "Flow directory does not exist. path=$MAPPER_DIR" >&2
+        exit "$EXIT_OK"
+    fi
+    find "$MAPPER_DIR" -type f -name "*.toml" ! -name "$PARAMS_FILE" -a ! -name config.toml | while read -r CURRENT_FLOW_FILE; do
+        # echo "found: $CURRENT_FLOW_FILE" >&2
+        CURRENT_FLOW_DIR="$(dirname "$CURRENT_FLOW_FILE")"
+        NAME=${CURRENT_FLOW_DIR#"$MAPPER_DIR/"}
+        VERSION=$(cd "$MAPPER_DIR" && awk -F'"' '/#? *version = / {print $2}' "$CURRENT_FLOW_FILE" ||:)
+        printf '%s\t%s\n' "$MAPPER_PREFIX$NAME" "${VERSION:-0.0.0}"
+    done
+}
+
+get_flows_dir() {
+    mapper=
+    full_module_name="$1"
+    case "$full_module_name" in
+        */*/*)
+            mapper=$(echo "$full_module_name" | cut -d/ -f1)
+            name=$(echo "$full_module_name" | cut -d/ -f2-)
+            ;;
+        */*)
+            mapper=$(echo "$full_module_name" | cut -d/ -f1)
+            name=$(echo "$full_module_name" | cut -d/ -f2-)
+            ;;
+        *)
+            mapper="flows"
+            name="$full_module_name"
+            ;;
+    esac
+    echo "$MAPPERS_BASE_DIR/${mapper}/flows/${name}"
+}
+
+install_flow() {
+    if [ ! -f "$FILE" ]; then
+        echo "ERROR: failed to install flow as the given file does not exist. path=$FILE" >&2
+        exit "$EXIT_ERROR"
+    fi
+
+    if [ -z "$MODULE_NAME" ]; then
+        echo "Reading flow name from filename" >&2
+        MODULE_NAME=$(basename "$FILE" | cut -d. -f1 | cut -d: -f1)
+    fi
+
+    # FLOW_DIR="$MAPPER_DIR/$MODULE_NAME"
+    FLOW_DIR=$(get_flows_dir "$MODULE_NAME")
+    
+    case "$FILE" in
+        http*://*)
+            URL="$FILE"
+            FILENAME=$(basename "$URL")
+            FILE="/tmp/$FILENAME"
+            wget -qO "$FILE" "$URL"
+            ;;
+        *.tar.gz)
+            mkdir -p "$FLOW_DIR"
+            echo "Unpacking flow (tar.gz) to $FLOW_DIR" >&2
+            tar -xzf "$FILE" -C "$FLOW_DIR"
+            ;;
+        *.tar)
+            mkdir -p "$FLOW_DIR"
+            echo "Unpacking flow (tar) to $FLOW_DIR" >&2
+            tar -xf "$FILE" -C "$FLOW_DIR"
+            ;;
+        *)
+            # guess the file type
+            mkdir -p "$FLOW_DIR"
+            echo "Unpacking flow (assuming tar.gz) to $FLOW_DIR" >&2
+            if ! tar -xzf "$FILE" -C "$FLOW_DIR"; then
+                echo "Unpacking flow (assuming tar) to $FLOW_DIR" >&2
+                tar -xf "$FILE" -C "$FLOW_DIR"
+            fi
+            ;;
+    esac
+}
+
+remove_flow() {
+    # plugin remove NAME [--module-version VERSION]
+    # FLOW_DIR="$MAPPER_DIR/$MODULE_NAME"
+    FLOW_DIR=$(get_flows_dir "$MODULE_NAME")
+    echo "Uninstalling flow: $FLOW_DIR"
+    if [ -d  "$FLOW_DIR" ]; then
+        case "$PRESERVE_CONFIG_ON_DELETE" in
+            y|Y|YES|yes|1)
+                # delete all files that aren't except the params file
+                find "$FLOW_DIR" -type f ! -name "$PARAMS_FILE" -delete
+                # delete all dirs which are empty
+                rmdir --ignore-fail-on-non-empty "$FLOW_DIR/"** ||:
+                rmdir --ignore-fail-on-non-empty "$FLOW_DIR" ||:
+                ;;
+            *)
+                # remove entire directory (not preserving anything)
+                rm -rf "$FLOW_DIR"
+                ;;
+        esac
+    else
+        echo "Nothing to do as the flow does not exist"
+    fi
+}
+
+case "$COMMAND" in
+    prepare)
+        exit "$EXIT_OK"
+        ;;
+    list)
+        list
+        ;;
+    update-list)
+        exit "$EXIT_NOT_SUPPORTED"
+        ;;
+    install)
+        install_flow
+        ;;
+    remove)
+        remove_flow
+        ;;
+    finalize)
+        exit "$EXIT_OK"
+        ;;
+    *)
+        echo "Unknown command. name=$COMMAND" >&2
+        exit "$EXIT_ERROR"
+        ;;
+esac
