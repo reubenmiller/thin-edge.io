@@ -41,6 +41,9 @@ impl Command for TestCommand {
             None => TEdgeFlowsCli::load_flows(&self.flows_dir).await?,
             Some(flow) => TEdgeFlowsCli::load_file(&self.flows_dir, flow).await?,
         };
+        // we need a tick before calling on_message to run onStartup
+        self.tick(&mut processor, SystemTime::now(), Instant::now())
+            .await;
         if let Some(message) = &self.message {
             let timestamp = self.processing_time.unwrap_or_else(SystemTime::now);
             self.process(&mut processor, message.clone(), timestamp)

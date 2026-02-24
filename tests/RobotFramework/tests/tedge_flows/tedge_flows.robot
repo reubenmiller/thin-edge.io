@@ -493,6 +493,18 @@ Flow with loop detection disabled
     ...    message_contains=too many messages
     [Teardown]    Uninstall Flow    loop.toml
 
+Script runs onStartup function
+    Install Nested Flow    onstartup
+    Logs Should Contain    JavaScript.Console: "hello from on-startup.js"    max_matches=1
+    Should Have MQTT Messages    topic=test/onstartup    message_contains=hello from on-startup.js    maximum=1
+
+    Execute Command    sleep 1
+    ${start}    Get Unix Timestamp
+    # emit Modified event to trigger script reload
+    Execute Command    echo "// script modifications..." >> /etc/tedge/mappers/local/flows/onstartup/on-startup.js
+    Logs Should Contain    JavaScript.Console: "hello from on-startup.js"    date_from=${start}
+    Should Have MQTT Messages    topic=test/onstartup    message_contains=hello from on-startup.js    date_from=${start}
+
 
 *** Keywords ***
 Custom Setup
@@ -523,7 +535,9 @@ Uninstall Flow
 Install Nested Flow
     [Arguments]    ${directory}
     ${start}    Get Unix Timestamp
-    ThinEdgeIO.Transfer To Device    ${CURDIR}/${directory}/*    /etc/tedge/mappers/local/flows/${directory}/
+    # transfer to parent dir + move to minimize reloads of flows and scripts
+    ThinEdgeIO.Transfer To Device    ${CURDIR}/${directory}/*    /etc/tedge/mappers/local/${directory}/
+    Execute Command    mv /etc/tedge/mappers/local/${directory} /etc/tedge/mappers/local/flows/${directory}
     Execute Command    ls -lh /etc/tedge/mappers/local/flows/${directory}
     Should Have MQTT Messages
     ...    topic=te/device/main/service/tedge-mapper-local/status/flows
