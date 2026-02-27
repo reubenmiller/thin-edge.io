@@ -412,10 +412,10 @@ class ThinEdgeIO(DeviceLibrary):
             log.warning("Failed to retrieve mqtt logs. %s", ex, exc_info=True)
 
         try:
-            # Get agent log files (if they exist)
+            # Get agent log files
             log.info("tedge agent logs: /var/log/tedge/agent/*")
             device.execute_command(
-                "tail -n +1 /var/log/tedge/agent/* 2>/dev/null || true",
+                "tail -n +1 /var/log/tedge/agent/*.log 2>/dev/null || true",
                 shell=True,
             )
         except Exception as ex:
