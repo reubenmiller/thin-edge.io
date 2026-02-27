@@ -1,2 +1,2 @@
-robotframework-devicelibrary[ssh] @ git+https://github.com/thin-edge/robotframework-devicelibrary.git@e136eca9806381840225ed5ad990655ba617c209
+robotframework-devicelibrary[ssh] @ git+https://github.com/thin-edge/robotframework-devicelibrary.git@c3d6f12d18f89a00fcc9f784580ed8c8fa5564d1
 robotframework-sshlibrary~=3.8.0
