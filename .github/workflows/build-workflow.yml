@@ -318,7 +318,6 @@ jobs:
         if: ${{ vars.TEST_CONTAINER_ENGINE == 'podman' }}
         run: |
           sudo systemctl start podman.socket
-          sudo podman ps
           # Discover the actual socket path from the systemd unit
           PODMAN_SOCK=$(systemctl show podman.socket -p Listen --value | grep -o '/[^ ]*\.sock')
           echo "Podman socket: $PODMAN_SOCK"
