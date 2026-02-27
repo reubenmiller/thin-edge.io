@@ -318,13 +318,17 @@ jobs:
         if: ${{ vars.TEST_CONTAINER_ENGINE == 'podman' }}
         run: |
           sudo systemctl start podman.socket
+          sudo podman ps
           # Discover the actual socket path from the systemd unit
           PODMAN_SOCK=$(systemctl show podman.socket -p Listen --value | grep -o '/[^ ]*\.sock')
           echo "Podman socket: $PODMAN_SOCK"
           sudo chmod 755 "$(dirname "$PODMAN_SOCK")"
           sudo chmod 666 "$PODMAN_SOCK"
+          ls -la "$PODMAN_SOCK"
+          CONTAINER_HOST=unix://"$PODMAN_SOCK" podman ps
           docker --host "unix://$PODMAN_SOCK" ps
           echo "DOCKER_HOST=unix://$PODMAN_SOCK" >> "$GITHUB_ENV"
+          echo "CONTAINER_HOST=unix://$PODMAN_SOCK" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: |
