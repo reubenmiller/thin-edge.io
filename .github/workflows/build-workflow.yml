@@ -2,6 +2,7 @@ name: build-workflow
 
 on:
   push:
+    branches: [ci-use-podman-for-system-tests]
     tags:
       - "*"
 
@@ -308,10 +309,22 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.14'
           cache: 'pip'
           cache-dependency-path: |
             **/requirements/requirements*.txt
+
+      - name: Start podman socket
+        if: ${{ vars.TEST_CONTAINER_ENGINE == 'podman' }}
+        run: |
+          sudo systemctl start podman.socket
+          # Discover the actual socket path from the systemd unit
+          PODMAN_SOCK=$(systemctl show podman.socket -p Listen --value | grep -o '/[^ ]*\.sock')
+          echo "Podman socket: $PODMAN_SOCK"
+          sudo chmod 755 "$(dirname "$PODMAN_SOCK")"
+          sudo chmod 666 "$PODMAN_SOCK"
+          docker --host "unix://$PODMAN_SOCK" ps
+          echo "DOCKER_HOST=unix://$PODMAN_SOCK" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: |
@@ -381,7 +394,7 @@ jobs:
       # Setup python required by cloudsmith cli
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
       - name: Download release artifacts
         uses: actions/download-artifact@v4
@@ -493,7 +506,7 @@ jobs:
       # Setup python required by cloudsmith cli
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.14'
       # Install nfpm used to for linux packaging
       - uses: actions/setup-go@v5
         with:
