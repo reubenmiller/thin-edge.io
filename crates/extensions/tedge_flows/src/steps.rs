@@ -127,7 +127,11 @@ impl FlowStep {
             // => The configured interval must not be erased
 
             // after reload trigger onStartup again
-            self.started_at = None;
+            if script.has_startup {
+                self.started_at = None;
+            } else {
+                self.started_at = Some(Instant::now());
+            }
             self.init_next_execution();
         }
         Ok(())
@@ -153,11 +157,6 @@ impl FlowStep {
     /// Check if this script should execute its interval function now
     /// Returns true and updates next_execution if it's time to execute
     pub fn should_execute_interval(&mut self, now: Instant) -> bool {
-        if self.started_at.is_none() {
-            // needs to execute startup function
-            return true;
-        }
-
         if self.interval.is_zero() {
             return false;
         }
@@ -175,6 +174,10 @@ impl FlowStep {
             }
             _ => false,
         }
+    }
+
+    pub fn should_execute_startup(&self) -> bool {
+        self.started_at.is_none()
     }
 
     /// Transform an input message into zero, one or more output messages
@@ -204,13 +207,6 @@ impl FlowStep {
         js: &JsRuntime,
         timestamp: SystemTime,
     ) -> Result<Vec<Message>, FlowError> {
-        if self.started_at.is_none() {
-            let messages = self.on_startup(js, timestamp).await?;
-            self.started_at = Some(Instant::now());
-            self.init_next_execution();
-            return Ok(messages);
-        }
-
         match &mut self.handler {
             StepHandler::JsScript(script, config) => {
                 script.on_interval(js, timestamp, config).await
@@ -234,13 +230,19 @@ impl FlowStep {
         js: &JsRuntime,
         timestamp: SystemTime,
     ) -> Result<Vec<Message>, FlowError> {
-        match &mut self.handler {
+        let output = match &mut self.handler {
             StepHandler::JsScript(script, config) => script.on_startup(js, timestamp, config).await,
             StepHandler::Transformer(..) => {
                 // startup function is exclusive to js scripts, do nothing
                 Ok(vec![])
             }
-        }
+        };
+
+        // after onStartup is finished, make sure it's not run again and schedule onInterval
+        self.started_at = Some(Instant::now());
+        self.init_next_execution();
+
+        output
     }
 }
 

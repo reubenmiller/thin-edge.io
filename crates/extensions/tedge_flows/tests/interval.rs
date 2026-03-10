@@ -458,6 +458,106 @@ async fn interval_executes_when_time_exceeds_interval() {
     let _ = actor_handle.await;
 }
 
+#[tokio::test(start_paused = true)]
+async fn onstartup_before_onmessage_in_two_step_flow() {
+    let config_dir = create_test_flow_dir();
+
+    // Step 1: Script with onStartup that outputs first
+    write_file(
+        &config_dir,
+        "step1_startup.js",
+        r#"
+        const utf8 = new TextDecoder();
+
+        export function onStartup(timestamp, config) {
+            return [{
+                topic: "test/flow/execution",
+                payload: "step1_startup"
+            }];
+        }
+
+        export function onMessage(message, config) {
+            let message_text = utf8.decode(message.payload)
+            return {topic: "test/onstartup", payload: `on_message 1: ${message_text}`}
+        }
+    "#,
+    );
+
+    // Step 2: Script that processes the message from step 1
+    write_file(
+        &config_dir,
+        "step2_startup.js",
+        r#"
+        const utf8 = new TextDecoder();
+
+        export function onStartup(timestamp, config) {
+            return [{
+                topic: "test/flow/execution",
+                payload: "step2_startup"
+            }];
+        }
+
+        export function onMessage(message, config) {
+            let message_text = utf8.decode(message.payload)
+            return {topic: "test/onstartup", payload: `on_message 2: ${message_text}`}
+        }
+    "#,
+    );
+
+    // Create flow with two steps
+    write_file(
+        &config_dir,
+        "two_step.toml",
+        r#"
+        input.mqtt.topics = ["test/input"]
+
+        [[steps]]
+        script = "step1_startup.js"
+
+        [[steps]]
+        script = "step2_startup.js"
+    "#,
+    );
+
+    let captured_messages = CapturedMessages::default();
+    let mut mqtt = MockMqtt::new(captured_messages.clone());
+    let actor_handle = spawn_flows_actor(&config_dir, &mut mqtt).await;
+
+    let get_messages = || {
+        let messages = captured_messages.messages.lock().unwrap();
+        messages
+            .iter()
+            .filter(|m| !m.topic.name.contains("status"))
+            .map(|m| m.payload_str().unwrap_or_default().to_string())
+            .collect::<Vec<_>>()
+    };
+
+    // Give startup functions time to execute
+    tick(Duration::from_millis(50)).await;
+
+    let messages = get_messages();
+
+    // Verify onStartup functions executed first for both steps
+    assert_eq!(messages.len(), 2, "Should have 2 startup messages");
+    assert_eq!(messages[0], "step1_startup");
+    assert_eq!(messages[1], "step2_startup");
+
+    // Clear captured messages
+    captured_messages.retain(|_| false);
+
+    // Now send an input message to trigger onMessage
+    mqtt.publish("test/input", "hello").await;
+    tick(Duration::from_millis(50)).await;
+
+    let messages = get_messages();
+
+    // Verify only 1 onMessage after onStartup messages
+    assert_eq!(messages, vec!["on_message 2: on_message 1: hello"]);
+
+    actor_handle.abort();
+    let _ = actor_handle.await;
+}
+
 fn create_test_flow_dir() -> TempDir {
     tempfile::tempdir().unwrap()
 }

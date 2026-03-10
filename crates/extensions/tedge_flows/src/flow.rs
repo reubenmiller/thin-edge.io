@@ -246,13 +246,13 @@ impl Flow {
         timestamp: SystemTime,
         now: Instant,
     ) -> FlowResult {
-        let stated_at = stats.flow_on_interval_start(self.name());
+        let started_at = stats.flow_on_interval_start(self.name());
         let result = self
             .on_interval_steps(js_runtime, stats, timestamp, now)
             .await;
         match &result {
             Ok(messages) => {
-                stats.flow_on_interval_done(self.name(), stated_at, messages.len());
+                stats.flow_on_interval_done(self.name(), started_at, messages.len());
             }
             Err(_) => stats.flow_on_interval_failed(self.name()),
         }
@@ -299,6 +299,62 @@ impl Flow {
             // Iterate with all the messages collected at this step
             messages = transformed_messages;
         }
+        Ok(messages)
+    }
+
+    /// Calls onStartup functions of steps of this flow that are starting.
+    ///
+    /// If the entire flow starts, we call onStartup of all steps, from the first to the last.
+    /// If some step got reloaded, we call onStartup for this step and all successive ones.
+    /// Messages published by onStartup functions are not passed down to next steps' onMessage like
+    /// with onInterval, but are instead published individually.
+    pub async fn on_startup(
+        &mut self,
+        js_runtime: &JsRuntime,
+        stats: &mut Counter,
+        timestamp: SystemTime,
+        now: Instant,
+    ) -> FlowResult {
+        // TODO: update stats calls
+        let started_at = stats.flow_on_interval_start(self.name());
+        let result = self
+            .on_startup_steps(js_runtime, stats, timestamp, now)
+            .await;
+        match &result {
+            Ok(messages) => {
+                stats.flow_on_interval_done(self.name(), started_at, messages.len());
+            }
+            Err(_) => stats.flow_on_interval_failed(self.name()),
+        }
+        self.publish(result)
+    }
+
+    async fn on_startup_steps(
+        &mut self,
+        js_runtime: &JsRuntime,
+        stats: &mut Counter,
+        timestamp: SystemTime,
+        _: Instant,
+    ) -> Result<Vec<Message>, FlowError> {
+        let mut messages = vec![];
+        let unstarted_steps = self
+            .steps
+            .iter_mut()
+            .skip_while(|s| !s.should_execute_startup());
+
+        for step in unstarted_steps {
+            let js = step.source().to_string();
+            let step_started_at = stats.flow_step_start(&js, "onStartup");
+            let tick_output = step.on_startup(js_runtime, timestamp).await;
+            match &tick_output {
+                Ok(messages) => {
+                    stats.flow_step_done(&js, "onStartup", step_started_at, messages.len())
+                }
+                Err(_) => stats.flow_step_failed(&js, "onStartup"),
+            }
+            messages.extend(tick_output?);
+        }
+
         Ok(messages)
     }
 

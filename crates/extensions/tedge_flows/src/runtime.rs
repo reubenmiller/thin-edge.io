@@ -147,6 +147,22 @@ impl<Registry: FlowRegistryExt + Send> MessageProcessor<Registry> {
 
     pub async fn on_interval(&mut self, timestamp: SystemTime, now: Instant) -> Vec<FlowResult> {
         let mut out_messages = vec![];
+
+        let unstarted_flow = self
+            .registry
+            .flows_mut()
+            .find(|f| f.as_ref().steps.iter().any(|s| s.should_execute_startup()));
+        if let Some(flow) = unstarted_flow {
+            // if there are any unstarted flows, run their on_startup now. Whatever other
+            // on_interval was supposed to be run, it will be run next tick.
+            let flow_output = flow
+                .as_mut()
+                .on_startup(&self.js_runtime, &mut self.stats, timestamp, now)
+                .await;
+            out_messages.push(flow_output);
+            return out_messages;
+        }
+
         for flow in self.registry.flows_mut() {
             let flow_output = flow
                 .as_mut()
