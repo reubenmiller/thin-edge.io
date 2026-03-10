@@ -1,0 +1,14 @@
+[Unit]
+Description=ttyd to edit files
+After=syslog.target network.target
+
+[Service]
+User=root
+RuntimeDirectory=ttyd
+ExecStart=/usr/bin/ttyd -t enableSixel=true -p 7682 --cwd /etc/tedge --writable vim.tiny -Z /etc/tedge/mappers/flows/flows/certificate-alert/flow.toml
+Restart=on-failure
+RestartPreventExitStatus=255
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

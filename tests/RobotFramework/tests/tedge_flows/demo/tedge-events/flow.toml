@@ -1,0 +1,9 @@
+name = "tedge-events"
+version = "0.0.1"
+description = "Map tedge events to the Cumulocity MQTT Service"
+
+[input.mqtt]
+topics = ["te/+/+/+/+/e/+"]
+
+[[steps]]
+script = "lib/main.js"
