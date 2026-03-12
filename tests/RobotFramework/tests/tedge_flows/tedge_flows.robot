@@ -495,15 +495,59 @@ Flow with loop detection disabled
 
 Script runs onStartup function
     Install Nested Flow    onstartup
-    Logs Should Contain    JavaScript.Console: "hello from on-startup.js"    max_matches=1
-    Should Have MQTT Messages    topic=test/onstartup    message_contains=hello from on-startup.js    maximum=1
+
+    # assert on_startups are run in order
+    ${messages}    Logs Should Contain    JavaScript.Console: "on_startup    min_matches=2    max_matches=2
+    Should Contain    ${messages}[0]    JavaScript.Console: "on_startup 1"
+    Should Contain    ${messages}[1]    JavaScript.Console: "on_startup 2"
+
+    ${messages}    Should Have MQTT Messages    topic=test/onstartup    message_contains=on_startup    maximum=2
+    Should Be Equal    ${messages}[0]    on_startup 1
+    Should Be Equal    ${messages}[1]    on_startup 2
 
     Execute Command    sleep 1
     ${start}    Get Unix Timestamp
-    # emit Modified event to trigger script reload
-    Execute Command    echo "// script modifications..." >> /etc/tedge/mappers/local/flows/onstartup/on-startup.js
-    Logs Should Contain    JavaScript.Console: "hello from on-startup.js"    date_from=${start}
-    Should Have MQTT Messages    topic=test/onstartup    message_contains=hello from on-startup.js    date_from=${start}
+
+    # emit Modified event to trigger reload of 1st step, 2nd step should reload as well
+    Execute Command    echo "// script modifications..." >> /etc/tedge/mappers/local/flows/onstartup/on-startup1.js
+
+    ${messages}    Logs Should Contain
+    ...    JavaScript.Console: "on_startup
+    ...    min_matches=2
+    ...    max_matches=2
+    ...    date_from=${start}
+    Should Contain    ${messages}[0]    JavaScript.Console: "on_startup 1"
+    Should Contain    ${messages}[1]    JavaScript.Console: "on_startup 2"
+
+    # TODO: should onMessage of step2 run here?
+
+    ${messages}    Should Have MQTT Messages
+    ...    topic=test/onstartup
+    ...    message_contains=on_startup
+    ...    maximum=2
+    ...    date_from=${start}
+    Should Be Equal    ${messages}[0]    on_startup 1
+    Should Be Equal    ${messages}[1]    on_startup 2
+
+    Execute Command    sleep 1
+    ${start}    Get Unix Timestamp
+
+    # emit Modified event to trigger reload of 2nd step, 1st step should not rerun onstartup
+    Execute Command    echo "// script modifications..." >> /etc/tedge/mappers/local/flows/onstartup/on-startup2.js
+
+    ${messages}    Logs Should Contain
+    ...    JavaScript.Console: "on_startup
+    ...    min_matches=1
+    ...    max_matches=1
+    ...    date_from=${start}
+    Should Contain    ${messages}[0]    JavaScript.Console: "on_startup 2"
+    ${messages}    Should Have MQTT Messages
+    ...    topic=test/onstartup
+    ...    message_contains=on_startup
+    ...    minimum=1
+    ...    maximum=1
+    ...    date_from=${start}
+    Should Be Equal    ${messages}[0]    on_startup 2
 
 
 *** Keywords ***
