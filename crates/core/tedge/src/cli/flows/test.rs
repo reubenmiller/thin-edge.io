@@ -97,7 +97,7 @@ impl TestCommand {
         now: Instant,
     ) {
         processor
-            .on_interval(timestamp, now)
+            .on_pending(timestamp, now)
             .await
             .into_iter()
             .for_each(|msg| self.print_messages(msg))

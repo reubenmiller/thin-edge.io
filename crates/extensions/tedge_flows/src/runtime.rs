@@ -145,22 +145,22 @@ impl<Registry: FlowRegistryExt + Send> MessageProcessor<Registry> {
             .collect()
     }
 
-    pub async fn on_interval(&mut self, timestamp: SystemTime, now: Instant) -> Vec<FlowResult> {
+    /// Run any pending `on_startup` or `on_interval` callbacks.
+    pub async fn on_pending(&mut self, timestamp: SystemTime, now: Instant) -> Vec<FlowResult> {
         let mut out_messages = vec![];
 
-        let unstarted_flow = self
+        let unstarted_flows = self
             .registry
             .flows_mut()
-            .find(|f| f.as_ref().steps.iter().any(|s| s.should_execute_startup()));
-        if let Some(flow) = unstarted_flow {
-            // if there are any unstarted flows, run their on_startup now. Whatever other
-            // on_interval was supposed to be run, it will be run next tick.
+            .filter(|f| f.as_ref().steps.iter().any(|s| s.should_execute_startup()));
+
+        for flow in unstarted_flows {
+            // if there are any unstarted flows, run their on_startup now
             let flow_output = flow
                 .as_mut()
-                .on_startup(&self.js_runtime, &mut self.stats, timestamp, now)
+                .on_startup(&self.js_runtime, &mut self.stats, timestamp)
                 .await;
             out_messages.push(flow_output);
-            return out_messages;
         }
 
         for flow in self.registry.flows_mut() {

@@ -313,13 +313,10 @@ impl Flow {
         js_runtime: &JsRuntime,
         stats: &mut Counter,
         timestamp: SystemTime,
-        now: Instant,
     ) -> FlowResult {
         // TODO: update stats calls
         let started_at = stats.flow_on_interval_start(self.name());
-        let result = self
-            .on_startup_steps(js_runtime, stats, timestamp, now)
-            .await;
+        let result = self.on_startup_steps(js_runtime, stats, timestamp).await;
         match &result {
             Ok(messages) => {
                 stats.flow_on_interval_done(self.name(), started_at, messages.len());
@@ -334,7 +331,6 @@ impl Flow {
         js_runtime: &JsRuntime,
         stats: &mut Counter,
         timestamp: SystemTime,
-        _: Instant,
     ) -> Result<Vec<Message>, FlowError> {
         let mut messages = vec![];
         let unstarted_steps = self

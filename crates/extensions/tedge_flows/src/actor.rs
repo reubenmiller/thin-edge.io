@@ -90,7 +90,7 @@ impl Actor for FlowsMapper {
             match message {
                 InputMessage::Tick(_) => {
                     self.on_source_poll().await?;
-                    self.on_interval().await?;
+                    self.on_pending().await?;
                 }
                 InputMessage::MqttMessage(message) => {
                     let source = SourceTag::Mqtt;
@@ -256,7 +256,7 @@ impl FlowsMapper {
         Ok(())
     }
 
-    async fn on_interval(&mut self) -> Result<(), RuntimeError> {
+    async fn on_pending(&mut self) -> Result<(), RuntimeError> {
         let now = Instant::now();
         let timestamp = SystemTime::now();
         if self.next_dump <= now {
@@ -277,7 +277,7 @@ impl FlowsMapper {
             }
             self.next_dump = now + self.config.stats_dump_interval;
         }
-        for messages in self.processor.on_interval(timestamp, now).await {
+        for messages in self.processor.on_pending(timestamp, now).await {
             self.publish_result(messages).await?;
         }
 
