@@ -232,9 +232,8 @@ impl FlowStep {
     ) -> Result<Vec<Message>, FlowError> {
         let output = match &mut self.handler {
             StepHandler::JsScript(script, config) => script.on_startup(js, timestamp, config).await,
-            StepHandler::Transformer(..) => {
-                // startup function is exclusive to js scripts, do nothing
-                Ok(vec![])
+            StepHandler::Transformer(_, builtin) => {
+                builtin.on_startup(timestamp, &js.context_handle())
             }
         };
 
