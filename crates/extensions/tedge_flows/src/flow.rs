@@ -332,22 +332,44 @@ impl Flow {
         timestamp: SystemTime,
     ) -> Result<Vec<Message>, FlowError> {
         let mut messages = vec![];
-        let unstarted_steps = self
+
+        // if we call on_startup for any step, need to call it for all the ones after as well,
+        // as previous steps startups might set some stay we may want to read in next steps
+        let steps_to_be_reloaded = self
             .steps
             .iter_mut()
             .skip_while(|s| !s.should_execute_startup());
 
-        for step in unstarted_steps {
+        for step in steps_to_be_reloaded {
             let js = step.source().to_string();
+
+            // First process startup for the current step
             let step_started_at = stats.flow_step_start(&js, "onStartup");
-            let tick_output = step.on_startup(js_runtime, timestamp).await;
-            match &tick_output {
+            let output = step.on_startup(js_runtime, timestamp).await;
+            match &output {
                 Ok(messages) => {
                     stats.flow_step_done(&js, "onStartup", step_started_at, messages.len())
                 }
                 Err(_) => stats.flow_step_failed(&js, "onStartup"),
+            };
+            let mut current_startup_messages = output?;
+
+            // Then on_message messages from the previous step
+            let mut transformed_messages = vec![];
+            for message in messages.iter() {
+                let step_started_at = stats.flow_step_start(&js, "onMessage");
+                let step_output = step.on_message(js_runtime, timestamp, message).await;
+                match &step_output {
+                    Ok(messages) => {
+                        stats.flow_step_done(&js, "onMessage", step_started_at, messages.len())
+                    }
+                    Err(_) => stats.flow_step_failed(&js, "onMessage"),
+                }
+                transformed_messages.extend(step_output?);
             }
-            messages.extend(tick_output?);
+
+            current_startup_messages.extend(transformed_messages);
+            messages = current_startup_messages;
         }
 
         Ok(messages)

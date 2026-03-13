@@ -497,13 +497,14 @@ Script runs onStartup function
     Install Nested Flow    onstartup
 
     # assert on_startups are run in order
-    ${messages}    Logs Should Contain    JavaScript.Console: "on_startup    min_matches=2    max_matches=2
-    Should Contain    ${messages}[0]    JavaScript.Console: "on_startup 1"
-    Should Contain    ${messages}[1]    JavaScript.Console: "on_startup 2"
+    ${messages}    Logs Should Contain    JavaScript.Console: "onstartup    min_matches=3    max_matches=3
+    Should Contain    ${messages}[0]    JavaScript.Console: "onstartup on_startup 1"
+    Should Contain    ${messages}[1]    JavaScript.Console: "onstartup on_startup 2"
+    Should Contain    ${messages}[2]    JavaScript.Console: "onstartup on_message 2"
 
-    ${messages}    Should Have MQTT Messages    topic=test/onstartup    message_contains=on_startup    maximum=2
-    Should Be Equal    ${messages}[0]    on_startup 1
-    Should Be Equal    ${messages}[1]    on_startup 2
+    ${messages}    Should Have MQTT Messages    topic=test/onstartup    message_contains=onstartup    maximum=2
+    Should Be Equal    ${messages}[0]    onstartup on_startup 2
+    Should Be Equal    ${messages}[1]    onstartup on_message 2
 
     Execute Command    sleep 1
     ${start}    Get Unix Timestamp
@@ -512,22 +513,21 @@ Script runs onStartup function
     Execute Command    echo "// script modifications..." >> /etc/tedge/mappers/local/flows/onstartup/on-startup1.js
 
     ${messages}    Logs Should Contain
-    ...    JavaScript.Console: "on_startup
-    ...    min_matches=2
-    ...    max_matches=2
+    ...    JavaScript.Console: "onstartup
+    ...    min_matches=3
+    ...    max_matches=3
     ...    date_from=${start}
-    Should Contain    ${messages}[0]    JavaScript.Console: "on_startup 1"
-    Should Contain    ${messages}[1]    JavaScript.Console: "on_startup 2"
-
-    # TODO: should onMessage of step2 run here?
+    Should Contain    ${messages}[0]    JavaScript.Console: "onstartup on_startup 1"
+    Should Contain    ${messages}[1]    JavaScript.Console: "onstartup on_startup 2"
+    Should Contain    ${messages}[2]    JavaScript.Console: "onstartup on_message 2"
 
     ${messages}    Should Have MQTT Messages
     ...    topic=test/onstartup
-    ...    message_contains=on_startup
+    ...    message_contains=onstartup
     ...    maximum=2
     ...    date_from=${start}
-    Should Be Equal    ${messages}[0]    on_startup 1
-    Should Be Equal    ${messages}[1]    on_startup 2
+    Should Be Equal    ${messages}[0]    onstartup on_startup 2
+    Should Be Equal    ${messages}[1]    onstartup on_message 2
 
     Execute Command    sleep 1
     ${start}    Get Unix Timestamp
@@ -536,18 +536,18 @@ Script runs onStartup function
     Execute Command    echo "// script modifications..." >> /etc/tedge/mappers/local/flows/onstartup/on-startup2.js
 
     ${messages}    Logs Should Contain
-    ...    JavaScript.Console: "on_startup
+    ...    JavaScript.Console: "onstartup
     ...    min_matches=1
     ...    max_matches=1
     ...    date_from=${start}
-    Should Contain    ${messages}[0]    JavaScript.Console: "on_startup 2"
+    Should Contain    ${messages}[0]    JavaScript.Console: "onstartup on_startup 2"
     ${messages}    Should Have MQTT Messages
     ...    topic=test/onstartup
     ...    message_contains=on_startup
     ...    minimum=1
     ...    maximum=1
     ...    date_from=${start}
-    Should Be Equal    ${messages}[0]    on_startup 2
+    Should Be Equal    ${messages}[0]    onstartup on_startup 2
 
 
 *** Keywords ***
