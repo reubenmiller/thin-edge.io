@@ -549,6 +549,22 @@ Script runs onStartup function
     ...    date_from=${start}
     Should Be Equal    ${messages}[0]    onstartup on_startup 2
 
+Flow with multiple steps with onStartup
+    ${start}    Get Unix Timestamp
+    Install Nested Flow    onstartup-health
+
+    # step 2
+    ${messages}    Should Have MQTT Messages
+    ...    topic=onstartup-health/step2
+    ...    message_contains=step 2 startup message
+    ...    date_from=${start}
+
+    # step 1 <= this step fails as the message isn't published
+    ${messages}    Should Have MQTT Messages
+    ...    topic=onstartup-health/step1
+    ...    message_contains=step 1 startup message
+    ...    date_from=${start}
+
 
 *** Keywords ***
 Custom Setup

@@ -1,0 +1,7 @@
+input.mqtt.topics = ["test/onstartup-health"]
+
+[[steps]]
+script = "step1.js"
+
+[[steps]]
+script = "step2.js"
