@@ -32,7 +32,7 @@ Custom Setup
     Execute Command    cmd=tedge config set c8y.mqtt_service.enabled true
     Execute Command    cmd=tedge config set c8y.mqtt ${domain}:9883
     Execute Command    cmd=curl -1sLf 'https://dl.cloudsmith.io/public/thinedge/community/setup.deb.sh' | sudo -E bash
-    Execute Command    cmd=apt-get install -y tedge-oscar tree tedge-command-plugin tedge-inventory-plugin
+    Execute Command    cmd=apt-get install -y tedge-oscar tree tedge-command-plugin tedge-inventory-plugin tedge-parameter-plugin
     Execute Command
     ...    cmd=echo 'tedge ALL = (ALL) NOPASSWD:SETENV: /usr/bin/journalctl' | sudo tee -a /etc/sudoers.d/tedge
     Execute Command
