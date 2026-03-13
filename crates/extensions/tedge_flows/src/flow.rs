@@ -314,14 +314,13 @@ impl Flow {
         stats: &mut Counter,
         timestamp: SystemTime,
     ) -> FlowResult {
-        // TODO: update stats calls
-        let started_at = stats.flow_on_interval_start(self.name());
+        let started_at = stats.flow_on_startup_start(self.name());
         let result = self.on_startup_steps(js_runtime, stats, timestamp).await;
         match &result {
             Ok(messages) => {
-                stats.flow_on_interval_done(self.name(), started_at, messages.len());
+                stats.flow_on_startup_done(self.name(), started_at, messages.len());
             }
-            Err(_) => stats.flow_on_interval_failed(self.name()),
+            Err(_) => stats.flow_on_startup_failed(self.name()),
         }
         self.publish(result)
     }
