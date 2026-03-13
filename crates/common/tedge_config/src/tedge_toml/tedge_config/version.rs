@@ -13,6 +13,7 @@ pub enum TEdgeTomlVersion {
     #[default]
     One,
     Two,
+    Three,
 }
 
 impl TryFrom<String> for TEdgeTomlVersion {
@@ -22,6 +23,7 @@ impl TryFrom<String> for TEdgeTomlVersion {
         match value.as_str() {
             "1" => Ok(Self::One),
             "2" => Ok(Self::Two),
+            "3" => Ok(Self::Three),
             _ => todo!(),
         }
     }
@@ -32,6 +34,7 @@ impl From<TEdgeTomlVersion> for &'static str {
         match value {
             TEdgeTomlVersion::One => "1",
             TEdgeTomlVersion::Two => "2",
+            TEdgeTomlVersion::Three => "3",
         }
     }
 }
@@ -133,7 +136,8 @@ impl TEdgeTomlVersion {
     fn next(self) -> Self {
         match self {
             Self::One => Self::Two,
-            Self::Two => Self::Two,
+            Self::Two => Self::Three,
+            Self::Three => Self::Three,
         }
     }
 
@@ -181,7 +185,14 @@ impl TEdgeTomlVersion {
                 mv("c8y.smartrest_templates", C8ySmartrestTemplates(None)),
                 update_version_field(),
             ]),
-            Self::Two => None,
+            Self::Two => Some(vec![
+                TomlMigrationStep::MoveKey {
+                    original: "apt.dpk",
+                    target: Cow::Borrowed("apt.dpkg"),
+                },
+                update_version_field(),
+            ]),
+            Self::Three => None,
         }
     }
 }

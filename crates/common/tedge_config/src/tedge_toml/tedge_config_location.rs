@@ -324,13 +324,13 @@ impl TEdgeConfigLocation {
         location: TEdgeConfigLocation,
     ) -> (TEdgeConfig, UnusedValueWarnings) {
         let toml_path = Utf8Path::new("/not/read/from/file/system");
-        let toml_value: toml::Value = toml::from_str(toml).unwrap();
+        let mut toml_value: toml::Value = toml::from_str(toml).unwrap();
         let (mut dto, mut warnings) = deserialize_toml(toml_value.clone(), toml_path).unwrap();
-        if let Some(migrations) = dto.config.version.unwrap_or_default().migrations() {
-            let migrated_toml = migrations
+        while let Some(migrations) = dto.config.version.unwrap_or_default().migrations() {
+            toml_value = migrations
                 .into_iter()
                 .fold(toml_value, |toml, migration| migration.apply_to(toml));
-            (dto, warnings) = deserialize_toml(migrated_toml, toml_path).unwrap();
+            (dto, warnings) = deserialize_toml(toml_value.clone(), toml_path).unwrap();
         }
         (TEdgeConfig::from_dto(dto, location), warnings)
     }
@@ -378,22 +378,22 @@ impl TEdgeConfigLocation {
                 tedge_toml_readable = false;
                 String::new()
             });
-        let toml: toml::Value = toml::de::from_str(&config)?;
-        let (mut dto, mut warnings) = deserialize_toml(toml, toml_path)?;
-
-        if let Some(migrations) = dto.config.version.unwrap_or_default().migrations() {
+        let mut current_toml: toml::Value = toml::de::from_str(&config)?;
+        let (mut dto, mut warnings) = deserialize_toml(current_toml.clone(), toml_path)?;
+        while let Some(migrations) = dto.config.version.unwrap_or_default().migrations() {
             if tedge_toml_readable {
-                tracing::info!("Migrating tedge.toml configuration to version 2");
+                tracing::info!("Migrating tedge.toml configuration");
 
-                let toml: toml::Value = toml::de::from_str(&config)?;
-                let migrated_toml = migrations
+                current_toml = migrations
                     .into_iter()
-                    .fold(toml, |toml, migration| migration.apply_to(toml));
+                    .fold(current_toml, |toml, migration| migration.apply_to(toml));
 
-                self.store_in(self.toml_path(), &migrated_toml, StoreEmptyConfig::Yes)
+                self.store_in(self.toml_path(), &current_toml, StoreEmptyConfig::Yes)
                     .await?;
 
-                (dto, warnings) = deserialize_toml(migrated_toml, toml_path)?;
+                (dto, warnings) = deserialize_toml(current_toml.clone(), toml_path)?;
+            } else {
+                break;
             }
         }
 
@@ -1697,6 +1697,34 @@ type = "a-service-type""#;
         pub fn set_var(&mut self, key: &str, value: &str) {
             std::env::set_var(key, value);
         }
+    }
+
+    #[test]
+    fn apt_dpk_is_migrated_to_apt_dpkg_from_v2_config() {
+        let toml = r#"
+[config]
+version = "2"
+
+[apt.dpk.options]
+config = "KeepOld"
+"#;
+        let (tedge_config, _warnings) = TEdgeConfig::load_toml_str_with_warnings(toml);
+        assert_eq!(
+            tedge_config.apt.dpkg.options.config,
+            crate::models::AptConfig::KeepOld
+        );
+    }
+
+    #[tokio::test]
+    async fn apt_dpk_is_migrated_to_apt_dpkg_from_v1_config() {
+        let (_dir, t) =
+            create_temp_tedge_config("[apt.dpk.options]\nconfig = \"KeepOld\"").unwrap();
+        let _env_lock = EnvSandbox::new().await;
+        let config = t.load().await.unwrap();
+        assert_eq!(
+            config.apt.dpkg.options.config,
+            crate::models::AptConfig::KeepOld
+        );
     }
 
     fn create_temp_tedge_config(
