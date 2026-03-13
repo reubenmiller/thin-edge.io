@@ -537,10 +537,10 @@ async fn onstartup_before_onmessage_in_two_step_flow() {
 
     let messages = get_messages();
 
-    // Verify onStartup functions executed first for both steps
+    // Verify onStartup runs for both steps and output from 1st is passed to on_message of 2nd
     assert_eq!(messages.len(), 2, "Should have 2 startup messages");
-    assert_eq!(messages[0], "step1_startup");
-    assert_eq!(messages[1], "step2_startup");
+    assert_eq!(messages[0], "step2_startup");
+    assert_eq!(messages[1], "on_message 2: step1_startup");
 
     // Clear captured messages
     captured_messages.retain(|_| false);
