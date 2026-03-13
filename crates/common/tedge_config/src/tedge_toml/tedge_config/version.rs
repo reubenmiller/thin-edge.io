@@ -197,4 +197,83 @@ impl TEdgeTomlVersion {
     }
 }
 
-// TODO(marcel): is this being tested somewhere else?
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn latest_version_has_no_migrations() {
+        assert!(TEdgeTomlVersion::Three.migrations().is_none());
+    }
+
+    #[test]
+    fn move_key_relocates_an_existing_value() {
+        let input = toml::toml!(
+            [apt.dpk.options]
+            config = "keepold"
+        );
+        let output = TomlMigrationStep::MoveKey {
+            original: "apt.dpk",
+            target: Cow::Borrowed("apt.dpkg"),
+        }
+        .apply_to(toml::Value::Table(input));
+        assert_eq!(output["apt"]["dpkg"]["options"]["config"].as_str(), Some("keepold"));
+        assert!(output["apt"].as_table().unwrap().get("dpk").is_none());
+    }
+
+    #[test]
+    fn move_key_is_a_noop_when_source_key_is_absent() {
+        let input = toml::toml!(
+            [apt.name]
+            filter = "tedge.*"
+        );
+        let expected = input.clone();
+        let output = TomlMigrationStep::MoveKey {
+            original: "apt.dpk",
+            target: Cow::Borrowed("apt.dpkg"),
+        }
+        .apply_to(toml::Value::Table(input));
+        assert_eq!(output, toml::Value::Table(expected));
+    }
+
+    #[test]
+    fn remove_table_if_empty_removes_an_empty_table() {
+        let input = toml::toml!(
+            [mqtt.client_auth]
+        );
+        let output = TomlMigrationStep::RemoveTableIfEmpty { key: "mqtt.client_auth" }
+            .apply_to(toml::Value::Table(input));
+        assert!(output["mqtt"].as_table().unwrap().get("client_auth").is_none());
+    }
+
+    #[test]
+    fn remove_table_if_empty_preserves_a_non_empty_table() {
+        let input = toml::toml!(
+            [mqtt.client_auth]
+            cert_file = "/path/to/cert.pem"
+        );
+        let expected = input.clone();
+        let output = TomlMigrationStep::RemoveTableIfEmpty { key: "mqtt.client_auth" }
+            .apply_to(toml::Value::Table(input));
+        assert_eq!(output, toml::Value::Table(expected));
+    }
+
+    #[test]
+    fn v2_migration_renames_apt_dpk_to_apt_dpkg() {
+        let input = toml::toml!(
+            [config]
+            version = "2"
+
+            [apt.dpk.options]
+            config = "keepold"
+        );
+        let migrated = TEdgeTomlVersion::Two
+            .migrations()
+            .unwrap()
+            .into_iter()
+            .fold(toml::Value::Table(input), |toml, step| step.apply_to(toml));
+        assert_eq!(migrated["config"]["version"].as_str(), Some("3"));
+        assert_eq!(migrated["apt"]["dpkg"]["options"]["config"].as_str(), Some("keepold"));
+        assert!(migrated["apt"].as_table().unwrap().get("dpk").is_none());
+    }
+}
