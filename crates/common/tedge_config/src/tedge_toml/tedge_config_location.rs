@@ -390,8 +390,24 @@ impl TEdgeConfigLocation {
                     .into_iter()
                     .fold(toml, |toml, migration| migration.apply_to(toml));
 
-                self.store_in(self.toml_path(), &migrated_toml, StoreEmptyConfig::Yes)
-                    .await?;
+                let user = migrated_toml
+                    .get("system")
+                    .and_then(|s| s.get("user"))
+                    .and_then(|u| u.as_str())
+                    .unwrap_or("tedge");
+                let group = migrated_toml
+                    .get("system")
+                    .and_then(|s| s.get("group"))
+                    .and_then(|g| g.as_str())
+                    .unwrap_or("tedge");
+                self.store_in(
+                    self.toml_path(),
+                    &migrated_toml,
+                    StoreEmptyConfig::Yes,
+                    user,
+                    group,
+                )
+                .await?;
 
                 (dto, warnings) = deserialize_toml(migrated_toml, toml_path)?;
             }
@@ -407,11 +423,19 @@ impl TEdgeConfigLocation {
     }
 
     async fn store(&self, mut config: TEdgeConfigDto) -> Result<(), TEdgeConfigError> {
-        self.store_cloud(&mut config.c8y).await?;
-        self.store_cloud(&mut config.az).await?;
-        self.store_cloud(&mut config.aws).await?;
-        self.store_in(self.toml_path(), &config, StoreEmptyConfig::Yes)
-            .await
+        let user = config.system.user.as_deref().unwrap_or("tedge");
+        let group = config.system.group.as_deref().unwrap_or("tedge");
+        self.store_cloud(&mut config.c8y, user, group).await?;
+        self.store_cloud(&mut config.az, user, group).await?;
+        self.store_cloud(&mut config.aws, user, group).await?;
+        self.store_in(
+            self.toml_path(),
+            &config,
+            StoreEmptyConfig::Yes,
+            user,
+            group,
+        )
+        .await
     }
 
     async fn store_in<S: Serialize>(
@@ -419,6 +443,8 @@ impl TEdgeConfigLocation {
         toml_path: &Utf8Path,
         config: &S,
         persist_if_empty: StoreEmptyConfig,
+        user: &str,
+        group: &str,
     ) -> Result<(), TEdgeConfigError> {
         let toml = toml::to_string_pretty(&config)?;
 
@@ -438,7 +464,7 @@ impl TEdgeConfigLocation {
 
         atomically_write_file_async(toml_path, toml.as_bytes()).await?;
 
-        if let Err(err) = change_user_and_group(toml_path, "tedge", "tedge").await {
+        if let Err(err) = change_user_and_group(toml_path, user, group).await {
             warn!("failed to set file ownership for '{toml_path}': {err}");
         }
 
@@ -449,7 +475,12 @@ impl TEdgeConfigLocation {
         Ok(())
     }
 
-    async fn store_cloud<S>(&self, cloud: &mut MultiDto<S>) -> Result<(), TEdgeConfigError>
+    async fn store_cloud<S>(
+        &self,
+        cloud: &mut MultiDto<S>,
+        user: &str,
+        group: &str,
+    ) -> Result<(), TEdgeConfigError>
     where
         S: Serialize + HasPath + Default + PartialEq,
     {
@@ -458,6 +489,8 @@ impl TEdgeConfigLocation {
                 &paths.toml_path_for(None::<&ProfileName>),
                 &cloud.non_profile,
                 StoreEmptyConfig::No,
+                user,
+                group,
             )
             .await?;
             for (name, profile) in &mut cloud.profiles {
@@ -465,6 +498,8 @@ impl TEdgeConfigLocation {
                     &paths.toml_path_for(Some(name)),
                     profile,
                     StoreEmptyConfig::No,
+                    user,
+                    group,
                 )
                 .await?;
             }

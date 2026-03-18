@@ -352,10 +352,13 @@ pub async fn bridge_rules(
     cloud_profile: Option<&ProfileName>,
     auth_method: AuthMethod,
 ) -> anyhow::Result<BridgeConfig> {
+    let user = &*tedge_config.system.user;
+    let group = &*tedge_config.system.group;
+
     let mapper_config_dir =
         tedge_config.mapper_config_dir::<C8yMapperSpecificConfig>(cloud_profile);
     if let Err(err) =
-        create_directory_with_user_group(mapper_config_dir.clone(), "tedge", "tedge", 0o755).await
+        create_directory_with_user_group(mapper_config_dir.clone(), user, group, 0o755).await
     {
         warn!("failed to set file ownership for '{mapper_config_dir}': {err}");
     }
@@ -367,10 +370,12 @@ pub async fn bridge_rules(
         &bridge_config_dir,
         "mqtt-core",
         include_str!("bridge/mqtt-core.toml"),
+        user,
+        group,
     )
     .await?;
 
-    if let Err(err) = change_user_and_group(&bridge_config_dir, "tedge", "tedge").await {
+    if let Err(err) = change_user_and_group(&bridge_config_dir, user, group).await {
         warn!("failed to set file ownership for '{bridge_config_dir}': {err}");
     }
 

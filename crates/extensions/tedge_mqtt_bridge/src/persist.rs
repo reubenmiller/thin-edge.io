@@ -33,6 +33,8 @@ pub async fn persist_bridge_config_file(
     dir: &Utf8Path,
     name: &str,
     content: &str,
+    user: &str,
+    group: &str,
 ) -> anyhow::Result<()> {
     let config_path = dir.join(name).with_extension("toml");
     let disabled_config_path = dir.join(name).with_extension("toml.disabled");
@@ -51,7 +53,7 @@ pub async fn persist_bridge_config_file(
     file::create_directory_with_defaults(dir).await?;
     fs::atomically_write_file_async(&template_path, content.as_bytes()).await?;
 
-    if let Err(err) = change_user_and_group(&template_path, "tedge", "tedge").await {
+    if let Err(err) = change_user_and_group(&template_path, user, group).await {
         warn!("failed to set file ownership for '{template_path}': {err}");
     }
 
@@ -61,7 +63,7 @@ pub async fn persist_bridge_config_file(
 
     if update_flow {
         fs::atomically_write_file_async(&config_path, content.as_bytes()).await?;
-        if let Err(err) = change_user_and_group(&config_path, "tedge", "tedge").await {
+        if let Err(err) = change_user_and_group(&config_path, user, group).await {
             warn!("failed to set file ownership for '{config_path}': {err}");
         }
 
@@ -188,7 +190,7 @@ mod tests {
             tokio::fs::create_dir_all(&dir).await.unwrap();
             let content = "test content";
 
-            persist_bridge_config_file(&dir, "test", content)
+            persist_bridge_config_file(&dir, "test", content, "tedge", "tedge")
                 .await
                 .unwrap();
 
@@ -222,7 +224,7 @@ mod tests {
                 .unwrap();
 
             let new_content = "new content";
-            persist_bridge_config_file(&dir, "test", new_content)
+            persist_bridge_config_file(&dir, "test", new_content, "tedge", "tedge")
                 .await
                 .unwrap();
 
@@ -257,7 +259,7 @@ mod tests {
                 .unwrap();
 
             let new_content = "new content";
-            persist_bridge_config_file(&dir, "test", new_content)
+            persist_bridge_config_file(&dir, "test", new_content, "tedge", "tedge")
                 .await
                 .unwrap();
 
@@ -296,7 +298,7 @@ mod tests {
                 .unwrap();
 
             let new_content = "new content";
-            persist_bridge_config_file(&dir, "test", new_content)
+            persist_bridge_config_file(&dir, "test", new_content, "tedge", "tedge")
                 .await
                 .unwrap();
 

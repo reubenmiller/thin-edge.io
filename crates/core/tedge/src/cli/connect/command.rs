@@ -920,14 +920,14 @@ impl ConnectCommand {
     }
 }
 
-pub async fn chown_certificate_and_key(bridge_config: &BridgeConfig) {
+pub async fn chown_certificate_and_key(bridge_config: &BridgeConfig, config: &TEdgeConfig) {
     // Skip chown when using Basic Auth
     if bridge_config.auth_type == AuthType::Basic {
         return;
     }
 
     let (user, group) = match bridge_config.bridge_location {
-        BridgeLocation::BuiltIn => ("tedge", "tedge"),
+        BridgeLocation::BuiltIn => (config.system.user.as_ref(), config.system.group.as_ref()),
         BridgeLocation::Mosquitto => (crate::BROKER_USER, crate::BROKER_GROUP),
     };
     // Ignore errors - This was the behavior with the now deprecated user manager.
@@ -955,7 +955,7 @@ async fn restart_mosquitto(
 ) -> Result<(), Fancy<ConnectError>> {
     let spinner = Spinner::start("Restarting mosquitto");
     spinner
-        .finish(restart_mosquitto_inner(bridge_config, service_manager).await)
+        .finish(restart_mosquitto_inner(bridge_config, service_manager, config).await)
         .inspect_err(|_| {
             // We want to preserve existing errors and therefore discard result of this function.
             let _ = clean_up(config, bridge_config);
@@ -964,11 +964,12 @@ async fn restart_mosquitto(
 async fn restart_mosquitto_inner(
     bridge_config: &BridgeConfig,
     service_manager: &dyn SystemServiceManager,
+    config: &TEdgeConfig,
 ) -> Result<(), ConnectError> {
     service_manager
         .stop_service(SystemService::Mosquitto)
         .await?;
-    chown_certificate_and_key(bridge_config).await;
+    chown_certificate_and_key(bridge_config, config).await;
     service_manager
         .restart_service(SystemService::Mosquitto)
         .await?;

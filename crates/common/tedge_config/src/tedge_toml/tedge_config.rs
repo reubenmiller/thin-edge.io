@@ -1291,6 +1291,22 @@ define_tedge_config! {
         }
     },
 
+    system: {
+        /// The user used to set file ownership when running thin-edge.io commands.
+        ///
+        /// On systems where the `tedge` user does not exist (e.g. a Homebrew installation on macOS),
+        /// set this to the user running thin-edge.io to avoid spurious ownership-change warnings.
+        #[tedge_config(example = "tedge", default(value = "tedge"))]
+        user: Arc<str>,
+
+        /// The group used to set file ownership when running thin-edge.io commands.
+        ///
+        /// On systems where the `tedge` group does not exist (e.g. a Homebrew installation on macOS),
+        /// set this to the group of the user running thin-edge.io to avoid spurious ownership-change warnings.
+        #[tedge_config(example = "tedge", default(value = "tedge"))]
+        group: Arc<str>,
+    },
+
     service: {
         /// The thin-edge.io service's service type
         #[tedge_config(rename = "type", example = "systemd", default(value = "service"))]
