@@ -428,12 +428,21 @@ impl TEdgeConfigLocation {
             }
         }
 
-        // Create `$HOME/.tedge` or `/etc/tedge` directory in case it does not exist yet
+        // Create `$HOME/.tedge`, `/etc/tedge` or `/etc/tedge/mappers/{cloud}`
+        // directory in case it does not exist yet
         if !tokio::fs::try_exists(toml_path).await.unwrap_or(false) {
             let parent_dir = toml_path.parent().expect("provided path must have parent");
             tokio::fs::create_dir_all(parent_dir)
                 .await
                 .with_context(|| format!("Failed to create directory {parent_dir}"))?;
+
+            if let Err(err) = change_user_and_group(parent_dir, "tedge", "tedge").await {
+                warn!("failed to set file ownership for '{parent_dir}': {err}");
+            }
+
+            if let Err(err) = change_mode(parent_dir, 0o755).await {
+                warn!("failed to set file permissions for '{parent_dir}': {err}");
+            }
         }
 
         atomically_write_file_async(toml_path, toml.as_bytes()).await?;
