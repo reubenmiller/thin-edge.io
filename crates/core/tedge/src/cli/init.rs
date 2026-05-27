@@ -5,6 +5,7 @@ use anyhow::bail;
 use anyhow::Context;
 use clap::Subcommand;
 use std::io::ErrorKind;
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::path::PathBuf;
@@ -71,8 +72,14 @@ impl TEdgeInitCmd {
                 true => Path::new(executable_file_name),
                 false => &executable_name,
             },
-            uid: stat.uid(),
-            gid: stat.gid(),
+            uid: {
+                #[cfg(unix)] { stat.uid() }
+                #[cfg(not(unix))] { 0 }
+            },
+            gid: {
+                #[cfg(unix)] { stat.gid() }
+                #[cfg(not(unix))] { 0 }
+            },
         };
 
         for component in &component_subcommands {
@@ -185,15 +192,18 @@ trait FileSystem {
         }
     }
 
-    async fn unlink(&self, link: &Path) -> nix::Result<()> {
+    async fn unlink(&self, link: &Path) -> std::io::Result<()> {
         let link = link.to_path_buf();
-        tokio::task::spawn_blocking(move || nix::unistd::unlink(&link))
-            .await
-            .expect("unlinking failed")
+        tokio::fs::remove_file(&link).await
     }
 
     async fn symlink(&self, original: &Path, link: &Path) -> std::io::Result<()> {
-        tokio::fs::symlink(original, link).await
+        #[cfg(unix)]
+        return tokio::fs::symlink(original, link).await;
+        #[cfg(windows)]
+        return tokio::fs::symlink_file(original, link).await;
+        #[cfg(not(any(unix, windows)))]
+        return Err(std::io::Error::other("symlinks not supported on this platform"));
     }
 
     async fn chown_symlink(&self, link: &Path, uid: u32, gid: u32) -> anyhow::Result<()> {
@@ -385,6 +395,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     mod init {
         use super::*;
         use std::os::unix::fs::PermissionsExt;

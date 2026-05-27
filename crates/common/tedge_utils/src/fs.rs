@@ -2,11 +2,13 @@ use crate::file;
 use std::fs as std_fs;
 use std::io::Read;
 use std::io::Write;
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::path::PathBuf;
 use tokio::fs as tokio_fs;
 use tokio::io::AsyncWriteExt;
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AtomFileError {
@@ -60,7 +62,7 @@ pub fn atomically_write_file_sync(
     // removed on drop
     let mut file = tempfile::Builder::new()
         .rand_bytes(6)
-        .permissions(std_fs::Permissions::from_mode(0o644))
+        .permissions(unix_mode_644())
         .tempfile_in(&dest_dir)
         .with_context(|| "could not create temporary file".to_string(), &dest_dir)?;
 
@@ -128,7 +130,7 @@ pub async fn atomically_write_file_async(
     // removed on drop if not persisted
     let mut file = tempfile::Builder::new()
         .rand_bytes(6)
-        .permissions(std_fs::Permissions::from_mode(0o644))
+        .permissions(unix_mode_644())
         .make_in(&dest_dir, |path| {
             let file = std_fs::OpenOptions::new()
                 .write(true)
@@ -173,8 +175,27 @@ pub async fn atomically_write_file_async(
 fn parent_dir(file: &Path) -> PathBuf {
     match file.parent() {
         None => Path::new("/").into(),
-        Some(path) if nix::NixPath::is_empty(path) => Path::new(".").into(),
+        Some(path) if path.as_os_str().is_empty() => Path::new(".").into(),
         Some(dir) => dir.into(),
+    }
+}
+
+/// Returns a `Permissions` value representing mode 0o644 on unix, or the
+/// default (non-read-only) permissions on other platforms.
+fn unix_mode_644() -> std_fs::Permissions {
+    #[cfg(unix)]
+    {
+        std_fs::Permissions::from_mode(0o644)
+    }
+    #[cfg(not(unix))]
+    {
+        // tempfile::Builder::permissions() on Windows does not interpret
+        // unix mode bits; use a non-read-only default.
+        let mut p = std_fs::metadata(".")
+            .map(|m| m.permissions())
+            .unwrap_or_else(|_| tempfile::tempfile().unwrap().metadata().unwrap().permissions());
+        p.set_readonly(false);
+        p
     }
 }
 
@@ -206,12 +227,16 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     async fn atomically_write_file_file_async_with_symlink() {
         let temp_dir = tempdir().unwrap();
         let link_path = temp_dir.path().join("test-link");
         let destination_path = temp_dir.path().join("test-orig");
         let _ = std::fs::write(destination_path.clone(), "dummy contents");
+        #[cfg(unix)]
         let _ = std::os::unix::fs::symlink(destination_path.clone(), link_path.clone());
+        #[cfg(not(unix))]
+        let _ = std::os::windows::fs::symlink_file(destination_path.clone(), link_path.clone());
 
         let content = "test_data";
 
@@ -227,11 +252,15 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     async fn atomically_write_file_file_async_with_broken_symlink() {
         let temp_dir = tempdir().unwrap();
         let link_path = temp_dir.path().join("test-link");
         let destination_path = temp_dir.path().join("test-orig");
+        #[cfg(unix)]
         let _ = std::os::unix::fs::symlink(destination_path.clone(), link_path.clone());
+        #[cfg(not(unix))]
+        let _ = std::os::windows::fs::symlink_file(destination_path.clone(), link_path.clone());
 
         let content = "test_data";
 
@@ -263,12 +292,16 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     fn atomically_write_file_file_sync_with_symlink() {
         let temp_dir = tempdir().unwrap();
         let link_path = temp_dir.path().join("test-link");
         let destination_path = temp_dir.path().join("test-orig");
         let _ = std::fs::write(destination_path.clone(), "dummy contents");
+        #[cfg(unix)]
         let _ = std::os::unix::fs::symlink(destination_path.clone(), link_path.clone());
+        #[cfg(not(unix))]
+        let _ = std::os::windows::fs::symlink_file(destination_path.clone(), link_path.clone());
 
         let content = "test_data";
 
@@ -282,11 +315,15 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     fn atomically_write_file_file_sync_with_broken_symlink() {
         let temp_dir = tempdir().unwrap();
         let link_path = temp_dir.path().join("test-link");
         let destination_path = temp_dir.path().join("test-orig");
+        #[cfg(unix)]
         let _ = std::os::unix::fs::symlink(destination_path.clone(), link_path.clone());
+        #[cfg(not(unix))]
+        let _ = std::os::windows::fs::symlink_file(destination_path.clone(), link_path.clone());
 
         let content = "test_data";
 

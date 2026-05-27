@@ -11,6 +11,7 @@ use certificate::KeyCertPair;
 use certificate::KeyKind;
 use certificate::PemCertificate;
 use std::fs::Permissions;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use tedge_config::tedge_toml::DynCloudConfig;
@@ -221,12 +222,14 @@ async fn persist_private_key(
     cert_key: certificate::Zeroizing<String>, // Zero the private key on drop
 ) -> Result<(), std::io::Error> {
     // Make sure the key is secret, before write
+    #[cfg(unix)]
     File::set_permissions(&key_file, Permissions::from_mode(0o600)).await?;
     key_file.write_all(cert_key.as_bytes()).await?;
     key_file.flush().await?;
     key_file.sync_all().await?;
 
     // Prevent the key to be overwritten
+    #[cfg(unix)]
     File::set_permissions(&key_file, Permissions::from_mode(0o400)).await?;
     Ok(())
 }
@@ -237,6 +240,7 @@ async fn persist_public_key(mut key_file: File, cert_pem: String) -> Result<(), 
     key_file.sync_all().await?;
 
     // Make the file public
+    #[cfg(unix)]
     File::set_permissions(&key_file, Permissions::from_mode(0o444)).await?;
     Ok(())
 }

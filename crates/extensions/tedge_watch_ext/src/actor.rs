@@ -4,7 +4,6 @@ use crate::WatchRequest;
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
 use std::collections::HashMap;
-use std::os::unix::prelude::ExitStatusExt;
 use std::process::ExitStatus;
 use std::process::Stdio;
 use tedge_actors::Actor;
@@ -220,7 +219,12 @@ fn check_status(command: &str, status: ExitStatus) -> Result<(), WatchError> {
             }),
             None => Err(WatchError::CommandKilled {
                 command: command.to_string(),
-                signal: status.signal().unwrap_or_default(),
+                signal: {
+                    #[cfg(unix)]
+                    { use std::os::unix::prelude::ExitStatusExt; status.signal().unwrap_or_default() }
+                    #[cfg(not(unix))]
+                    { 0 }
+                },
             }),
         }
     }

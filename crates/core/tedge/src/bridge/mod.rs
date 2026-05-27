@@ -37,12 +37,11 @@ pub(crate) async fn write_mosquitto_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::MetadataExt;
-    use std::os::unix::fs::PermissionsExt;
     use tedge_config::TEdgeConfig;
     use tedge_test_utils::fs::TempTedgeDir;
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix ownership/mode checks not applicable on Windows")]
     async fn mosquitto_config_files_keep_writer_ownership() {
         let ttd = TempTedgeDir::new();
         ttd.file("system.toml")
@@ -60,8 +59,13 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(metadata.uid(), nix::unistd::geteuid().as_raw());
-        assert_eq!(metadata.gid(), nix::unistd::getegid().as_raw());
-        assert_eq!(metadata.permissions().mode() & 0o777, 0o644);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(metadata.uid(), nix::unistd::geteuid().as_raw());
+            assert_eq!(metadata.gid(), nix::unistd::getegid().as_raw());
+            assert_eq!(metadata.permissions().mode() & 0o777, 0o644);
+        }
     }
 }

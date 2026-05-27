@@ -6,8 +6,8 @@ use camino::Utf8PathBuf;
 
 pub mod service;
 
-/// Returns a `TedgeP11Service` implementation that depending on the config, either connects to tedge-p11-server or
-/// calls cryptoki module directly.
+/// Returns a `TedgeP11Service` implementation that depending on the config, either connects to
+/// tedge-p11-server (unix only) or calls the cryptoki module directly.
 pub fn tedge_p11_service(config: CryptokiConfig) -> anyhow::Result<Arc<dyn TedgeP11Service>> {
     let signing_key: Arc<dyn TedgeP11Service> = match config {
         CryptokiConfig::Direct(config_direct) => {
@@ -20,19 +20,36 @@ pub fn tedge_p11_service(config: CryptokiConfig) -> anyhow::Result<Arc<dyn Tedge
             uri,
             pin,
         } => {
-            let mut client = proxy::client::TedgeP11Client::with_ready_check(socket_path.into());
-            client.uri = uri;
-            client.pin = pin;
-            Arc::new(client)
+            #[cfg(unix)]
+            {
+                let mut client =
+                    proxy::client::TedgeP11Client::with_ready_check(socket_path.into());
+                client.uri = uri;
+                client.pin = pin;
+                Arc::new(client)
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = (socket_path, uri, pin);
+                anyhow::bail!(
+                    "PKCS#11 socket proxy (tedge-p11-server) is not supported on Windows. \
+                     Use CryptokiConfig::Direct instead."
+                );
+            }
         }
     };
     Ok(signing_key)
 }
 
-/// A server listening on the UNIX domain socket, wrapping the service.
+// The proxy module uses Unix domain sockets and is therefore unix-only.
+// Named-pipe support for Windows is a future enhancement.
+#[cfg(unix)]
 mod proxy;
+#[cfg(unix)]
 pub use proxy::TedgeP11Client;
+#[cfg(unix)]
 pub use proxy::TedgeP11Server;
+
 
 /// A rustls SigningKey that connects to the server.
 mod signer;

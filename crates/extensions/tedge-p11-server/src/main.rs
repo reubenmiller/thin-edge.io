@@ -3,13 +3,10 @@
 //! The purpose of this crate is to allow thin-edge services that possibly run in containers to access PKCS#11 tokens in
 //! all of our supported architectures.
 //!
-//! There are 2 main problems with using a PKCS#11 module directly by thin-edge:
-//! 1. One needs to use a dynamic loader to load the PKCS#11 module, which is not possible in statically compiled musl
-//! 2. When thin-edge runs in a container, additional setup needs to be done by the user to expose cryptographic tokens
-//!    in the container, using software like p11-kit.
-//!
-//! To avoid extra dependencies and possibly implement new features in the future, it was decided that thin-edge.io will
-//! provide its own bundled p11-kit-like service.
+//! This server uses Unix domain sockets and is therefore only available on Unix platforms.
+//! Named-pipe support for Windows is a future enhancement.
+
+#![cfg(unix)]
 
 use std::os::unix::net::UnixListener;
 use std::sync::Arc;

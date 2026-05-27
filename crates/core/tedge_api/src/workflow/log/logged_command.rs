@@ -1,6 +1,5 @@
 use crate::CommandLog;
 use std::ffi::OsStr;
-use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::Output;
 use std::process::Stdio;
@@ -246,10 +245,14 @@ impl LoggedCommand {
                         .write_all(format!("Exit status: {code} ({exit_code_msg})\n\n").as_bytes())
                         .await?
                 };
-                if let Some(signal) = &output.status.signal() {
-                    logger
-                        .write_all(format!("Killed by signal: {signal}\n\n").as_bytes())
-                        .await?
+                #[cfg(unix)]
+                {
+                    use std::os::unix::process::ExitStatusExt;
+                    if let Some(signal) = &output.status.signal() {
+                        logger
+                            .write_all(format!("Killed by signal: {signal}\n\n").as_bytes())
+                            .await?
+                    }
                 }
                 // Log stderr then stdout, so the flow reads chronologically
                 // as the stderr is used for log messages and the stdout is used for results

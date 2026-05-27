@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::io::ErrorKind;
-use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 use crate::models::CloudType;
@@ -365,7 +364,7 @@ impl TEdgeConfigLocation {
     {
         fn profile_name_from_filename(tedge_toml_path: &Path) -> Option<ProfileName> {
             let config_dir =
-                std::str::from_utf8(tedge_toml_path.parent()?.file_name()?.as_bytes()).ok()?;
+                tedge_toml_path.parent()?.file_name()?.to_str()?;
             config_dir.split_once(".")?.1.parse().ok()
         }
 

@@ -10,8 +10,10 @@ use crate::pkcs11::Cryptoki;
 use crate::pkcs11::Pkcs11Signer;
 use crate::pkcs11::SessionParams;
 use crate::pkcs11::SigScheme;
-use crate::proxy::client::TedgeP11Client;
 use crate::CryptokiConfig;
+
+#[cfg(unix)]
+use crate::proxy::client::TedgeP11Client;
 
 /// A signer using a private key object located on the PKCS11 token.
 ///
@@ -64,21 +66,34 @@ pub fn signing_key(config: CryptokiConfig) -> anyhow::Result<Arc<dyn TedgeP11Sig
             uri,
             pin,
         } => {
-            let mut client = TedgeP11Client::with_ready_check(socket_path.into());
-            client.pin = pin;
-            Arc::new(TedgeP11ClientSigningKey { client, uri })
+            #[cfg(unix)]
+            {
+                let mut client = TedgeP11Client::with_ready_check(socket_path.into());
+                client.pin = pin;
+                Arc::new(TedgeP11ClientSigningKey { client, uri })
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = (socket_path, uri, pin);
+                anyhow::bail!(
+                    "PKCS#11 socket proxy is not supported on Windows. \
+                     Use CryptokiConfig::Direct instead."
+                );
+            }
         }
     };
 
     Ok(signing_key)
 }
 
+#[cfg(unix)]
 #[derive(Debug, Clone)]
 pub struct TedgeP11ClientSigningKey {
     pub client: TedgeP11Client,
     pub uri: Option<Arc<str>>,
 }
 
+#[cfg(unix)]
 impl TedgeP11Signer for TedgeP11ClientSigningKey {
     fn sign(&self, msg: &[u8]) -> anyhow::Result<Vec<u8>> {
         self.client
@@ -95,6 +110,7 @@ impl TedgeP11Signer for TedgeP11ClientSigningKey {
     }
 }
 
+#[cfg(unix)]
 impl SigningKey for TedgeP11ClientSigningKey {
     #[instrument(skip_all)]
     fn choose_scheme(
@@ -119,12 +135,11 @@ impl SigningKey for TedgeP11ClientSigningKey {
     }
 
     fn algorithm(&self) -> rustls::SignatureAlgorithm {
-        // here we have no choice but to panic but this is only called by servers when verifying
-        // client hello so it should never be called in our case
         self.client.algorithm().unwrap()
     }
 }
 
+#[cfg(unix)]
 #[derive(Debug, Clone)]
 pub struct TedgeP11ClientSigner {
     pub client: TedgeP11Client,
@@ -132,6 +147,7 @@ pub struct TedgeP11ClientSigner {
     pub uri: Option<Arc<str>>,
 }
 
+#[cfg(unix)]
 impl Signer for TedgeP11ClientSigner {
     fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rustls::Error> {
         let response = match self
