@@ -10,6 +10,7 @@ use http::StatusCode;
 use log::debug;
 use log::info;
 use log::warn;
+#[cfg(unix)]
 use nix::sys::statvfs;
 pub use partial_response::InvalidResponseError;
 use reqwest::header::HeaderMap;
@@ -423,27 +424,37 @@ pub fn try_pre_allocate_space(
         return Ok(());
     }
 
-    let tmpstats =
-        statvfs::fstatvfs(file).context(format!("Can't stat file descriptor for file {path:?}"))?;
+    #[cfg(unix)]
+    {
+        let tmpstats = statvfs::fstatvfs(file)
+            .context(format!("Can't stat file descriptor for file {path:?}"))?;
 
-    // Reserve 5% of total disk space
-    let five_percent_disk_space =
-        (tmpstats.blocks() as i64 * tmpstats.block_size() as i64) * 5 / 100;
-    let usable_disk_space =
-        tmpstats.blocks_free() as i64 * tmpstats.block_size() as i64 - five_percent_disk_space;
+        // Reserve 5% of total disk space
+        let five_percent_disk_space =
+            (tmpstats.blocks() as i64 * tmpstats.block_size() as i64) * 5 / 100;
+        let usable_disk_space =
+            tmpstats.blocks_free() as i64 * tmpstats.block_size() as i64 - five_percent_disk_space;
 
-    if file_len >= usable_disk_space.max(0) as u64 {
-        return Err(DownloadError::InsufficientSpace);
+        if file_len >= usable_disk_space.max(0) as u64 {
+            return Err(DownloadError::InsufficientSpace);
+        }
+
+        // Reserve diskspace
+        #[cfg(target_os = "linux")]
+        let _ = fallocate(
+            file,
+            FallocateFlags::empty(),
+            0,
+            file_len.try_into().expect("file too large to fit in i64"),
+        );
     }
 
-    // Reserve diskspace
-    #[cfg(target_os = "linux")]
-    let _ = fallocate(
-        file,
-        FallocateFlags::empty(),
-        0,
-        file_len.try_into().expect("file too large to fit in i64"),
-    );
+    #[cfg(not(unix))]
+    {
+        // Disk space pre-allocation (statvfs/fallocate) is not available on Windows.
+        // Skip the check — downloads will proceed without pre-allocation.
+        let _ = (file, path, file_len);
+    }
 
     Ok(())
 }

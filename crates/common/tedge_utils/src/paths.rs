@@ -602,20 +602,32 @@ pub fn ok_if_not_found(err: std::io::Error) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use crate::file::FileError;
-    use nix::unistd::Uid;
-    use std::os::unix::fs::PermissionsExt;
     use tedge_test_utils::fs::TempTedgeDir;
+
+    #[cfg(unix)]
+    use nix::unistd::Uid;
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
     use uzers::get_group_by_gid;
 
     fn current_owner() -> Owner {
-        let user = whoami::username();
-        let gid = nix::unistd::getgid().as_raw();
-        let group = get_group_by_gid(gid)
-            .expect("group must exist")
-            .name()
-            .to_string_lossy()
-            .into_owned();
-        Owner::user_group(user, group)
+        #[cfg(unix)]
+        {
+            let user = whoami::username();
+            let gid = nix::unistd::getgid().as_raw();
+            let group = get_group_by_gid(gid)
+                .expect("group must exist")
+                .name()
+                .to_string_lossy()
+                .into_owned();
+            Owner::user_group(user, group)
+        }
+        #[cfg(not(unix))]
+        {
+            // On Windows, skip ownership management — permission setting is a no-op.
+            Owner::user_group("", "")
+        }
     }
 
     #[test]
@@ -651,6 +663,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix mode bits not applicable on Windows")]
     async fn ensure_creates_missing_managed_directories_with_default_mode() {
         let ttd = TempTedgeDir::new();
         let root = ttd.utf8_path();
@@ -671,6 +684,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix mode bits not applicable on Windows")]
     async fn group_writable_sets_group_write_bit() {
         let ttd = TempTedgeDir::new();
         let root = ttd.utf8_path();
@@ -712,6 +726,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix mode bits not applicable on Windows")]
     async fn respect_existing_leaves_existing_directory_mode_unchanged() {
         let ttd = TempTedgeDir::new();
         let existing = ttd.dir("operations");
@@ -826,6 +841,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix mode bits not applicable on Windows")]
     async fn file_create_if_missing_sets_mode() {
         let ttd = TempTedgeDir::new();
         let root = ttd.utf8_path();
@@ -861,6 +877,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix user lookup not available on Windows")]
     async fn file_create_if_missing_with_wrong_user() {
         let ttd = TempTedgeDir::new();
         let owner = current_owner();
@@ -879,6 +896,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix user lookup not available on Windows")]
     async fn ensure_with_wrong_user() {
         let ttd = TempTedgeDir::new();
         let owner = current_owner();
@@ -897,7 +915,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix uid/ownership checks not applicable on Windows")]
     async fn ensure_reports_the_failing_ancestor_path() {
+        #[cfg(unix)]
         if Uid::current().is_root() {
             return;
         }
@@ -942,6 +962,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     async fn replace_atomic_preserves_symlink_following_behavior() {
         let ttd = TempTedgeDir::new();
         let root = ttd.utf8_path();
@@ -950,7 +971,10 @@ mod tests {
             .file("c8y-bridge.conf")
             .with_raw_content("before");
         let link = root.join("bridge-link.conf");
+        #[cfg(unix)]
         std::os::unix::fs::symlink(bridge_conf.path(), &link).unwrap();
+        #[cfg(not(unix))]
+        std::os::windows::fs::symlink_file(bridge_conf.path(), &link).unwrap();
 
         let owner = current_owner();
         let config_root =
@@ -1111,7 +1135,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix uid/ownership checks not applicable on Windows")]
     async fn template_persistence_can_warn_and_ignore_owner_or_mode_errors() {
+        #[cfg(unix)]
         if Uid::current().is_root() {
             return;
         }
@@ -1203,6 +1229,7 @@ mod tests {
         assert_eq!(c8y.owner(), &Owner::user_group("mosquitto", "mosquitto"));
     }
 
+    #[cfg(unix)]
     async fn mode_bits(path: impl AsRef<std::path::Path>) -> u32 {
         tokio::fs::metadata(path.as_ref())
             .await

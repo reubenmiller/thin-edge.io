@@ -1,15 +1,21 @@
 use futures::TryFutureExt;
-use nix::unistd::*;
 use std::io::Error;
-use std::os::unix::fs::MetadataExt;
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::path::PathBuf;
 use tokio::fs;
 use tokio::io;
 use tokio::io::AsyncWriteExt as _;
 use tracing::debug;
+
+#[cfg(unix)]
+use nix::unistd::*;
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
 use uzers::get_group_by_name;
+#[cfg(unix)]
 use uzers::get_user_by_name;
 
 #[derive(thiserror::Error, Debug)]
@@ -99,11 +105,17 @@ pub async fn move_file(
 
     let original_permission_mode = match dest_path.is_file() {
         true => {
-            let metadata = get_metadata(src_path)
-                .await
-                .map_err(|err| FileMoveError::new(src_path, dest_path, err))?;
-            let mode = metadata.permissions().mode();
-            Some(mode)
+            #[cfg(unix)]
+            {
+                let metadata = get_metadata(src_path)
+                    .await
+                    .map_err(|err| FileMoveError::new(src_path, dest_path, err))?;
+                Some(metadata.permissions().mode())
+            }
+            #[cfg(not(unix))]
+            {
+                None
+            }
         }
         false => None,
     };
@@ -326,41 +338,47 @@ pub async fn change_user_and_group(
 }
 
 fn change_user_and_group_sync(path: &Path, user: &str, group: &str) -> Result<(), FileError> {
-    match (user, group) {
-        ("", "") => return Ok(()),
-        ("", group) => return change_group_sync(path, group),
-        (user, "") => return change_user_sync(path, user),
-        _ => {}
-    }
-    let metadata = get_metadata_sync(path)?;
-    debug!("Changing ownership of path: {path:?} with user: {user} and group: {group}",);
-    let ud = get_user_by_name(&user)
-        .map(|u| u.uid())
-        .ok_or_else(|| FileError::UserNotFound {
-            user: user.to_owned(),
-        })?;
+    #[cfg(unix)]
+    {
+        match (user, group) {
+            ("", "") => return Ok(()),
+            ("", group) => return change_group_sync(path, group),
+            (user, "") => return change_user_sync(path, user),
+            _ => {}
+        }
+        let metadata = get_metadata_sync(path)?;
+        debug!("Changing ownership of path: {path:?} with user: {user} and group: {group}",);
+        let ud = get_user_by_name(&user)
+            .map(|u| u.uid())
+            .ok_or_else(|| FileError::UserNotFound {
+                user: user.to_owned(),
+            })?;
 
-    let uid = metadata.uid();
+        let uid = metadata.uid();
 
-    let gd =
-        get_group_by_name(&group)
+        let gd = get_group_by_name(&group)
             .map(|g| g.gid())
             .ok_or_else(|| FileError::GroupNotFound {
                 group: group.to_owned(),
             })?;
 
-    let gid = metadata.gid();
+        let gid = metadata.gid();
 
-    // if user and group are same as existing, then do not change
-    if (ud != uid) || (gd != gid) {
-        chown(path, Some(Uid::from_raw(ud)), Some(Gid::from_raw(gd))).map_err(|e| {
-            FileError::MetaDataError {
-                name: path.display().to_string(),
-                from: e.into(),
-            }
-        })?;
+        // if user and group are same as existing, then do not change
+        if (ud != uid) || (gd != gid) {
+            chown(path, Some(Uid::from_raw(ud)), Some(Gid::from_raw(gd))).map_err(|e| {
+                FileError::MetaDataError {
+                    name: path.display().to_string(),
+                    from: e.into(),
+                }
+            })?;
+        }
     }
-
+    #[cfg(not(unix))]
+    {
+        // Ownership management is not supported on Windows; silently skip.
+        let _ = (path, user, group);
+    }
     Ok(())
 }
 
@@ -373,22 +391,28 @@ async fn change_user(file: impl Into<PathBuf>, user: impl Into<String>) -> Resul
 }
 
 fn change_user_sync(file: impl AsRef<Path>, user: &str) -> Result<(), FileError> {
-    let file = file.as_ref();
-    let metadata = get_metadata_sync(file)?;
-    let ud = get_user_by_name(user)
-        .map(|u| u.uid())
-        .ok_or_else(|| FileError::UserNotFound { user: user.into() })?;
+    #[cfg(unix)]
+    {
+        let file = file.as_ref();
+        let metadata = get_metadata_sync(file)?;
+        let ud = get_user_by_name(user)
+            .map(|u| u.uid())
+            .ok_or_else(|| FileError::UserNotFound { user: user.into() })?;
 
-    let uid = metadata.uid();
+        let uid = metadata.uid();
 
-    // if user is same as existing, then do not change
-    if ud != uid {
-        chown(file, Some(Uid::from_raw(ud)), None).map_err(|e| FileError::MetaDataError {
-            name: file.display().to_string(),
-            from: e.into(),
-        })?;
+        // if user is same as existing, then do not change
+        if ud != uid {
+            chown(file, Some(Uid::from_raw(ud)), None).map_err(|e| FileError::MetaDataError {
+                name: file.display().to_string(),
+                from: e.into(),
+            })?;
+        }
     }
-
+    #[cfg(not(unix))]
+    {
+        let _ = (file, user);
+    }
     Ok(())
 }
 
@@ -401,24 +425,30 @@ async fn change_group(file: impl Into<PathBuf>, group: impl Into<String>) -> Res
 }
 
 fn change_group_sync(file: impl AsRef<Path>, group: &str) -> Result<(), FileError> {
-    let file = file.as_ref();
-    let metadata = get_metadata_sync(file)?;
-    let gd = get_group_by_name(group)
-        .map(|g| g.gid())
-        .ok_or_else(|| FileError::GroupNotFound {
-            group: group.to_owned(),
-        })?;
+    #[cfg(unix)]
+    {
+        let file = file.as_ref();
+        let metadata = get_metadata_sync(file)?;
+        let gd = get_group_by_name(group)
+            .map(|g| g.gid())
+            .ok_or_else(|| FileError::GroupNotFound {
+                group: group.to_owned(),
+            })?;
 
-    let gid = metadata.gid();
+        let gid = metadata.gid();
 
-    // if group is same as existing, then do not change
-    if gd != gid {
-        chown(file, None, Some(Gid::from_raw(gd))).map_err(|e| FileError::MetaDataError {
-            name: file.display().to_string(),
-            from: e.into(),
-        })?;
+        // if group is same as existing, then do not change
+        if gd != gid {
+            chown(file, None, Some(Gid::from_raw(gd))).map_err(|e| FileError::MetaDataError {
+                name: file.display().to_string(),
+                from: e.into(),
+            })?;
+        }
     }
-
+    #[cfg(not(unix))]
+    {
+        let _ = (file, group);
+    }
     Ok(())
 }
 
@@ -430,23 +460,31 @@ async fn change_mode(file: impl AsRef<Path>, mode: u32) -> Result<(), FileError>
 }
 
 fn change_mode_sync(file: impl AsRef<Path>, mode: u32) -> Result<(), FileError> {
-    let file = file.as_ref();
-    let mut permissions = get_metadata_sync(file)?.permissions();
+    #[cfg(unix)]
+    {
+        let file = file.as_ref();
+        let mut permissions = get_metadata_sync(file)?.permissions();
 
-    if permissions.mode() & 0o777 != mode {
-        permissions.set_mode(mode);
-        debug!("Setting mode of {} to {mode:0o}", file.display());
-        std::fs::set_permissions(file, permissions).map_err(|e| FileError::ChangeModeError {
-            name: file.display().to_string(),
-            from: e,
-        })
-    } else {
-        debug!(
-            "Not changing mode of {} as it is already {mode:0o}",
-            file.display()
-        );
-        Ok(())
+        if permissions.mode() & 0o777 != mode {
+            permissions.set_mode(mode);
+            debug!("Setting mode of {} to {mode:0o}", file.display());
+            std::fs::set_permissions(file, permissions).map_err(|e| FileError::ChangeModeError {
+                name: file.display().to_string(),
+                from: e,
+            })?;
+        } else {
+            debug!(
+                "Not changing mode of {} as it is already {mode:0o}",
+                file.display()
+            );
+        }
     }
+    #[cfg(not(unix))]
+    {
+        // chmod-style mode bits are not supported on Windows.
+        let _ = (file, mode);
+    }
+    Ok(())
 }
 
 /// Return metadata when the given path exists and accessible by user
@@ -471,22 +509,38 @@ pub async fn create_symlink(
     link: impl AsRef<Path>,
 ) -> Result<(), FileError> {
     let link = link.as_ref();
-    match fs::symlink(&original, &link).await {
+    let original = original.as_ref();
+
+    #[cfg(unix)]
+    let result = fs::symlink(original, link).await;
+
+    // On Windows, symlinks to files and directories require separate APIs.
+    // Symlink creation also requires Developer Mode or elevated privileges.
+    #[cfg(windows)]
+    let result = tokio::fs::symlink_file(original, link).await;
+
+    #[cfg(not(any(unix, windows)))]
+    let result: std::io::Result<()> =
+        Err(std::io::Error::other("symlinks not supported on this platform"));
+
+    match result {
         Ok(_) => Ok(()),
-        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => match fs::read_link(&link).await {
-            Ok(path) if path == original.as_ref() => Ok(()),
-            Ok(_) => Err(FileError::CreateSymlinkFailed {
-                link: link.to_owned(),
-                source: Error::other(format!(
-                    "symlink exists but does not point to {:?}",
-                    original.as_ref()
-                )),
-            }),
-            Err(e) => Err(FileError::CreateSymlinkFailed {
-                link: link.to_owned(),
-                source: e,
-            }),
-        },
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+            match fs::read_link(link).await {
+                Ok(path) if path == original => Ok(()),
+                Ok(_) => Err(FileError::CreateSymlinkFailed {
+                    link: link.to_owned(),
+                    source: Error::other(format!(
+                        "symlink exists but does not point to {:?}",
+                        original
+                    )),
+                }),
+                Err(e) => Err(FileError::CreateSymlinkFailed {
+                    link: link.to_owned(),
+                    source: e,
+                }),
+            }
+        }
         Err(e) => Err(FileError::CreateSymlinkFailed {
             link: link.to_owned(),
             source: e,
@@ -498,30 +552,37 @@ pub async fn create_symlink(
 mod tests {
     use super::*;
     use crate::paths::TedgePaths;
-    use std::os::unix::fs::PermissionsExt;
     use tedge_test_utils::fs::TempTedgeDir;
 
     #[tokio::test]
+    #[cfg_attr(
+        not(unix),
+        ignore = "Unix file permission mode bits are not applicable on Windows"
+    )]
     async fn change_file_permissions() {
-        let ttd = TempTedgeDir::new();
-        let file_path = ttd.path().join("file");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let ttd = TempTedgeDir::new();
+            let file_path = ttd.path().join("file");
 
-        TedgePaths::from_root_with_defaults(ttd.utf8_path(), "", "")
-            .file("file")
-            .unwrap()
-            .with_mode(0o644)
-            .create_if_missing("")
-            .await
-            .unwrap();
+            TedgePaths::from_root_with_defaults(ttd.utf8_path(), "", "")
+                .file("file")
+                .unwrap()
+                .with_mode(0o644)
+                .create_if_missing("")
+                .await
+                .unwrap();
 
-        let meta = fs::metadata(&file_path).await.unwrap();
-        assert_eq!(meta.permissions().mode() & 0o777, 0o644);
+            let meta = fs::metadata(&file_path).await.unwrap();
+            assert_eq!(meta.permissions().mode() & 0o777, 0o644);
 
-        let permission_set = PermissionEntry::new(None, None, Some(0o444));
-        permission_set.apply(&file_path).await.unwrap();
+            let permission_set = PermissionEntry::new(None, None, Some(0o444));
+            permission_set.apply(&file_path).await.unwrap();
 
-        let meta = fs::metadata(&file_path).await.unwrap();
-        assert_eq!(meta.permissions().mode() & 0o777, 0o444);
+            let meta = fs::metadata(&file_path).await.unwrap();
+            assert_eq!(meta.permissions().mode() & 0o777, 0o444);
+        }
     }
 
     #[tokio::test]
@@ -538,6 +599,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     async fn create_new_symlink() {
         let ttd = TempTedgeDir::new();
         let source_path = ttd.path().join("source_file");

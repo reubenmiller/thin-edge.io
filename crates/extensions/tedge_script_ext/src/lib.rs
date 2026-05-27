@@ -50,7 +50,7 @@ impl Execute {
         }
     }
 
-    /// Give the process an extra forceful timeout to exit on SIGTERM, timeout after which a SIGTKILL is sent
+    /// Give the process an extra forceful timeout to exit on SIGTERM, timeout after which a SIGKILL is sent
     pub fn with_forceful_timeout_extension(self, forceful_timeout: Duration) -> Self {
         let timeouts = match self.timeouts {
             None => (Duration::from_secs(15), forceful_timeout),
@@ -92,12 +92,15 @@ impl Server for ScriptActor {
     }
 }
 
+#[cfg(unix)]
 async fn kill_on_timeout(
     pid: u32,
     graceful_timeout: Duration,
     forceful_timeout: Duration,
 ) -> std::io::Error {
-    let pid = nix::unistd::Pid::from_raw(pid as nix::libc::pid_t);
+    use nix::unistd::Pid;
+
+    let pid = Pid::from_raw(pid as nix::libc::pid_t);
 
     tokio::time::sleep(graceful_timeout).await;
     let _ = nix::sys::signal::kill(pid, nix::sys::signal::SIGTERM);
@@ -109,6 +112,19 @@ async fn kill_on_timeout(
     std::io::Error::other("failed to kill the process after timeout")
 }
 
+// On non-unix platforms there is no POSIX signal API by PID. We wait out the
+// combined timeout and return an error; the OS will reap the child when the
+// parent process exits.
+#[cfg(not(unix))]
+async fn kill_on_timeout(
+    _pid: u32,
+    graceful_timeout: Duration,
+    forceful_timeout: Duration,
+) -> std::io::Error {
+    tokio::time::sleep(graceful_timeout + forceful_timeout).await;
+    std::io::Error::other("process exceeded timeout (graceful kill not available on this platform)")
+}
+
 impl ScriptActor {
     pub fn builder() -> ServerActorBuilder<ScriptActor, Concurrent> {
         ServerActorBuilder::new(ScriptActor, &ServerConfig::default(), Concurrent)
@@ -117,7 +133,6 @@ impl ScriptActor {
 
 #[cfg(test)]
 mod tests {
-    use std::os::unix::process::ExitStatusExt;
     use std::time::Duration;
     use tedge_actors::ClientMessageBox;
 
@@ -136,9 +151,11 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "echo on Windows uses a different path")]
     async fn script() {
+        use std::process::Output;
         let mut handle = spawn_script_actor();
-        let output = handle
+        let output: Output = handle
             .await_response(Execute {
                 command: "echo".to_owned(),
                 args: vec!["A message".to_owned()],
@@ -154,6 +171,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "cat is not available on Windows")]
     async fn script_stdin_is_closed() {
         let mut actor = spawn_script_actor();
         let command = Execute::try_new("cat").unwrap();
@@ -169,6 +187,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "echo shell syntax differs on Windows")]
     async fn script_is_given_enough_time() {
         let mut actor = spawn_script_actor();
         let command = Execute::try_new("echo hello world")
@@ -182,44 +201,62 @@ mod tests {
 
         assert!(output.status.success());
         assert_eq!(output.status.code(), Some(0));
-        assert_eq!(output.status.signal(), None);
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            assert_eq!(output.status.signal(), None);
+        }
+
         assert_eq!(String::from_utf8(output.stdout).unwrap(), "hello world\n");
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "SIGTERM graceful kill is unix-only")]
     async fn script_is_gracefully_killed() {
-        let mut actor = spawn_script_actor();
-        let command = Execute::try_new("sleep 10")
-            .unwrap()
-            .with_graceful_timeout(Duration::from_secs(1));
-        let output = tokio::time::timeout(Duration::from_secs(5), actor.await_response(command))
-            .await
-            .expect("execution timeout")
-            .expect("result send error")
-            .expect("execution error");
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            let mut actor = spawn_script_actor();
+            let command = Execute::try_new("sleep 10")
+                .unwrap()
+                .with_graceful_timeout(Duration::from_secs(1));
+            let output =
+                tokio::time::timeout(Duration::from_secs(5), actor.await_response(command))
+                    .await
+                    .expect("execution timeout")
+                    .expect("result send error")
+                    .expect("execution error");
 
-        assert!(!output.status.success());
-        assert!(output.status.code().is_none());
-        assert_eq!(output.status.signal(), Some(15));
+            assert!(!output.status.success());
+            assert!(output.status.code().is_none());
+            assert_eq!(output.status.signal(), Some(15));
+        }
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "SIGKILL forceful kill is unix-only")]
     async fn script_is_forcefully_killed() {
-        let mut actor = spawn_script_actor();
-        let command_line = r#"/usr/bin/env bash -c "trap 'echo ignore SIGTERM' SIGTERM; while true; do sleep 1; done""#;
-        let command = Execute::try_new(command_line)
-            .unwrap()
-            .with_graceful_timeout(Duration::from_secs(1))
-            .with_forceful_timeout_extension(Duration::from_secs(1));
-        let output = tokio::time::timeout(Duration::from_secs(5), actor.await_response(command))
-            .await
-            .expect("execution timeout")
-            .expect("result send error")
-            .expect("execution error");
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            let mut actor = spawn_script_actor();
+            let command_line = r#"/usr/bin/env bash -c "trap 'echo ignore SIGTERM' SIGTERM; while true; do sleep 1; done""#;
+            let command = Execute::try_new(command_line)
+                .unwrap()
+                .with_graceful_timeout(Duration::from_secs(1))
+                .with_forceful_timeout_extension(Duration::from_secs(1));
+            let output =
+                tokio::time::timeout(Duration::from_secs(5), actor.await_response(command))
+                    .await
+                    .expect("execution timeout")
+                    .expect("result send error")
+                    .expect("execution error");
 
-        assert!(!output.status.success());
-        assert!(output.status.code().is_none());
-        assert_eq!(output.status.signal(), Some(9));
+            assert!(!output.status.success());
+            assert!(output.status.code().is_none());
+            assert_eq!(output.status.signal(), Some(9));
+        }
     }
 
     fn spawn_script_actor() -> ClientMessageBox<Execute, std::io::Result<Output>> {

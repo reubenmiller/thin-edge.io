@@ -147,15 +147,31 @@ fn get_permissions(
         .map(|m| u32::from_str_radix(&m, 8).with_context(|| format!("invalid mode: {m}")))
         .transpose()?;
 
-    let uid = user
-        .map(|u| uzers::get_user_by_name(&*u).with_context(|| format!("no such user: '{u}'")))
-        .transpose()?
-        .map(|u| u.uid());
+    #[cfg(unix)]
+    let (uid, gid) = {
+        let uid = user
+            .map(|u| {
+                uzers::get_user_by_name(&*u).with_context(|| format!("no such user: '{u}'"))
+            })
+            .transpose()?
+            .map(|u| u.uid());
 
-    let gid = group
-        .map(|g| uzers::get_group_by_name(&*g).with_context(|| format!("no such group: '{g}'")))
-        .transpose()?
-        .map(|g| g.gid());
+        let gid = group
+            .map(|g| {
+                uzers::get_group_by_name(&*g).with_context(|| format!("no such group: '{g}'"))
+            })
+            .transpose()?
+            .map(|g| g.gid());
+
+        (uid, gid)
+    };
+
+    #[cfg(not(unix))]
+    let (uid, gid) = {
+        // User/group ownership is not supported on Windows.
+        let _ = (user, group);
+        (None::<u32>, None::<u32>)
+    };
 
     Ok(MaybePermissions { uid, gid, mode })
 }

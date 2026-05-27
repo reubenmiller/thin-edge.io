@@ -15,9 +15,6 @@
 
 use std::io::ErrorKind;
 use std::io::Read;
-use std::os::unix::fs::fchown;
-use std::os::unix::fs::MetadataExt;
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 use crate::file::PermissionEntry;
@@ -37,53 +34,79 @@ pub fn write_file_atomic_set_permissions_if_doesnt_exist(
 ) -> anyhow::Result<()> {
     let dest = dest.as_ref();
 
-    let target_permissions = target_permissions(dest, permissions)
-        .context("failed to compute target permissions of the file")?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::fchown;
+        use std::os::unix::fs::MetadataExt;
+        use std::os::unix::fs::PermissionsExt;
 
-    // TODO: create tests to ensure writes we expect are atomic
-    let mut tempfile = tempfile::Builder::new()
-        .permissions(std::fs::Permissions::from_mode(0o600))
-        .tempfile_in(dest.parent().context("invalid path")?)
-        .with_context(|| {
-            format!(
-                "could not create temporary file at '{}'",
-                dest.to_string_lossy()
-            )
-        })?;
+        let target_permissions = target_permissions_unix(dest, permissions)
+            .context("failed to compute target permissions of the file")?;
 
-    std::io::copy(&mut src, &mut tempfile).context("failed to copy")?;
+        // TODO: create tests to ensure writes we expect are atomic
+        let mut tempfile = tempfile::Builder::new()
+            .permissions(std::fs::Permissions::from_mode(0o600))
+            .tempfile_in(dest.parent().context("invalid path")?)
+            .with_context(|| {
+                format!(
+                    "could not create temporary file at '{}'",
+                    dest.to_string_lossy()
+                )
+            })?;
 
-    tempfile
-        .as_file()
-        .set_permissions(std::fs::Permissions::from_mode(target_permissions.mode))
-        .context("failed to set mode on the destination file")?;
+        std::io::copy(&mut src, &mut tempfile).context("failed to copy")?;
 
-    fchown(
-        tempfile.as_file(),
-        Some(target_permissions.uid),
-        Some(target_permissions.gid),
-    )
-    .context("failed to change ownership of the destination file")?;
+        tempfile
+            .as_file()
+            .set_permissions(std::fs::Permissions::from_mode(target_permissions.mode))
+            .context("failed to set mode on the destination file")?;
 
-    tempfile.as_file().sync_all()?;
+        fchown(
+            tempfile.as_file(),
+            Some(target_permissions.uid),
+            Some(target_permissions.gid),
+        )
+        .context("failed to change ownership of the destination file")?;
 
-    tempfile
-        .persist(dest)
-        .context("failed to persist temporary file at destination")?;
+        tempfile.as_file().sync_all()?;
+
+        tempfile
+            .persist(dest)
+            .context("failed to persist temporary file at destination")?;
+    }
+
+    #[cfg(not(unix))]
+    {
+        // On Windows, write to a temp file then rename — no chown/chmod support.
+        let mut tempfile = tempfile::Builder::new()
+            .tempfile_in(dest.parent().context("invalid path")?)
+            .with_context(|| {
+                format!(
+                    "could not create temporary file at '{}'",
+                    dest.to_string_lossy()
+                )
+            })?;
+
+        std::io::copy(&mut src, &mut tempfile).context("failed to copy")?;
+        tempfile.as_file().sync_all()?;
+        tempfile
+            .persist(dest)
+            .context("failed to persist temporary file at destination")?;
+        let _ = permissions; // permission setting is not applicable on Windows
+    }
 
     Ok(())
 }
 
-/// Computes target permissions for the file.
-///
-/// - if file exists preserve current permissions
-/// - if it doesn't exist apply permissions from `permissions` if they are defined
-/// - set to root:root with default umask otherwise
-///
-/// # Errors
-/// - if desired user/group doesn't exist on the system
-/// - no permission to read destination file
-fn target_permissions(dest: &Path, permissions: &MaybePermissions) -> anyhow::Result<Permissions> {
+/// Computes target permissions for the file on unix.
+#[cfg(unix)]
+fn target_permissions_unix(
+    dest: &Path,
+    permissions: &MaybePermissions,
+) -> anyhow::Result<UnixPermissions> {
+    use std::os::unix::fs::MetadataExt;
+    use std::os::unix::fs::PermissionsExt;
+
     let current_file_permissions = match std::fs::metadata(dest) {
         Err(err) => match err.kind() {
             ErrorKind::NotFound => None,
@@ -110,7 +133,14 @@ fn target_permissions(dest: &Path, permissions: &MaybePermissions) -> anyhow::Re
         .or(permissions.mode)
         .unwrap_or(0o644);
 
-    Ok(Permissions { uid, gid, mode })
+    Ok(UnixPermissions { uid, gid, mode })
+}
+
+#[cfg(unix)]
+struct UnixPermissions {
+    uid: u32,
+    gid: u32,
+    mode: u32,
 }
 
 #[derive(Debug)]
@@ -124,26 +154,36 @@ impl TryFrom<&PermissionEntry> for MaybePermissions {
     type Error = anyhow::Error;
 
     fn try_from(value: &PermissionEntry) -> Result<Self, Self::Error> {
-        let uid = value
-            .user
-            .as_ref()
-            .map(|u| uzers::get_user_by_name(&u).with_context(|| format!("no such user: '{u}'")))
-            .transpose()?
-            .map(|u| u.uid());
-        let gid = value
-            .group
-            .as_ref()
-            .map(|g| uzers::get_group_by_name(&g).with_context(|| format!("no such group: '{g}'")))
-            .transpose()?
-            .map(|g| g.gid());
-        let mode = value.mode;
+        #[cfg(unix)]
+        let (uid, gid) = {
+            let uid = value
+                .user
+                .as_ref()
+                .map(|u| {
+                    uzers::get_user_by_name(&u)
+                        .with_context(|| format!("no such user: '{u}'"))
+                })
+                .transpose()?
+                .map(|u| u.uid());
+            let gid = value
+                .group
+                .as_ref()
+                .map(|g| {
+                    uzers::get_group_by_name(&g)
+                        .with_context(|| format!("no such group: '{g}'"))
+                })
+                .transpose()?
+                .map(|g| g.gid());
+            (uid, gid)
+        };
 
-        Ok(Self { uid, gid, mode })
+        #[cfg(not(unix))]
+        let (uid, gid) = (None, None);
+
+        Ok(Self {
+            uid,
+            gid,
+            mode: value.mode,
+        })
     }
-}
-
-struct Permissions {
-    uid: u32,
-    gid: u32,
-    mode: u32,
 }
