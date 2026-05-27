@@ -11,10 +11,12 @@ repository = { workspace = true }
 
 [dependencies]
 async-trait = { workspace = true }
-nix = { workspace = true }
 shell-words = { workspace = true }
 tedge_actors = { workspace = true }
 tokio = { workspace = true, default_features = false, features = ["process"] }
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, default_features = false, features = [

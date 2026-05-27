@@ -18,8 +18,10 @@ clap.workspace = true
 path-clean.workspace = true
 tedge_config.workspace = true
 tedge_utils.workspace = true
-uzers.workspace = true
 which.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+uzers.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

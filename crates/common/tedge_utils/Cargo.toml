@@ -23,7 +23,6 @@ camino = { workspace = true }
 doku = { workspace = true }
 futures = { workspace = true }
 mqtt_channel = { workspace = true }
-nix = { workspace = true }
 notify = { workspace = true, optional = true }
 notify-debouncer-full = { workspace = true, optional = true }
 pin-project = { workspace = true }
@@ -48,6 +47,8 @@ tokio = { workspace = true, default_features = false, features = [
     "time",
 ] }
 tracing = { workspace = true }
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true }
 uzers = { workspace = true }
 
 [dev-dependencies]

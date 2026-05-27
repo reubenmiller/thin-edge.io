@@ -30,6 +30,8 @@ thiserror = { workspace = true }
 time = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
 uzers = { workspace = true }
 
 [dev-dependencies]

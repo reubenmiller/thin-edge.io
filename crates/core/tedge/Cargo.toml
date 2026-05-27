@@ -34,7 +34,6 @@ hyper = { workspace = true, default-features = false }
 mime_guess = { workspace = true }
 mqtt_channel = { workspace = true }
 mutants = { workspace = true }
-nix = { workspace = true }
 pad = { workspace = true }
 pem.workspace = true
 rasn = { workspace = true }
@@ -73,9 +72,12 @@ toml = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 url = { workspace = true }
-uzers = { workspace = true }
 which = { workspace = true }
 yansi = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true }
+uzers = { workspace = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
