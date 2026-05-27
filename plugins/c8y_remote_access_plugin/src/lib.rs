@@ -359,6 +359,7 @@ fn build_proxy_url(cumulocity_host: &str, key: &str) -> miette::Result<Url> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
     use tedge_test_utils::fs::TempTedgeDir;
 
@@ -401,6 +402,7 @@ mod tests {
 
         let path = ttd.path().join("operations/c8y/c8y_RemoteAccessConnect");
         assert!(path.exists());
+        #[cfg(unix)]
         assert_eq!(
             std::fs::metadata(path).unwrap().permissions().mode() & 0o777,
             0o644
@@ -426,42 +428,58 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix permission bits not applicable on Windows")]
     async fn init_does_not_modify_existing_shared_directory_permissions() {
-        let ttd = TempTedgeDir::new();
-        ttd.file("tedge.toml").with_raw_content("");
-        let ops_dir = ttd.dir("operations").dir("c8y");
-        std::fs::set_permissions(ops_dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
-        let config = TEdgeConfig::load(ttd.path()).await.unwrap();
-
-        declare_supported_operation(&config, &whoami::username(), &whoami::username())
-            .await
+        #[cfg(unix)]
+        {
+            let ttd = TempTedgeDir::new();
+            ttd.file("tedge.toml").with_raw_content("");
+            let ops_dir = ttd.dir("operations").dir("c8y");
+            std::fs::set_permissions(
+                ops_dir.path(),
+                std::fs::Permissions::from_mode(0o700),
+            )
             .unwrap();
+            let config = TEdgeConfig::load(ttd.path()).await.unwrap();
 
-        let mode = std::fs::metadata(ops_dir.path())
-            .unwrap()
-            .permissions()
-            .mode();
-        assert_eq!(mode & 0o777, 0o700);
+            declare_supported_operation(&config, &whoami::username(), &whoami::username())
+                .await
+                .unwrap();
+
+            let mode = std::fs::metadata(ops_dir.path())
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o700);
+        }
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix permission bits not applicable on Windows")]
     async fn init_does_not_modify_existing_operations_directory_permissions() {
-        let ttd = TempTedgeDir::new();
-        ttd.file("tedge.toml").with_raw_content("");
-        let ops_dir = ttd.dir("operations");
-        std::fs::set_permissions(ops_dir.path(), std::fs::Permissions::from_mode(0o701)).unwrap();
-        let config = TEdgeConfig::load(ttd.path()).await.unwrap();
-
-        declare_supported_operation(&config, &whoami::username(), &whoami::username())
-            .await
+        #[cfg(unix)]
+        {
+            let ttd = TempTedgeDir::new();
+            ttd.file("tedge.toml").with_raw_content("");
+            let ops_dir = ttd.dir("operations");
+            std::fs::set_permissions(
+                ops_dir.path(),
+                std::fs::Permissions::from_mode(0o701),
+            )
             .unwrap();
+            let config = TEdgeConfig::load(ttd.path()).await.unwrap();
 
-        let mode = std::fs::metadata(ops_dir.path())
-            .unwrap()
-            .permissions()
-            .mode();
-        assert_eq!(mode & 0o777, 0o701);
-        assert!(ttd.path().join("operations/c8y").is_dir());
+            declare_supported_operation(&config, &whoami::username(), &whoami::username())
+                .await
+                .unwrap();
+
+            let mode = std::fs::metadata(ops_dir.path())
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o701);
+            assert!(ttd.path().join("operations/c8y").is_dir());
+        }
     }
 
     fn create_example_operation(dir: &Utf8Path) -> Utf8PathBuf {

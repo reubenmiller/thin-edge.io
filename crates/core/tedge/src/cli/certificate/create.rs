@@ -10,6 +10,7 @@ use certificate::CsrTemplate;
 use certificate::KeyCertPair;
 use certificate::KeyKind;
 use certificate::PemCertificate;
+#[cfg(unix)]
 use std::fs::Permissions;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;

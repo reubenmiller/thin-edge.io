@@ -52,6 +52,7 @@ mod tests {
             .await
             .unwrap();
 
+        #[cfg(unix)]
         let metadata = tokio::fs::metadata(
             ttd.path()
                 .join(TEDGE_BRIDGE_CONF_DIR_PATH)

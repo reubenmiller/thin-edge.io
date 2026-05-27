@@ -39,6 +39,7 @@ impl TEdgeInitCmd {
 
         let executable_name =
             std::env::current_exe().context("retrieving the current executable name")?;
+        #[cfg(unix)]
         let stat = tokio::fs::metadata(&executable_name)
             .await
             .with_context(|| {
