@@ -1,9 +1,14 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use rustls::sign::Signer;
 use rustls::sign::SigningKey;
+
+// These are only used by the unix-only proxy client signing path.
+#[cfg(unix)]
+use rustls::sign::Signer;
+#[cfg(unix)]
 use tracing::error;
+#[cfg(unix)]
 use tracing::instrument;
 
 use crate::pkcs11::Cryptoki;

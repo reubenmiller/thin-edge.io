@@ -4,9 +4,12 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::fs::Permissions;
 use std::io::Write;
-use std::os::unix::fs::PermissionsExt;
-use std::os::unix::prelude::OpenOptionsExt;
 use std::path::Path;
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
+use std::os::unix::prelude::OpenOptionsExt;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -98,8 +101,14 @@ impl TempTedgeDir {
         self.current_file_path.clone().into_std_path_buf()
     }
 
-    pub fn set_mode(&self, mode: u32) {
-        std::fs::set_permissions(&self.current_file_path, Permissions::from_mode(mode)).unwrap();
+    /// Set unix permission bits. No-op on non-unix platforms.
+    pub fn set_mode(&self, _mode: u32) {
+        #[cfg(unix)]
+        std::fs::set_permissions(
+            &self.current_file_path,
+            Permissions::from_mode(_mode),
+        )
+        .unwrap();
     }
 }
 
@@ -150,12 +159,11 @@ impl TempTedgeFile {
 }
 
 pub fn with_exec_permission(file_path: impl AsRef<Path>, content: &str) {
-    let mut file = OpenOptions::new()
-        .mode(0o744)
-        .create_new(true)
-        .write(true)
-        .open(file_path)
-        .unwrap();
+    let mut builder = OpenOptions::new();
+    builder.create_new(true).write(true);
+    #[cfg(unix)]
+    builder.mode(0o744);
+    let mut file = builder.open(file_path).unwrap();
 
     file.write_all(content.as_bytes()).unwrap();
     file.flush().unwrap();
