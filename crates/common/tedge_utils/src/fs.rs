@@ -101,12 +101,17 @@ pub fn atomically_write_file_sync(
     file.persist(&dest)
         .with_context(|| "could not write to destination file".to_string(), &dest)?;
 
-    // Ensure the new name reach the disk
-    let dir = std::fs::File::open(dest_dir)
-        .with_context(|| "could not open the directory".to_string(), &dest)?;
-
-    dir.sync_all()
-        .with_context(|| "could not save the file to disk".to_string(), &dest)?;
+    // Ensure the directory entry reaches the disk.
+    // On Windows, opening a directory handle for fsync is not supported
+    // (returns Access Denied); NTFS provides sufficient durability guarantees
+    // without an explicit directory fsync.
+    #[cfg(unix)]
+    {
+        let dir = std::fs::File::open(dest_dir)
+            .with_context(|| "could not open the directory".to_string(), &dest)?;
+        dir.sync_all()
+            .with_context(|| "could not save the file to disk".to_string(), &dest)?;
+    }
 
     Ok(())
 }
@@ -160,14 +165,19 @@ pub async fn atomically_write_file_async(
     file.persist(&dest)
         .with_context(|| "could not create destination file".to_string(), &dest)?;
 
-    // Ensure the new name reach the disk
-    let dir = tokio_fs::File::open(&dest_dir)
-        .await
-        .with_context(|| "could not open the directory".to_string(), &dest)?;
-
-    dir.sync_all()
-        .await
-        .with_context(|| "could not save the file to disk".to_string(), &dest)?;
+    // Ensure the directory entry reaches the disk.
+    // On Windows, opening a directory handle for fsync is not supported
+    // (returns Access Denied); NTFS provides sufficient durability guarantees
+    // without an explicit directory fsync.
+    #[cfg(unix)]
+    {
+        let dir = tokio_fs::File::open(&dest_dir)
+            .await
+            .with_context(|| "could not open the directory".to_string(), &dest)?;
+        dir.sync_all()
+            .await
+            .with_context(|| "could not save the file to disk".to_string(), &dest)?;
+    }
 
     Ok(())
 }
