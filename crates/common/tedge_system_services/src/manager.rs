@@ -40,5 +40,11 @@ pub trait SystemServiceManager: Debug + Send + Sync {
 pub fn service_manager(
     config_root: &Utf8Path,
 ) -> Result<Arc<dyn SystemServiceManager>, SystemTomlError> {
+    #[cfg(windows)]
+    {
+        let _ = config_root; // Windows SCM needs no config file
+        return Ok(Arc::new(WindowsServiceManager::new()));
+    }
+    #[cfg(not(windows))]
     Ok(Arc::new(GeneralServiceManager::try_new(config_root)?))
 }

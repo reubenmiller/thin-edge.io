@@ -53,5 +53,8 @@ tedge_test_utils = { workspace = true }
 tempfile = { workspace = true }
 test-case = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+dirs = "5"
+
 [lints]
 workspace = true

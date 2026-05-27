@@ -37,7 +37,6 @@ pub fn write_file_atomic_set_permissions_if_doesnt_exist(
     #[cfg(unix)]
     {
         use std::os::unix::fs::fchown;
-        use std::os::unix::fs::MetadataExt;
         use std::os::unix::fs::PermissionsExt;
 
         let target_permissions = target_permissions_unix(dest, permissions)
@@ -105,7 +104,6 @@ fn target_permissions_unix(
     permissions: &MaybePermissions,
 ) -> anyhow::Result<UnixPermissions> {
     use std::os::unix::fs::MetadataExt;
-    use std::os::unix::fs::PermissionsExt;
 
     let current_file_permissions = match std::fs::metadata(dest) {
         Err(err) => match err.kind() {
