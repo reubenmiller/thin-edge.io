@@ -680,6 +680,7 @@ mod tests {
 
         assert!(root.join("operations").is_dir());
         assert!(root.join("operations/c8y").is_dir());
+        #[cfg(unix)]
         assert_eq!(mode_bits(root.join("operations/c8y")).await, 0o755);
     }
 
@@ -700,6 +701,7 @@ mod tests {
             .await
             .unwrap();
 
+        #[cfg(unix)]
         assert_eq!(mode_bits(root.join("operations")).await, 0o775);
     }
 
@@ -747,6 +749,7 @@ mod tests {
             .await
             .unwrap();
 
+        #[cfg(unix)]
         assert_eq!(mode_bits(existing.path()).await, 0o700);
     }
 
@@ -855,6 +858,7 @@ mod tests {
             .await
             .unwrap();
 
+        #[cfg(unix)]
         assert_eq!(mode_bits(root.join("system.toml")).await, 0o644);
     }
 
