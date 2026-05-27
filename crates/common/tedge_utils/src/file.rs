@@ -487,7 +487,7 @@ fn change_mode_sync(file: impl AsRef<Path>, mode: u32) -> Result<(), FileError> 
     Ok(())
 }
 
-/// Return metadata when the given path exists and accessible by user
+#[cfg(unix)]
 async fn get_metadata(path: impl AsRef<Path>) -> Result<std::fs::Metadata, FileError> {
     let path = path.as_ref();
     fs::metadata(path)
@@ -497,6 +497,7 @@ async fn get_metadata(path: impl AsRef<Path>) -> Result<std::fs::Metadata, FileE
         })
 }
 
+#[cfg(unix)]
 fn get_metadata_sync(path: impl AsRef<Path>) -> Result<std::fs::Metadata, FileError> {
     let path = path.as_ref();
     std::fs::metadata(path).map_err(|_| FileError::PathNotAccessible {

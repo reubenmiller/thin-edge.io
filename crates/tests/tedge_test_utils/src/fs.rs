@@ -2,12 +2,9 @@ use camino::Utf8Path;
 use camino::Utf8PathBuf;
 use std::fs;
 use std::fs::OpenOptions;
-use std::fs::Permissions;
 use std::io::Write;
 use std::path::Path;
 
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 #[cfg(unix)]
 use std::os::unix::prelude::OpenOptionsExt;
 use std::path::PathBuf;
@@ -102,13 +99,18 @@ impl TempTedgeDir {
     }
 
     /// Set unix permission bits. No-op on non-unix platforms.
+    /// Set unix permission bits. No-op on non-unix platforms.
     pub fn set_mode(&self, _mode: u32) {
         #[cfg(unix)]
-        std::fs::set_permissions(
-            &self.current_file_path,
-            Permissions::from_mode(_mode),
-        )
-        .unwrap();
+        {
+            use std::fs::Permissions;
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(
+                &self.current_file_path,
+                Permissions::from_mode(_mode),
+            )
+            .unwrap();
+        }
     }
 }
 

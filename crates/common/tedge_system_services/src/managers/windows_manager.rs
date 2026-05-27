@@ -79,7 +79,7 @@ impl SystemServiceManager for WindowsServiceManager {
         let output = Command::new("sc")
             .args(["query", &service.to_string()])
             .output()
-            .map_err(|e| SystemServiceError::ServiceManagerUnavailable {
+            .map_err(|_| SystemServiceError::ServiceManagerUnavailable {
                 cmd: "sc query".into(),
                 name: self.name().into(),
             })?;

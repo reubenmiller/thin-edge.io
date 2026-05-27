@@ -13,7 +13,6 @@
 //! uid/gid. To keep uid/gid the same, after the write we need to do `chown`, and to do it we need
 //! sudo.
 
-use std::io::ErrorKind;
 use std::io::Read;
 use std::path::Path;
 
@@ -103,6 +102,7 @@ fn target_permissions_unix(
     dest: &Path,
     permissions: &MaybePermissions,
 ) -> anyhow::Result<UnixPermissions> {
+    use std::io::ErrorKind;
     use std::os::unix::fs::MetadataExt;
 
     let current_file_permissions = match std::fs::metadata(dest) {
