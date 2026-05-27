@@ -1,0 +1,149 @@
+name: Windows CI
+
+on:
+  push:
+    branches:
+      - feat/windows-port-phase1
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+permissions:
+  contents: read
+
+jobs:
+  # ──────────────────────────────────────────────
+  # 1. Compilation check (cross-compile from Linux)
+  # ──────────────────────────────────────────────
+  check-windows-target:
+    name: cargo check (windows-msvc cross)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Retrieve MSRV
+        id: rust_version
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: Cargo.toml
+          field: "workspace.package.rust-version"
+
+      - name: Install Rust with windows-msvc target
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust_version.outputs.value }}
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-msvc
+
+      # Cross-compile check only — no linker needed for `cargo check`
+      - name: cargo check --target x86_64-pc-windows-msvc
+        run: >
+          cargo check
+          --target x86_64-pc-windows-msvc
+          --workspace
+          --all-features
+
+  # ──────────────────────────────────────────────
+  # 2. Unit tests on a real Windows runner
+  # ──────────────────────────────────────────────
+  test-windows:
+    name: cargo test (windows-latest)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Retrieve MSRV
+        id: rust_version
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: Cargo.toml
+          field: "workspace.package.rust-version"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust_version.outputs.value }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-test
+
+      # Install Mosquitto for MQTT-dependent tests
+      - name: Install Mosquitto
+        run: |
+          choco install mosquitto --yes --no-progress
+          echo "C:\Program Files\Mosquitto" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: pwsh
+
+      # Run unit tests for the crates most relevant to Windows portability.
+      # Crates with unix-only functionality are excluded via --exclude;
+      # unix-specific tests inside included crates use #[cfg_attr(not(unix), ignore)].
+      - name: Run unit tests
+        run: >
+          cargo test
+          --workspace
+          --exclude tedge-p11-server
+          --lib
+          --bins
+        shell: pwsh
+
+      # Run doc-tests separately to surface documentation example failures
+      - name: Run doc tests
+        run: >
+          cargo test
+          --workspace
+          --exclude tedge-p11-server
+          --doc
+        shell: pwsh
+        continue-on-error: true
+
+  # ──────────────────────────────────────────────
+  # 3. Focused test run for ported utility crates
+  # ──────────────────────────────────────────────
+  test-ported-crates:
+    name: Test ported utility crates
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        crate:
+          - tedge_utils
+          - tedge_config
+          - tedge_actors
+          - mqtt_channel
+          - download
+          - flockfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Retrieve MSRV
+        id: rust_version
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: Cargo.toml
+          field: "workspace.package.rust-version"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust_version.outputs.value }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-crates-${{ matrix.crate }}
+
+      - name: Install Mosquitto (for mqtt_channel tests)
+        if: matrix.crate == 'mqtt_channel'
+        run: |
+          choco install mosquitto --yes --no-progress
+          echo "C:\Program Files\Mosquitto" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        shell: pwsh
+
+      - name: cargo test -p ${{ matrix.crate }}
+        run: cargo test -p ${{ matrix.crate }}
+        shell: pwsh
