@@ -232,7 +232,12 @@ impl FileCacheActor {
 
         if !symlink_path.is_symlink() {
             std::fs::create_dir_all(symlink_path.parent().unwrap())
-                .and_then(|_| std::os::unix::fs::symlink(original, &symlink_path))
+                .and_then(|_| {
+                    #[cfg(unix)]
+                    return std::os::unix::fs::symlink(original, &symlink_path);
+                    #[cfg(windows)]
+                    return std::os::windows::fs::symlink_file(original, &symlink_path);
+                })
                 .map_err(|e| RuntimeError::ActorError(e.into()))?;
         }
 

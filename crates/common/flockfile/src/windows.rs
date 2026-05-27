@@ -3,6 +3,8 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 
+const LOCK_CHILD_DIRECTORY: &str = "lock/";
+
 #[derive(thiserror::Error, Debug)]
 pub enum FlockfileError {
     #[error(transparent)]
@@ -63,5 +65,30 @@ impl Drop for Flockfile {
         // _handle is dropped automatically, releasing the OS lock.
         // Attempt to clean up the file; ignore errors (e.g. already deleted).
         let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+/// Check whether another instance of `app_name` is already running by
+/// attempting to acquire its lock file under `run_dir/lock/`.
+///
+/// On Windows the lock is a mandatory exclusive file handle: if another
+/// process already holds it, `OpenOptions::open` fails with
+/// ERROR_SHARING_VIOLATION (OS error 32).
+pub fn check_another_instance_is_not_running(
+    app_name: &str,
+    run_dir: &Path,
+) -> Result<Option<Flockfile>, FlockfileError> {
+    let lock_path = run_dir.join(format!("{}{}.lock", LOCK_CHILD_DIRECTORY, app_name));
+
+    match Flockfile::new_lock(&lock_path) {
+        Ok(flock) => Ok(Some(flock)),
+        Err(FlockfileError::IoError(e)) if e.raw_os_error() == Some(32) => {
+            // ERROR_SHARING_VIOLATION — another process holds the exclusive handle
+            Err(FlockfileError::IoError(e))
+        }
+        Err(_) => {
+            // Lock directory not accessible — skip locking rather than hard-failing
+            Ok(None)
+        }
     }
 }

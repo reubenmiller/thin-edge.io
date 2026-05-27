@@ -17,6 +17,7 @@ use tedge_utils::paths::PathsError;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
+#[cfg(unix)]
 use tokio::net::UnixStream;
 use url::Url;
 
@@ -73,18 +74,24 @@ pub async fn run(opt: C8yRemoteAccessPluginOpt) -> miette::Result<()> {
         Command::SpawnChild(command) => {
             spawn_child(command, tedge_config.root_dir(), c8y_profile).await
         }
-        Command::TryConnectUnixSocket(command) => match UnixStream::connect(UNIX_SOCKFILE).await {
-            Ok(mut unix_stream) => {
-                eprintln!("sock: Connected to Unix socket at {UNIX_SOCKFILE}");
-                write_request_and_shutdown(&mut unix_stream, c8y_profile, command).await?;
-                read_from_stream(&mut unix_stream).await?;
-                Ok(())
+        Command::TryConnectUnixSocket(command) => {
+            #[cfg(unix)]
+            match UnixStream::connect(UNIX_SOCKFILE).await {
+                Ok(mut unix_stream) => {
+                    eprintln!("sock: Connected to Unix socket at {UNIX_SOCKFILE}");
+                    write_request_and_shutdown(&mut unix_stream, c8y_profile, command).await?;
+                    read_from_stream(&mut unix_stream).await?;
+                    Ok(())
+                }
+                Err(_e) => {
+                    eprintln!("sock: Could not connect to Unix socket at {UNIX_SOCKFILE}. Falling back to spawning a child process");
+                    spawn_child(command, tedge_config.root_dir(), c8y_profile).await
+                }
             }
-            Err(_e) => {
-                eprintln!("sock: Could not connect to Unix socket at {UNIX_SOCKFILE}. Falling back to spawning a child process");
-                spawn_child(command, tedge_config.root_dir(), c8y_profile).await
-            }
-        },
+            // Unix sockets are not available on Windows; fall back directly to spawn_child.
+            #[cfg(not(unix))]
+            spawn_child(command, tedge_config.root_dir(), c8y_profile).await
+        }
     }
 }
 
@@ -210,11 +217,13 @@ async fn spawn_child(
     }
 }
 
+#[cfg(unix)]
 #[derive(miette::Diagnostic, Debug, thiserror::Error)]
 #[error("Failed while {1}")]
 #[diagnostic(help("Check if Unix Socket is readable and writable."))]
 struct UnixSocketError<E: std::error::Error + 'static>(#[source] E, &'static str);
 
+#[cfg(unix)]
 async fn write_request_and_shutdown(
     unix_stream: &mut UnixStream,
     profile: Option<&str>,
@@ -259,6 +268,7 @@ async fn write_request_and_shutdown(
     Ok(())
 }
 
+#[cfg(unix)]
 async fn read_from_stream(unix_stream: &mut UnixStream) -> miette::Result<()> {
     unix_stream
         .readable()
