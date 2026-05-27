@@ -6,6 +6,7 @@ use input::parse_arguments;
 use miette::miette;
 use miette::Context;
 use miette::IntoDiagnostic;
+#[cfg(unix)]
 use std::io;
 use std::process::Stdio;
 use tedge_config::log_init;
@@ -15,6 +16,7 @@ use tedge_utils::paths::ManagedFile;
 use tedge_utils::paths::Owner;
 use tedge_utils::paths::PathsError;
 use tokio::io::AsyncBufReadExt;
+#[cfg(unix)]
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 #[cfg(unix)]
