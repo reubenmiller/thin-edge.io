@@ -37,54 +37,63 @@ impl TEdgeInitCmd {
         let user = Self::resolve_config_value("User", self.user.clone(), system_config.user);
         let group = Self::resolve_config_value("Group", self.group.clone(), system_config.group);
 
-        let executable_name =
-            std::env::current_exe().context("retrieving the current executable name")?;
-        #[cfg(unix)]
-        let stat = tokio::fs::metadata(&executable_name)
-            .await
-            .with_context(|| {
-                format!(
-                    "reading metadata for the current executable ({})",
+        // Symlinks are a Unix concept; on Windows components are invoked as
+        // separate .exe binaries or via `tedge run <component>`.
+        #[cfg(not(windows))]
+        {
+            let executable_name =
+                std::env::current_exe().context("retrieving the current executable name")?;
+            #[cfg(unix)]
+            let stat = tokio::fs::metadata(&executable_name)
+                .await
+                .with_context(|| {
+                    format!(
+                        "reading metadata for the current executable ({})",
+                        executable_name.display()
+                    )
+                })?;
+            let Some(executable_dir) = executable_name.parent() else {
+                bail!(
+                    "current executable ({}) does not have a parent directory",
                     executable_name.display()
                 )
-            })?;
-        let Some(executable_dir) = executable_name.parent() else {
-            bail!(
-                "current executable ({}) does not have a parent directory",
-                executable_name.display()
-            )
-        };
-        let Some(executable_file_name) = executable_name.file_name() else {
-            bail!(
-                "current executable ({}) does not have a file name",
-                executable_name.display()
-            )
-        };
+            };
+            let Some(executable_file_name) = executable_name.file_name() else {
+                bail!(
+                    "current executable ({}) does not have a file name",
+                    executable_name.display()
+                )
+            };
 
-        let component_subcommands: Vec<String> =
-            Component::augment_subcommands(clap::Command::new("tedge"))
-                .get_subcommands()
-                .map(|c| c.get_name().to_owned())
-                .chain(["tedge-apt-plugin".to_owned()])
-                .collect();
+            let component_subcommands: Vec<String> =
+                Component::augment_subcommands(clap::Command::new("tedge"))
+                    .get_subcommands()
+                    .map(|c| c.get_name().to_owned())
+                    .chain(["tedge-apt-plugin".to_owned()])
+                    .collect();
 
-        let target = Target {
-            path: match self.relative_links {
-                true => Path::new(executable_file_name),
-                false => &executable_name,
-            },
-            uid: {
-                #[cfg(unix)] { stat.uid() }
-                #[cfg(not(unix))] { 0 }
-            },
-            gid: {
-                #[cfg(unix)] { stat.gid() }
-                #[cfg(not(unix))] { 0 }
-            },
-        };
+            let target = Target {
+                path: match self.relative_links {
+                    true => Path::new(executable_file_name),
+                    false => &executable_name,
+                },
+                uid: {
+                    #[cfg(unix)]
+                    { stat.uid() }
+                    #[cfg(not(unix))]
+                    { 0 }
+                },
+                gid: {
+                    #[cfg(unix)]
+                    { stat.gid() }
+                    #[cfg(not(unix))]
+                    { 0 }
+                },
+            };
 
-        for component in &component_subcommands {
-            create_symlinks_for(component, target, executable_dir, &RealEnv).await?;
+            for component in &component_subcommands {
+                create_symlinks_for(component, target, executable_dir, &RealEnv).await?;
+            }
         }
 
         let config_dir = &config.root_dir();
