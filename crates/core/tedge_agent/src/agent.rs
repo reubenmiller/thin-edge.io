@@ -281,6 +281,10 @@ impl Agent {
         self.config.data_dir.cache_dir().ensure().await?;
         self.config.http_config.file_transfer_dir.ensure().await?;
 
+        // tmp_dir is used as the working directory for plugin processes and for
+        // staging downloads; it must exist before any plugin is invoked.
+        self.config.tmp_dir.root_dir().ensure().await?;
+
         // under log_dir (/var/log/tedge)
         self.config.agent_log_dir.ensure().await?;
 
