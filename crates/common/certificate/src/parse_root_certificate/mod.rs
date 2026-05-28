@@ -174,15 +174,14 @@ fn new_root_store(cert_path: &Path) -> Result<RootCertStore, CertificateError> {
     // Any explicitly configured file path is loaded in addition to the OS store.
     #[cfg(windows)]
     {
-        match rustls_native_certs::load_native_certs() {
-            Ok(certs) => {
-                for cert in certs {
-                    if let Err(e) = root_store.add(cert) {
-                        tracing::debug!("Skipping invalid Windows certificate store entry: {e}");
-                    }
-                }
+        let native = rustls_native_certs::load_native_certs();
+        for e in &native.errors {
+            tracing::debug!("Skipping Windows certificate store entry: {e}");
+        }
+        for cert in native.certs {
+            if let Err(e) = root_store.add(cert) {
+                tracing::debug!("Skipping invalid Windows certificate store entry: {e}");
             }
-            Err(e) => tracing::warn!("Failed to load Windows certificate store: {e}"),
         }
         if cert_path.exists() {
             rec_add_root_cert(&mut root_store, cert_path);
