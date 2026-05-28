@@ -46,8 +46,36 @@ impl SudoCommandBuilder {
     /// Checks if sudo is present in $PATH. If it's present and sudo is enabled,
     /// prepare a [`Command`](std::process::Command) using sudo. Otherwise,
     /// prepares a Command that starts `program` directly.
+    ///
+    /// On Windows, `.bat`/`.cmd` scripts are launched via `cmd.exe /c` and
+    /// `.ps1` scripts via `powershell.exe -File`, because `CreateProcessW`
+    /// cannot start non-PE executables directly.
     pub fn command<S: AsRef<OsStr>>(&self, program: S) -> Command {
         let program = program.as_ref();
+
+        // On Windows, shell scripts must be run through their interpreter.
+        // This takes precedence over sudo (which doesn't exist on Windows).
+        #[cfg(windows)]
+        if let Some(ext) = std::path::Path::new(program)
+            .extension()
+            .and_then(|e| e.to_str())
+        {
+            match ext.to_ascii_lowercase().as_str() {
+                "bat" | "cmd" => {
+                    let mut cmd = Command::new("cmd.exe");
+                    cmd.arg("/c").arg(program);
+                    return cmd;
+                }
+                "ps1" => {
+                    let mut cmd = Command::new("powershell.exe");
+                    cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+                        .arg(program);
+                    return cmd;
+                }
+                _ => {}
+            }
+        }
+
         if !self.enabled {
             return Command::new(program);
         }
