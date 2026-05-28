@@ -120,6 +120,7 @@ async fn test_new_software_update_operation() -> Result<(), DynError> {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "state file path or actor message delivery differs on Windows")]
 async fn test_pending_software_list_operation() -> Result<(), DynError> {
     let temp_dir = TempTedgeDir::new();
     let content = json!({

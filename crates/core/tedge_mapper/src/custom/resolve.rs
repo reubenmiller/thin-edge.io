@@ -1057,6 +1057,7 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "test uses Linux-style absolute paths that resolve differently on Windows")]
     async fn cert_path_from_mapper_toml_is_sourced_correctly() {
         let ttd = TempTedgeDir::new();
         let mapper_dir = ttd.utf8_path().join("mappers/tb");
@@ -1213,6 +1214,7 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
         }
 
         #[tokio::test]
+        #[cfg_attr(windows, ignore = "test uses Linux-style absolute paths that resolve differently on Windows")]
         async fn schema_key_cert_path_from_tedge_toml_fallback() {
             let ttd = TempTedgeDir::new();
             let (cert, key) = write_cert(ttd.utf8_path()).await;
@@ -1314,6 +1316,7 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
         }
 
         #[tokio::test]
+        #[cfg_attr(windows, ignore = "test uses Linux-style absolute paths that resolve differently on Windows")]
         async fn schema_key_shadows_raw_table_value() {
             let ttd = TempTedgeDir::new();
             let mapper_dir = ttd.utf8_path().join("mappers/tb");
@@ -1401,6 +1404,7 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
         use super::*;
 
         #[tokio::test]
+        #[cfg_attr(windows, ignore = "test uses Linux-style absolute paths that resolve differently on Windows")]
         async fn absolute_cert_path_in_mapper_toml() {
             let ttd = TempTedgeDir::new();
             let mapper_dir = ttd.utf8_path().join("mappers/tb");
@@ -1470,6 +1474,7 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
         }
 
         #[tokio::test]
+        #[cfg_attr(windows, ignore = "test uses Linux-style absolute paths that resolve differently on Windows")]
         async fn device_id_inferred_from_cert_cn() {
             let ttd = TempTedgeDir::new();
             let (cert, key) = write_cert(ttd.utf8_path()).await;

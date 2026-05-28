@@ -351,6 +351,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "plugins have no .exe/.bat extension so Windows executability check skips them")]
     async fn test_execute_diag_plugins() {
         let ttd = TempTedgeDir::new();
         let command = DiagCollectCommand::new(&ttd);

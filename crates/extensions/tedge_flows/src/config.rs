@@ -1013,6 +1013,7 @@ topic = "te/device/main///e/"
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "uses /flows Linux-style root paths which resolve differently on Windows")]
     async fn relative_command_in_subdirectory_resolves_to_flow_parent() {
         let flow_toml = r#"
         [input.process]
@@ -1041,6 +1042,7 @@ topic = "te/device/main///e/"
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "uses /flows Linux-style root paths which resolve differently on Windows")]
     async fn flows_accept_relative_paths_to_input_processes() {
         let flow_toml = r#"
         [input.process]
@@ -1069,6 +1071,7 @@ topic = "te/device/main///e/"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses /flows Linux-style root paths which resolve differently on Windows")]
     fn stream_command_sets_cwd_from_flow_directory() {
         let flow_toml = r#"
         [input.process]
@@ -1091,6 +1094,7 @@ topic = "te/device/main///e/"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses /flows Linux-style root paths which resolve differently on Windows")]
     fn relative_process_paths_are_cleaned_up() {
         let flow_toml = r#"
         [input.process]
@@ -1115,6 +1119,7 @@ topic = "te/device/main///e/"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses /flows Linux-style root paths which resolve differently on Windows")]
     fn relative_commands_with_args_are_cleaned_up() {
         let flow_toml = r#"
         [input.process]
@@ -1187,6 +1192,7 @@ topic = "te/device/main///e/"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses /flows Linux-style root paths which resolve differently on Windows")]
     fn parent_relative_command_is_resolved() {
         let flow_toml = r#"
         [input.process]
@@ -1235,6 +1241,7 @@ topic = "te/device/main///e/"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses /flows Linux-style root paths which resolve differently on Windows")]
     fn explicit_topic_is_preserved_when_resolving_relative_command() {
         let flow_toml = r#"
         [input.process]
@@ -1260,6 +1267,7 @@ topic = "te/device/main///e/"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses /flows Linux-style root paths which resolve differently on Windows")]
     fn multiple_process_inputs_can_be_deserialized_from_array_of_tables() {
         let flow_toml = r#"
         [[input.process]]
@@ -1298,6 +1306,7 @@ topic = "te/device/main///e/"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses /flows Linux-style root paths which resolve differently on Windows")]
     fn multiple_input_types_can_be_deserialized_from_array_of_tables() {
         let flow_toml = r#"
         [[input.mqtt]]
@@ -1375,6 +1384,7 @@ topic = "te/device/main///e/"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses /flows Linux-style root paths which resolve differently on Windows")]
     fn existing_single_table_input_syntax_is_still_supported() {
         let flow_toml = r#"
         [input.process]

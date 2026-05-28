@@ -514,7 +514,9 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
                 mapper_dir.join("mapper.toml"),
                 format!(
                     "url = \"mqtt.example.com:8883\"\n\
-                     [device]\ncert_path = \"{cert}\"\nkey_path = \"{key}\"\n"
+                     [device]\ncert_path = \"{}\"\nkey_path = \"{}\"\n",
+                    cert.as_str().replace('\\', "/"),
+                    key.as_str().replace('\\', "/")
                 ),
             )
             .await
@@ -546,7 +548,7 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
             .unwrap();
             tokio::fs::write(
                 mapper_dir.join("mapper.toml"),
-                format!("url = \"mqtt.example.com:8883\"\ncredentials_path = \"{creds}\"\n"),
+                format!("url = \"mqtt.example.com:8883\"\ncredentials_path = \"{}\"\n", creds.as_str().replace('\\', "/")),
             )
             .await
             .unwrap();
@@ -752,7 +754,7 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
             .unwrap();
             tokio::fs::write(
                 mapper_dir.join("mapper.toml"),
-                format!("url = \"mqtt.example.com:8883\"\ncredentials_path = \"{creds}\"\n"),
+                format!("url = \"mqtt.example.com:8883\"\ncredentials_path = \"{}\"\n", creds.as_str().replace('\\', "/")),
             )
             .await
             .unwrap();
@@ -874,7 +876,7 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
             .unwrap();
             tokio::fs::write(
                 mapper_dir.join("mapper.toml"),
-                format!("url = \"mqtt.example.com:8883\"\ncredentials_path = \"{creds}\"\n"),
+                format!("url = \"mqtt.example.com:8883\"\ncredentials_path = \"{}\"\n", creds.as_str().replace('\\', "/")),
             )
             .await
             .unwrap();

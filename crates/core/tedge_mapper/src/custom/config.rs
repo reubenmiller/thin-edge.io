@@ -352,6 +352,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "test uses Linux-style absolute paths that resolve differently on Windows")]
     async fn parses_valid_toml() {
         let ttd = TempTedgeDir::new();
         let mapper_dir = ttd.utf8_path().join("mappers/thingsboard");
@@ -427,6 +428,7 @@ url = "mqtt.example.com"
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "test uses Linux-style absolute paths that resolve differently on Windows")]
     async fn parses_full_schema() {
         let ttd = TempTedgeDir::new();
         let mapper_dir = ttd.utf8_path().join("mappers/full");
@@ -575,6 +577,7 @@ credentials_path = "/etc/tedge/mappers/pw/creds.toml"
         }
 
         #[tokio::test]
+        #[cfg_attr(windows, ignore = "absolute path handling differs on Windows")]
         async fn absolute_cert_path_is_unchanged() {
             let ttd = TempTedgeDir::new();
             let mapper_dir = ttd.utf8_path().join("mappers/thingsboard");

@@ -114,7 +114,7 @@ fn create_flow_entry_from_toml_path(
     let flow_name = if filename == "flow.toml" {
         match parent_dir.as_str() {
             "" => "flow".to_string(),
-            name => name.to_string(),
+            name => name.replace('\\', "/"),
         }
     } else {
         let base_name = filename
