@@ -61,3 +61,19 @@ jobs:
           --all-features
           --all-targets
         shell: pwsh
+
+      # Build the tedge binary as a debug artifact for manual startup diagnosis.
+      # Runs even if tests fail so the artifact is always available for investigation.
+      # Debug build preserves symbols for better RUST_BACKTRACE output.
+      - name: Build tedge binary (debug)
+        if: always()
+        run: cargo build --package tedge --locked
+        shell: pwsh
+
+      - name: Upload tedge binary artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tedge-windows-debug
+          path: target/debug/tedge.exe
+          retention-days: 14
