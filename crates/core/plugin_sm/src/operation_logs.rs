@@ -64,13 +64,14 @@ impl OperationLogs {
             LogKind::Operation(ref operation_name) => operation_name.as_str(),
         };
 
-        let mut timestamp = now.format(&format_description::well_known::Rfc3339)?;
-        // RFC3339 timestamps contain ':' (e.g. "12:34:56") which is forbidden
-        // in Windows filenames. Replace with '-' on Windows only.
-        #[cfg(windows)]
-        {
-            timestamp = timestamp.replace(':', "-");
-        }
+        let timestamp = {
+            let ts = now.format(&format_description::well_known::Rfc3339)?;
+            // RFC3339 timestamps contain ':' (e.g. "12:34:56") which is forbidden
+            // in Windows filenames. Replace with '-' on Windows only.
+            #[cfg(windows)]
+            let ts = ts.replace(':', "-");
+            ts
+        };
         let file_name = format!("{}-{}.log", file_prefix, timestamp);
 
         let mut log_file_path = self.log_dir.clone();

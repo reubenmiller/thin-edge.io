@@ -35,8 +35,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # Compilation check first — fast feedback before spending time on test binaries.
-      # Tests use rumqttd as an embedded broker so no external Mosquitto needed.
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      # Compilation check — fast feedback before spending time building test binaries.
+      # tedge-p11-server is unix-only (gated with #![cfg(unix)]) and has no main on Windows.
       - name: cargo check
         run: >
           cargo check
@@ -44,15 +47,17 @@ jobs:
           --exclude tedge-p11-server
         shell: pwsh
 
-      # Run lib and bin unit tests across the workspace.
-      # Unix-specific tests are skipped via #[cfg_attr(not(unix), ignore)].
-      # Exclude tedge-p11-server (unix-only binary).
-      # --lib --bins avoids doc-tests which have pre-existing failures unrelated to Windows.
-      - name: cargo test
+      # Mirror the Linux CI test invocation (minus coverage).
+      # Tests use rumqttd as an embedded broker — no external Mosquitto needed.
+      # Unix-specific tests are skipped via #[cfg_attr(not(unix), ignore)] or
+      # #[cfg_attr(windows, ignore)] annotations.
+      - name: cargo nextest run
         run: >
-          cargo test
+          cargo nextest run
+          --no-fail-fast
+          --locked
           --workspace
           --exclude tedge-p11-server
-          --lib
-          --bins
+          --all-features
+          --all-targets
         shell: pwsh
