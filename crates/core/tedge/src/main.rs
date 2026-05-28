@@ -32,12 +32,7 @@ static ALLOCATOR: Cap<alloc::System> = Cap::new(alloc::System, usize::MAX);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let opt = tracing::subscriber::with_default(unconfigured_logger(), || {
-        clap_complete::CompleteEnv::with_factory(TEdgeCli::command).complete();
-
-        parse_multicall(&executable_name(), std::env::args_os())
-    })
-    .unwrap_or_else(|code| std::process::exit(code));
+    let opt = parse_args();
 
     yansi::whenever(USE_COLOR);
 
@@ -140,6 +135,37 @@ fn log_memory_usage(log_memory_interval: Duration) {
             tokio::time::sleep(log_memory_interval).await;
         }
     });
+}
+
+// On Windows the default main thread stack is 1 MB; building the clap command
+// tree for the multicall binary overflows it before any user code runs.
+// Spawn a short-lived thread with a 4 MB stack just for this parsing phase;
+// the thread exits immediately after returning the parsed opt, so the extra
+// memory is freed before any real work begins.
+fn parse_args() -> TEdgeOptMulticall {
+    let exe_name = executable_name();
+    let args: Vec<OsString> = std::env::args_os().collect();
+
+    #[cfg(windows)]
+    let result = std::thread::Builder::new()
+        .stack_size(4 * 1024 * 1024)
+        .spawn(move || {
+            tracing::subscriber::with_default(unconfigured_logger(), || {
+                clap_complete::CompleteEnv::with_factory(TEdgeCli::command).complete();
+                parse_multicall(&exe_name, args)
+            })
+        })
+        .expect("failed to spawn arg-parsing thread")
+        .join()
+        .expect("arg-parsing thread panicked");
+
+    #[cfg(not(windows))]
+    let result = tracing::subscriber::with_default(unconfigured_logger(), || {
+        clap_complete::CompleteEnv::with_factory(TEdgeCli::command).complete();
+        parse_multicall(&exe_name, args)
+    });
+
+    result.unwrap_or_else(|code| std::process::exit(code))
 }
 
 fn executable_name() -> Option<String> {
