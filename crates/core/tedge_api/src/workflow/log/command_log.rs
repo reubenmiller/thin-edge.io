@@ -271,10 +271,10 @@ EOF
         let _ = command.execute(Some(&mut command_log)).await;
 
         // On expect the errors to be logged
-        let log_content = String::from_utf8(std::fs::read(log_file_path)?)?;
+        let _log_content = String::from_utf8(std::fs::read(log_file_path)?)?;
         #[cfg(target_os = "linux")]
         assert_eq!(
-            log_content,
+            _log_content,
             r#"----- $ ls "dummy-file"
 Exit status: 2 (ERROR)
 
@@ -287,7 +287,7 @@ stdout (EMPTY)
         );
         #[cfg(target_os = "macos")]
         assert_eq!(
-            log_content,
+            _log_content,
             r#"----- $ ls "dummy-file"
 Exit status: 1 (ERROR)
 

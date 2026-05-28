@@ -75,7 +75,7 @@ case "$1" in
 esac
 "#;
 
-    let plugin_path = plugin_dir.file("file").with_raw_content(plugin_script);
+    let _plugin_path = plugin_dir.file("file").with_raw_content(plugin_script);
 
     // Make the plugin executable
     #[cfg(unix)]

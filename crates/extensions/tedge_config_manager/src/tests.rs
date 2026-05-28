@@ -85,7 +85,7 @@ fn prepare() -> Result<TempTedgeDir, anyhow::Error> {
     // Create a mock `file` plugin script
     let plugin_script = include_str!("../tests/data/file");
 
-    let plugin_path = plugin_dir.file("file").with_raw_content(plugin_script);
+    let _plugin_path = plugin_dir.file("file").with_raw_content(plugin_script);
 
     // Make the plugin executable
     #[cfg(unix)]
