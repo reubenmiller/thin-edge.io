@@ -46,7 +46,14 @@ impl CommandLog {
         let root_operation = root_operation.unwrap_or(operation.clone());
         let root_cmd_id = root_cmd_id.unwrap_or(cmd_id.clone());
 
-        let path = log_dir.join(format!("workflow-{}-{}.log", root_operation, root_cmd_id));
+        let filename = {
+            let s = format!("workflow-{}-{}.log", root_operation, root_cmd_id);
+            // RFC3339 command IDs contain ':' which is forbidden in Windows filenames.
+            #[cfg(windows)]
+            let s = s.replace(':', "-");
+            s
+        };
+        let path = log_dir.join(filename);
         CommandLog {
             path,
             operation,

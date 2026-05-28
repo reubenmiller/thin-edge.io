@@ -114,6 +114,11 @@ impl TEdgeInitCmd {
             .group_writable()
             .ensure()
             .await?;
+        TedgePaths::from_root_with_defaults(&config.tmp.path, &user, &group)
+            .root_dir()
+            .group_writable()
+            .ensure()
+            .await?;
 
         let system_toml = config_dir.join("system.toml");
         if system_toml.exists() {

@@ -78,6 +78,23 @@ pub fn ca_certs_dir() -> Option<PathBuf> {
     }
 }
 
+/// Temporary directory for downloads and in-progress operations.
+///
+/// | Platform      | Default path                          |
+/// |---------------|---------------------------------------|
+/// | Linux / macOS | `/tmp`                                |
+/// | Windows       | `C:\ProgramData\tedge\tmp`            |
+pub fn tmp_root() -> PathBuf {
+    #[cfg(windows)]
+    {
+        config_root().join("tmp")
+    }
+    #[cfg(not(windows))]
+    {
+        PathBuf::from("/tmp")
+    }
+}
+
 /// Runtime socket / named-pipe directory.
 ///
 /// On Windows, named pipes are addressed as `\\.\pipe\<name>`, so this
