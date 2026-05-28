@@ -1258,6 +1258,7 @@ async fn mapper_dynamically_updates_supported_operations_for_tedge_device() {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "child device IDs contain ':' which is invalid in Windows paths")]
 async fn mapper_dynamically_updates_supported_operations_for_child_device() {
     // The test assures tedge-mapper reads the operations for the child devices from the operations directory, and then it publishes them on to `c8y/s/us/child1`.
     // When mapper is running test adds a new operation for a child into the operations directory, then the mapper discovers the new
@@ -1424,6 +1425,7 @@ async fn mapper_dynamically_updates_supported_operations_for_nested_child_device
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "uses Unix shell scripts (#!/bin/sh) and sleep/seq commands")]
 async fn custom_operation_without_timeout_successful() {
     // The test assures SM Mapper correctly receives custom operation on `c8y/s/ds`
     // and executes the custom operation successfully, no timeout given here.
@@ -1487,6 +1489,7 @@ EOF
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "uses Unix shell scripts (#!/bin/sh) and sleep/seq commands")]
 async fn custom_operation_with_timeout_successful() {
     // The test assures SM Mapper correctly receives custom operation on `c8y/s/ds`
     // and executes the custom operation within the timeout period
@@ -1546,6 +1549,7 @@ EOF
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "uses Unix shell scripts and SIGTERM which is unavailable on Windows")]
 async fn custom_operation_timeout_sigterm() {
     // The test assures SM Mapper correctly receives custom operation on `c8y/s/ds`
     // and executes the custom operation, it will timeout because it will not complete before given timeout
@@ -1613,6 +1617,7 @@ EOF
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "uses Unix shell scripts and SIGKILL which is unavailable on Windows")]
 async fn custom_operation_timeout_sigkill() {
     // The test assures SM Mapper correctly receives custom operation on `c8y/s/ds`
     // and executes the custom operation, it will timeout because it will not complete before given timeout
@@ -2881,6 +2886,7 @@ async fn mapper_converts_config_metadata_to_supported_op_and_types_for_main_devi
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "child device IDs contain ':' which is invalid in Windows paths")]
 async fn mapper_converts_config_cmd_to_supported_op_and_types_for_child_device() {
     let ttd = TempTedgeDir::new();
     let test_handle = spawn_c8y_mapper_actor(&ttd, true).await;
@@ -2996,6 +3002,7 @@ async fn mapper_converts_config_cmd_to_supported_op_and_types_for_child_device()
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "relies on Unix SIGUSR1 signal handling")]
 async fn mapper_publishes_all_supported_operations_on_signal() {
     let ttd = TempTedgeDir::new();
     ttd.dir("operations").dir("c8y").file("c8y_Restart");

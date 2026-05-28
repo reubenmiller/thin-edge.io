@@ -485,6 +485,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "renames file to '.command?' which contains '?' — illegal in Windows filenames")]
     fn get_operations_skips_operations_with_invalid_names_and_content() {
         let test_operations = TestOperations::builder().with_operations(5).build();
 

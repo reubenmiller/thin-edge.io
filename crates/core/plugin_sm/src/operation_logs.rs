@@ -64,11 +64,14 @@ impl OperationLogs {
             LogKind::Operation(ref operation_name) => operation_name.as_str(),
         };
 
-        let file_name = format!(
-            "{}-{}.log",
-            file_prefix,
-            now.format(&format_description::well_known::Rfc3339)?
-        );
+        let mut timestamp = now.format(&format_description::well_known::Rfc3339)?;
+        // RFC3339 timestamps contain ':' (e.g. "12:34:56") which is forbidden
+        // in Windows filenames. Replace with '-' on Windows only.
+        #[cfg(windows)]
+        {
+            timestamp = timestamp.replace(':', "-");
+        }
+        let file_name = format!("{}-{}.log", file_prefix, timestamp);
 
         let mut log_file_path = self.log_dir.clone();
         log_file_path.push(file_name);
@@ -80,8 +83,10 @@ impl OperationLogs {
 
     pub fn remove_outdated_logs(&self) -> Result<(), OperationLogsError> {
         let mut log_tracker: HashMap<String, BinaryHeap<Reverse<String>>> = HashMap::new();
-        let re = regex::Regex::new("[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}")
-            .expect("Regex matching a date");
+        let re = regex::Regex::new(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}[:\-][0-9]{2}[:\-][0-9]{2}",
+        )
+        .expect("Regex matching a date");
 
         for file in (self.log_dir.read_dir()?).flatten() {
             if let Some(path) = file.path().file_name().and_then(|name| name.to_str()) {

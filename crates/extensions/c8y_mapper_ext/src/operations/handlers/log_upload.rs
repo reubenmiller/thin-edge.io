@@ -204,6 +204,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "child device IDs contain ':' which is invalid in Windows paths")]
     async fn mapper_converts_smartrest_logfile_req_to_log_upload_cmd_for_child_device() {
         let ttd = TempTedgeDir::new();
         let test_handle = spawn_c8y_mapper_actor(&ttd, true).await;
@@ -305,6 +306,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "child device IDs contain ':' which is invalid in Windows paths")]
     async fn mapper_converts_log_upload_cmd_to_supported_op_and_types_for_child_device() {
         let ttd = TempTedgeDir::new();
         let test_handle = spawn_c8y_mapper_actor(&ttd, true).await;

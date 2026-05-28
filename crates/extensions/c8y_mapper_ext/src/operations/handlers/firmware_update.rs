@@ -128,6 +128,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "child device IDs contain ':' which is invalid in Windows paths")]
     async fn create_firmware_operation_file_for_child_device() {
         let ttd = TempTedgeDir::new();
         let test_handle = spawn_c8y_mapper_actor(&ttd, true).await;
