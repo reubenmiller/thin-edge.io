@@ -305,6 +305,9 @@ mod tests {
         read_pvt_key(temp_file.path()).unwrap_err();
     }
 
+    // On Windows, new_root_store always augments with the OS certificate store,
+    // so the count is not purely determined by the files on disk.
+    #[cfg_attr(windows, ignore)]
     #[test]
     fn an_empty_directory_contains_no_root_certificate() {
         let temp_dir = TempDir::new().unwrap();
@@ -313,6 +316,7 @@ mod tests {
         assert!(root_certs.is_empty());
     }
 
+    #[cfg_attr(windows, ignore)]
     #[test]
     fn all_certificates_of_all_chains_are_root_certificates() {
         let temp_dir = TempDir::new().unwrap();
@@ -335,6 +339,7 @@ mod tests {
         assert_eq!(root_certs.len(), 3);
     }
 
+    #[cfg_attr(windows, ignore)]
     #[test]
     fn all_certificates_are_loaded_even_under_sub_directories() {
         let temp_dir = TempDir::new().unwrap();
