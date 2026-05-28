@@ -165,7 +165,33 @@ pub fn add_certs_from_directory(
 
 fn new_root_store(cert_path: &Path) -> Result<RootCertStore, CertificateError> {
     let mut root_store = RootCertStore::empty();
+
+    // On Windows the system CA bundle is in the OS certificate store, not a
+    // PEM file on disk.  Always load it so that:
+    //   - the default /etc/ssl/certs path (which doesn't exist on Windows) is
+    //     gracefully skipped, and
+    //   - corporate/IT-managed CAs added via Group Policy are trusted.
+    // Any explicitly configured file path is loaded in addition to the OS store.
+    #[cfg(windows)]
+    {
+        match rustls_native_certs::load_native_certs() {
+            Ok(certs) => {
+                for cert in certs {
+                    if let Err(e) = root_store.add(cert) {
+                        tracing::debug!("Skipping invalid Windows certificate store entry: {e}");
+                    }
+                }
+            }
+            Err(e) => tracing::warn!("Failed to load Windows certificate store: {e}"),
+        }
+        if cert_path.exists() {
+            rec_add_root_cert(&mut root_store, cert_path);
+        }
+    }
+
+    #[cfg(not(windows))]
     rec_add_root_cert(&mut root_store, cert_path);
+
     Ok(root_store)
 }
 
