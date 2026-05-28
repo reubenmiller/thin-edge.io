@@ -401,6 +401,11 @@ async fn downloader_download_processing_error(
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "uses /tmp path which is invalid on Windows; TLS CertificateRequired \
+              error surfaces differently — same root cause as axum_tls acceptor tests"
+)]
 async fn downloader_error_shows_certificate_required_error_when_appropriate() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
