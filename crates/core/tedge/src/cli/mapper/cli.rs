@@ -735,7 +735,10 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
             assert_eq!(output.stdout.trim(), "localhost");
             assert_eq!(
                 output.stderr.trim(),
-                format!("# inferred from certificate CN ({cert})")
+                format!(
+                    "# inferred from certificate CN ({})",
+                    cert.as_str().replace('\\', "/")
+                )
             );
         }
 
@@ -826,11 +829,15 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
             )
             .await
             .unwrap();
-            // stdout is the resolved absolute path
+            // stdout is the resolved absolute path (starts with '/' on Unix,
+            // drive letter like 'C:/' or 'C:\' on Windows)
+            let stdout = output.stdout.trim();
+            let is_absolute = stdout.starts_with('/')
+                || stdout.len() >= 3 && stdout.chars().nth(1) == Some(':');
             assert!(
-                output.stdout.trim().starts_with('/'),
+                is_absolute,
                 "cert_path should be absolute, got: {}",
-                output.stdout.trim()
+                stdout
             );
             assert_eq!(
                 output.stderr.trim(),
