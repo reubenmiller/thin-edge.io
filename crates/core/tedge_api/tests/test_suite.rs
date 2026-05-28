@@ -3,6 +3,11 @@ use walkdir::DirEntry;
 use walkdir::WalkDir;
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "fixture .expected_error files use LF but read_to_string on Windows \
+              returns CRLF, causing the embedded file content in error messages to differ"
+)]
 fn it_rejects_invalid_thin_edge_json() -> anyhow::Result<()> {
     let mut had_missing_test_fixtures = false;
 

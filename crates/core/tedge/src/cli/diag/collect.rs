@@ -270,6 +270,7 @@ mod tests {
     use tedge_test_utils::fs::TempTedgeDir;
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "plugins have no .exe/.bat extension so Windows executability check skips them")]
     async fn test_read_diag_plugins() {
         let ttd = TempTedgeDir::new();
         let command = DiagCollectCommand::new(&ttd);
@@ -283,6 +284,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "plugins have no .exe/.bat extension so Windows executability check skips them")]
     async fn test_read_diag_plugins_from_multiple_dirs() {
         let ttd = TempTedgeDir::new();
         let second_plugin_dir = ttd.dir("plugins_2");

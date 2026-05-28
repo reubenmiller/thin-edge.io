@@ -354,6 +354,7 @@ async fn child_service_alarm_with_shuffled_ordering_impl(seed: u64) {
 }
 
 #[proptest::property_test(config = proptest_config())]
+#[cfg_attr(windows, ignore = "child device IDs contain ':' which is invalid in Windows filesystem paths")]
 fn child_alarm_with_shuffled_entity_registration(seed: u64) {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()

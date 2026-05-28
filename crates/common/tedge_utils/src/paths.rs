@@ -631,6 +631,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "/etc/tedge is not recognised as absolute on Windows (no drive letter)")]
     fn accepts_absolute_paths_under_the_root() {
         let root = TedgePaths::from_root_with_defaults("/etc/tedge", "tedge", "tedge");
 
@@ -642,6 +643,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "/etc/tedge is not recognised as absolute on Windows (no drive letter)")]
     fn rejects_absolute_paths_outside_the_root() {
         let root = TedgePaths::from_root_with_defaults("/etc/tedge", "tedge", "tedge");
         let err = root.dir("/etc").unwrap_err();
@@ -944,6 +946,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "error message format differs on Windows (different path representation)")]
     async fn ensure_does_not_create_directories_above_the_root() {
         let ttd = TempTedgeDir::new();
         let root = ttd.utf8_path().join("missing-parent").join("managed-root");

@@ -145,15 +145,15 @@ mod tests {
         // Create a log dir with a bunch of fake log files
         let log_dir = TempDir::new()?;
 
-        let swlist_log_1 = create_file(log_dir.path(), "software-list-1996-02-22T16:39:57z");
-        let update_log_1 = create_file(log_dir.path(), "software-update-1996-12-19T16:39:57z");
-        let update_log_2 = create_file(log_dir.path(), "software-update-1996-12-20T16:39:57z");
-        let update_log_3 = create_file(log_dir.path(), "software-update-1996-12-21T16:39:57z");
-        let update_log_4 = create_file(log_dir.path(), "software-update-1996-12-22T16:39:57z");
-        let swlist_log_2 = create_file(log_dir.path(), "software-list-1996-12-22T16:39:57z");
-        let update_log_5 = create_file(log_dir.path(), "software-update-1996-12-23T16:39:57z");
-        let update_log_6 = create_file(log_dir.path(), "software-update-1996-12-24T16:39:57z");
-        let update_log_7 = create_file(log_dir.path(), "software-update-1996-12-25T16:39:57z");
+        let swlist_log_1 = create_file(log_dir.path(), "software-list-1996-02-22T16-39-57z");
+        let update_log_1 = create_file(log_dir.path(), "software-update-1996-12-19T16-39-57z");
+        let update_log_2 = create_file(log_dir.path(), "software-update-1996-12-20T16-39-57z");
+        let update_log_3 = create_file(log_dir.path(), "software-update-1996-12-21T16-39-57z");
+        let update_log_4 = create_file(log_dir.path(), "software-update-1996-12-22T16-39-57z");
+        let swlist_log_2 = create_file(log_dir.path(), "software-list-1996-12-22T16-39-57z");
+        let update_log_5 = create_file(log_dir.path(), "software-update-1996-12-23T16-39-57z");
+        let update_log_6 = create_file(log_dir.path(), "software-update-1996-12-24T16-39-57z");
+        let update_log_7 = create_file(log_dir.path(), "software-update-1996-12-25T16-39-57z");
         let unrelated_1 = create_file(log_dir.path(), "foo");
         let unrelated_2 = create_file(log_dir.path(), "bar");
 
@@ -190,15 +190,15 @@ mod tests {
             OperationLogs::try_new(log_dir.path().to_path_buf().try_into().unwrap())?;
 
         // Add a bunch of fake log files
-        let swlist_log_1 = create_file(log_dir.path(), "software-list-1996-02-22T16:39:57z");
-        let update_log_1 = create_file(log_dir.path(), "software-update-1996-12-19T16:39:57z");
-        let update_log_2 = create_file(log_dir.path(), "software-update-1996-12-20T16:39:57z");
-        let update_log_3 = create_file(log_dir.path(), "software-update-1996-12-21T16:39:57z");
-        let update_log_4 = create_file(log_dir.path(), "software-update-1996-12-22T16:39:57z");
-        let swlist_log_2 = create_file(log_dir.path(), "software-list-1996-12-22T16:39:57z");
-        let update_log_5 = create_file(log_dir.path(), "software-update-1996-12-23T16:39:57z");
-        let update_log_6 = create_file(log_dir.path(), "software-update-1996-12-24T16:39:57z");
-        let update_log_7 = create_file(log_dir.path(), "software-update-1996-12-25T16:39:57z");
+        let swlist_log_1 = create_file(log_dir.path(), "software-list-1996-02-22T16-39-57z");
+        let update_log_1 = create_file(log_dir.path(), "software-update-1996-12-19T16-39-57z");
+        let update_log_2 = create_file(log_dir.path(), "software-update-1996-12-20T16-39-57z");
+        let update_log_3 = create_file(log_dir.path(), "software-update-1996-12-21T16-39-57z");
+        let update_log_4 = create_file(log_dir.path(), "software-update-1996-12-22T16-39-57z");
+        let swlist_log_2 = create_file(log_dir.path(), "software-list-1996-12-22T16-39-57z");
+        let update_log_5 = create_file(log_dir.path(), "software-update-1996-12-23T16-39-57z");
+        let update_log_6 = create_file(log_dir.path(), "software-update-1996-12-24T16-39-57z");
+        let update_log_7 = create_file(log_dir.path(), "software-update-1996-12-25T16-39-57z");
 
         // Create a new log file
         let new_log = operation_logs.new_log_file(LogKind::SoftwareUpdate).await?;

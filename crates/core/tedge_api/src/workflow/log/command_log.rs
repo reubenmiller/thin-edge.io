@@ -216,6 +216,7 @@ mod tests {
     use tedge_test_utils::fs::TempTedgeDir;
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "uses 'ls' which is not a standalone executable on Windows")]
     async fn on_execute_are_logged_command_line_exit_status_stdout_and_stderr(
     ) -> Result<(), anyhow::Error> {
         // Prepare a log file
@@ -302,6 +303,7 @@ stdout (EMPTY)
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "uses 'ls' which is not a standalone executable on Windows")]
     async fn on_execution_error_are_logged_command_line_and_error() -> Result<(), anyhow::Error> {
         // Prepare a log file
         let tmp_dir = TempTedgeDir::new();

@@ -408,6 +408,7 @@ on_exit._ = "oops"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses 'sh -c' and Unix process signals")]
     fn signal_determines_next_state() {
         let file = r#"
 script = "sh -c 'sleep 10'"
@@ -604,6 +605,7 @@ on_exit._ = "oops"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses Unix path /bin/user-script")]
     fn error_messages_capture_script_exec_errors() {
         let script = ShellScript::from_str("/bin/user-script").unwrap();
         assert_eq!(
@@ -625,6 +627,7 @@ on_exit._ = "oops"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses 'sh -c kill -11' and Unix signals")]
     fn error_messages_capture_script_killing_signal() {
         let script = ShellScript::from_str("sh -c 'kill -11 $$'").unwrap();
         assert_eq!(

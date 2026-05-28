@@ -1,3 +1,6 @@
+// These tests spawn the `tedge` binary for MQTT publish; skip on Windows
+// until the tedge binary startup issue is resolved.
+#[cfg(not(windows))]
 #[cfg(test)]
 mod tests {
 

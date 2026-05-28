@@ -10,7 +10,13 @@ const BINARY_NAME: &str = "tedge-file-log-plugin";
 
 fn setup() -> (TempTedgeDir, String) {
     let temp_dir = TempTedgeDir::new();
-    let temp_path = temp_dir.path().to_str().unwrap().to_string();
+    // Normalise to forward slashes: Windows paths embedded in TOML double-quoted
+    // strings would be misread as escape sequences otherwise.
+    let temp_path = temp_dir
+        .path()
+        .to_str()
+        .unwrap()
+        .replace('\\', "/");
 
     // Create config directory structure
     let config_dir = temp_dir.dir("config");

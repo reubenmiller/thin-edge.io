@@ -2049,6 +2049,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "set_mode(0o000) is a no-op on Windows so the directory stays accessible")]
     async fn mapper_config_fails_if_mapper_config_directory_exists_but_is_inaccessible() {
         let ttd = TempTedgeDir::new();
         ttd.dir("mappers").set_mode(0o000);

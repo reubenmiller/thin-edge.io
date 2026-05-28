@@ -337,6 +337,15 @@ impl TEdgeConfigLocation {
         toml: &str,
         location: TEdgeConfigLocation,
     ) -> (TEdgeConfig, UnusedValueWarnings) {
+        // On Windows, paths embedded in TOML double-quoted strings contain
+        // backslashes (e.g. "C:\Users\...") which the TOML parser treats as
+        // escape sequences, causing parse errors. Forward slashes are valid
+        // path separators on Windows, so we normalise them before parsing.
+        #[cfg(windows)]
+        let toml_normalised = toml.replace('\\', "/");
+        #[cfg(windows)]
+        let toml = toml_normalised.as_str();
+
         let toml_path = Utf8Path::new("/not/read/from/file/system");
         let toml_value: toml::Value = toml::from_str(toml).unwrap();
         let (mut dto, mut warnings) = deserialize_toml(toml_value.clone(), toml_path).unwrap();
@@ -719,6 +728,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "path assertions use Linux-style paths that compare differently on Windows")]
     async fn old_toml_can_be_read_in_its_entirety() {
         let toml = r#"[device]
 key_path = "/tedge/device-key.pem"
@@ -851,6 +861,7 @@ type = "a-service-type""#;
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "path assertions use Linux-style paths that compare differently on Windows")]
     async fn environment_variables_are_read_with_migrated_mapper_config() {
         let (ttd, t) = create_temp_tedge_config("").unwrap();
         ttd.dir("mappers")

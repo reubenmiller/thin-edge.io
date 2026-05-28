@@ -226,6 +226,7 @@ mod tests {
         }
 
         #[tokio::test]
+        #[cfg_attr(windows, ignore = "chown('root') is a no-op on Windows so the expected error is never returned")]
         async fn creates_directory_using_the_system_toml_user() {
             let ttd = TempTedgeDir::new();
             let dir = ttd.utf8_path().join("bridge");

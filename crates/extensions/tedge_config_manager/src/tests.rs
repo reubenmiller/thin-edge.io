@@ -61,7 +61,8 @@ fn prepare() -> Result<TempTedgeDir, anyhow::Error> {
     let tempdir_path = tempdir
         .path()
         .to_str()
-        .ok_or_else(|| anyhow::anyhow!("temp dir not created"))?;
+        .ok_or_else(|| anyhow::anyhow!("temp dir not created"))?
+        .replace('\\', "/");
 
     // Test files
     tempdir.file("file_a");
@@ -91,9 +92,9 @@ fn prepare() -> Result<TempTedgeDir, anyhow::Error> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(plugin_path.path())?.permissions();
+        let mut perms = std::fs::metadata(_plugin_path.path())?.permissions();
         perms.set_mode(0o755);
-        std::fs::set_permissions(plugin_path.path(), perms)?;
+        std::fs::set_permissions(_plugin_path.path(), perms)?;
     }
 
     Ok(tempdir)
@@ -212,6 +213,7 @@ async fn default_plugin_config() {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin; config operations require Unix shell scripts")]
 async fn config_manager_reloads_config_types() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let TestHandle { mut mqtt, .. } = spawn_config_manager_actor(&tempdir).await;
@@ -245,6 +247,7 @@ async fn config_manager_reloads_config_types() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin")]
 async fn config_manager_uploads_snapshot() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let TestHandle {
@@ -313,6 +316,7 @@ async fn config_manager_uploads_snapshot() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin")]
 async fn config_manager_creates_tedge_url_for_snapshot_request() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let TestHandle {
@@ -380,6 +384,7 @@ async fn config_manager_creates_tedge_url_for_snapshot_request() -> Result<(), a
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin")]
 async fn config_manager_download_update() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let TestHandle {
@@ -458,6 +463,7 @@ async fn config_manager_download_update() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin")]
 async fn request_config_snapshot_that_does_not_exist() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let TestHandle { mut mqtt, .. } = spawn_config_manager_actor(&tempdir).await;
@@ -559,6 +565,7 @@ async fn send_incorrect_payload() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin")]
 async fn receive_executing_snapshot_request_without_tedge_url() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let TestHandle {
@@ -615,6 +622,7 @@ async fn receive_executing_snapshot_request_without_tedge_url() -> Result<(), an
 /// Check that requests are processed concurrently by publishing many requests at once and verifying
 /// that download/upload requests for all of them are also sent immediately.
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin")]
 async fn config_manager_processes_concurrently() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let TestHandle {
@@ -673,6 +681,7 @@ async fn config_manager_processes_concurrently() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin")]
 async fn execute_config_set_operation_step() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let mut handle = spawn_config_manager_actor(&tempdir).await;
@@ -708,6 +717,7 @@ async fn execute_config_set_operation_step() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin")]
 async fn execute_config_set_operation_step_invalid_step() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let mut handle = spawn_config_manager_actor(&tempdir).await;
@@ -740,6 +750,7 @@ async fn execute_config_set_operation_step_invalid_step() -> Result<(), anyhow::
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin")]
 async fn execute_config_set_operation_step_missing_type() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let mut handle = spawn_config_manager_actor(&tempdir).await;
@@ -771,6 +782,7 @@ async fn execute_config_set_operation_step_missing_type() -> Result<(), anyhow::
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin")]
 async fn execute_config_set_operation_step_missing_downloaded_path() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let mut handle = spawn_config_manager_actor(&tempdir).await;
@@ -798,6 +810,7 @@ async fn execute_config_set_operation_step_missing_downloaded_path() -> Result<(
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "setup creates a non-executable bash plugin")]
 async fn execute_config_set_operation_step_file_not_found() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let mut handle = spawn_config_manager_actor(&tempdir).await;

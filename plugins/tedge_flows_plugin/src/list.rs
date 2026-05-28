@@ -124,7 +124,9 @@ fn create_flow_entry_from_toml_path(
             warn!("Ignoring .toml file with empty stem at path: {}", path);
             return None;
         }
-        parent_dir.join(base_name).into_string()
+        // Normalise to forward slashes so flow names are consistent across
+        // platforms (e.g. "hello/world" not "hello\world" on Windows).
+        parent_dir.join(base_name).into_string().replace('\\', "/")
     };
 
     Some(FlowEntry {
