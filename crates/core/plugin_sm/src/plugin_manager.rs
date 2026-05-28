@@ -143,7 +143,7 @@ impl ExternalPlugins {
         for maybe_entry in fs::read_dir(&self.plugin_dir)? {
             let entry = maybe_entry?;
             let path = entry.path();
-            if path.is_file() {
+            if path.is_file() && is_executable_plugin(&path) {
                 match self.sudo.ensure_command_succeeds(&path, &vec![LIST]) {
                     Ok(()) => {
                         info!(target: "SM plugins", "Plugin activated: {}", path.display());
@@ -171,22 +171,20 @@ impl ExternalPlugins {
                     }
                 }
 
-                if let Some(file_name) = path.file_name() {
-                    if let Some(plugin_name) = file_name.to_str() {
-                        let identity = config.http.client.auth.identity()?;
-                        let plugin = ExternalPluginCommand::new(
-                            plugin_name,
-                            &path,
-                            self.sudo.clone(),
-                            config.software.plugin.max_packages,
-                            config.software.plugin.exclude.or_none().cloned(),
-                            config.software.plugin.include.or_none().cloned(),
-                            identity,
-                            config.cloud_root_certs().await?,
-                            config.tmp.path.as_path().into(),
-                        );
-                        self.plugin_map.insert(plugin_name.into(), plugin);
-                    }
+                if let Some(plugin_name) = plugin_name(&path) {
+                    let identity = config.http.client.auth.identity()?;
+                    let plugin = ExternalPluginCommand::new(
+                        plugin_name,
+                        &path,
+                        self.sudo.clone(),
+                        config.software.plugin.max_packages,
+                        config.software.plugin.exclude.or_none().cloned(),
+                        config.software.plugin.include.or_none().cloned(),
+                        identity,
+                        config.cloud_root_certs().await?,
+                        config.tmp.path.as_path().into(),
+                    );
+                    self.plugin_map.insert(plugin_name.into(), plugin);
                 }
             }
         }
@@ -281,6 +279,31 @@ impl ExternalPlugins {
             None
         }
     }
+}
+
+/// Returns the plugin name from a path.
+/// On Windows the extension is stripped so `my-plugin.bat` → `my-plugin`,
+/// keeping published software-type names platform-independent.
+fn plugin_name(path: &Path) -> Option<&str> {
+    #[cfg(windows)]
+    { path.file_stem()?.to_str() }
+    #[cfg(not(windows))]
+    { path.file_name()?.to_str() }
+}
+
+/// On Windows only files with a recognised executable extension are plugins.
+/// On Unix the execute-bit check is handled by `ensure_command_succeeds`.
+#[cfg(windows)]
+fn is_executable_plugin(path: &Path) -> bool {
+    matches!(
+        path.extension().and_then(|e| e.to_str()),
+        Some("exe" | "bat" | "cmd" | "ps1" | "com")
+    )
+}
+
+#[cfg(not(windows))]
+fn is_executable_plugin(_path: &Path) -> bool {
+    true
 }
 
 #[cfg(test)]

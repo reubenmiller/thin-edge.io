@@ -55,8 +55,8 @@ impl ExternalPlugins {
                     }
                 };
                 let path = entry.path();
-                if path.is_file() {
-                    let Some(plugin_name) = path.file_name() else {
+                if path.is_file() && is_executable_plugin(&path) {
+                    let Some(plugin_name) = plugin_name(&path) else {
                         error!(
                             target: "log plugins",
                             "Skipping {path}: failed to extract plugin name",
@@ -123,4 +123,29 @@ impl ExternalPlugins {
     pub fn is_empty(&self) -> bool {
         self.plugin_map.is_empty()
     }
+}
+
+/// Returns the plugin name from a path.
+/// On Windows the extension is stripped so `my-plugin.bat` → `my-plugin`,
+/// keeping published log-type names platform-independent.
+fn plugin_name(path: &Utf8Path) -> Option<&str> {
+    #[cfg(windows)]
+    { path.file_stem() }
+    #[cfg(not(windows))]
+    { path.file_name() }
+}
+
+/// On Windows only files with a recognised executable extension are plugins.
+/// On Unix the execute-bit check is handled by `ensure_command_succeeds`.
+#[cfg(windows)]
+fn is_executable_plugin(path: &Utf8Path) -> bool {
+    matches!(
+        path.extension(),
+        Some("exe" | "bat" | "cmd" | "ps1" | "com")
+    )
+}
+
+#[cfg(not(windows))]
+fn is_executable_plugin(_path: &Utf8Path) -> bool {
+    true
 }
