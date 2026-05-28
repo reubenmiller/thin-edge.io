@@ -220,6 +220,11 @@ mod tests {
     }
 
     #[cfg_attr(target_os = "macos", ignore)]
+    #[cfg_attr(
+        windows,
+        ignore = "ReadDirectoryChangesW emits different event sequences than inotify; \
+                  assert_rx_stream has no timeout and hangs indefinitely on Windows"
+    )]
     #[tokio::test]
     async fn test_multiple_known_files_watched() {
         let ttd = Arc::new(TempTedgeDir::new());
@@ -246,6 +251,10 @@ mod tests {
     }
 
     #[cfg_attr(target_os = "macos", ignore)]
+    #[cfg_attr(
+        windows,
+        ignore = "ReadDirectoryChangesW emits different event sequences than inotify"
+    )]
     #[tokio::test]
     async fn it_works() {
         let ttd = Arc::new(TempTedgeDir::new());
@@ -280,6 +289,11 @@ mod tests {
     }
 
     #[cfg_attr(target_os = "macos", ignore)]
+    #[cfg_attr(
+        windows,
+        ignore = "ReadDirectoryChangesW emits different event sequences than inotify; \
+                  assert_rx_stream has no timeout and hangs indefinitely on Windows"
+    )]
     #[tokio::test]
     async fn test_multiple_unknown_files_watched() {
         let ttd = Arc::new(TempTedgeDir::new());
@@ -309,6 +323,11 @@ mod tests {
     }
 
     #[cfg_attr(target_os = "macos", ignore)]
+    #[cfg_attr(
+        windows,
+        ignore = "ReadDirectoryChangesW emits different event sequences than inotify; \
+                  assert_rx_stream has no timeout and hangs indefinitely on Windows"
+    )]
     #[tokio::test]
     async fn test_multiple_directories_watched() {
         let ttd_a = Arc::new(TempTedgeDir::new());
@@ -354,6 +373,11 @@ mod tests {
     /// well, so that the consumers can only subscribe to single type of event and properly respond every time a file
     /// they're watching changes.
     #[cfg_attr(target_os = "macos", ignore)]
+    #[cfg_attr(
+        windows,
+        ignore = "ReadDirectoryChangesW emits different event sequences than inotify; \
+                  assert_rx_stream has no timeout and hangs indefinitely on Windows"
+    )]
     #[tokio::test]
     async fn modify_emitted_for_move_copy_create_delete() {
         // Arrange
