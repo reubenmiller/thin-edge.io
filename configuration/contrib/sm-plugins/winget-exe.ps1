@@ -104,10 +104,16 @@ switch ($Command) {
                 exit 2
             }
             $data = Get-Content $tmpFile -Raw | ConvertFrom-Json
-            foreach ($source in $data.Sources) {
-                foreach ($pkg in $source.Packages) {
+            # ConvertFrom-Json produces PSCustomObject; guard every property access with
+            # PSObject.Properties to avoid StrictMode PropertyNotFound errors when a key
+            # is absent (Sources/Packages are required by the schema but may be missing
+            # in a malformed or empty export; Version is explicitly optional).
+            $sources = if ($data.PSObject.Properties['Sources']) { $data.Sources } else { @() }
+            foreach ($source in $sources) {
+                $packages = if ($source.PSObject.Properties['Packages']) { $source.Packages } else { @() }
+                foreach ($pkg in $packages) {
                     $id  = $pkg.PackageIdentifier
-                    $ver = $pkg.Version
+                    $ver = if ($pkg.PSObject.Properties['Version']) { $pkg.Version } else { $null }
                     if ($ver) { Write-Output "$id`t$ver" }
                     else      { Write-Output $id }
                 }
