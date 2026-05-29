@@ -75,5 +75,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tedge-windows-debug
-          path: target/debug/tedge.exe
+          path: |
+            target/debug/tedge.exe
+            configuration/contrib/sm-plugins/winget.ps1
+            configuration/contrib/sm-plugins/install.ps1
           retention-days: 14
