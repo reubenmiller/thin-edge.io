@@ -15,7 +15,10 @@ $ErrorActionPreference = 'Stop'
 # ---------------------------------------------------------------------------
 # Configuration — change scope here to affect all install operations
 # ---------------------------------------------------------------------------
-$InstallScope = 'machine'   # 'machine' for system-wide installs, 'user' for current user
+$InstallScope = ''   # '' lets winget choose the scope; 'machine' for system-wide, 'user' for current user
+                     # Note: specifying a scope also restricts package discovery — winget will
+                     # only find packages that have an installer for that scope. Leave empty
+                     # when unsure to avoid "No package found" errors.
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -124,7 +127,10 @@ switch ($Command) {
                 exit 2
             }
             Write-Output "Installing from file: $FilePath"
-            winget install --silent --scope $InstallScope $FilePath
+            $fileArgs = @('install', '--silent', '--accept-package-agreements')
+            if ($InstallScope) { $fileArgs += '--scope', $InstallScope }
+            $fileArgs += $FilePath
+            winget @fileArgs
             $code = $LASTEXITCODE
             # APPINSTALLER_CLI_ERROR_PACKAGE_ALREADY_INSTALLED = 0x8A15002C
             if ($code -eq 0 -or $code -eq -1978335188) {
@@ -135,13 +141,12 @@ switch ($Command) {
         }
 
         # Source-based install via the PowerShell module (structured result, no screen-scraping).
-        # The module expects PascalCase scope; convert from the lowercase config variable.
-        $scopeArg = (Get-Culture).TextInfo.ToTitleCase($InstallScope)
         $params = [ordered]@{
-            Id    = $Module
-            Scope = $scopeArg
-            Mode  = 'Silent'
+            Id   = $Module
+            Mode = 'Silent'
         }
+        # Only set Scope when explicitly configured; the module expects PascalCase.
+        if ($InstallScope) { $params['Scope'] = (Get-Culture).TextInfo.ToTitleCase($InstallScope) }
         if ($null -ne $ModuleVersion) { $params['Version'] = $ModuleVersion }
 
         try {
