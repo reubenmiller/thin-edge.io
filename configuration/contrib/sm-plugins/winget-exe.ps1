@@ -98,7 +98,7 @@ switch ($Command) {
         # readable interface for the installed package inventory.
         $tmpFile = [System.IO.Path]::GetTempFileName() + '.json'
         try {
-            winget export --output $tmpFile --disable-interactivity --accept-source-agreements | Out-Null
+            winget export --output $tmpFile --include-versions --disable-interactivity --accept-source-agreements | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 Write-Error "winget export failed (exit $LASTEXITCODE)"
                 exit 2
