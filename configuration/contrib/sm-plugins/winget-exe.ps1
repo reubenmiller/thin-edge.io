@@ -175,7 +175,7 @@ switch ($Command) {
             '--disable-interactivity'
         )
         if ($InstallScope) { $installArgs += '--scope', $InstallScope }
-        if ($null -ne $ModuleVersion) {
+        if ($null -ne $ModuleVersion -and $ModuleVersion -ne 'latest') {
             $installArgs += '--version'
             $installArgs += $ModuleVersion
         }

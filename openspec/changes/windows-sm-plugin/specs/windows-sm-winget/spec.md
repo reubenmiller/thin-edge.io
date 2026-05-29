@@ -62,15 +62,19 @@ The `finalize` command SHALL exit immediately with code `0`. winget has no trans
 ---
 
 ### Requirement: install from winget source
-When called as `winget install <id> [--module-version <version>]` without `--file`, the plugin SHALL install the package identified by `<id>` from the configured winget sources, machine-wide (`--scope machine`), non-interactively (`--silent`). If `--module-version` is provided, it SHALL be passed as the exact version constraint.
+When called as `winget install <id> [--module-version <version>]` without `--file`, the plugin SHALL install the package identified by `<id>` from the configured winget sources non-interactively (`--silent`). If `--module-version` is provided and is not the special value `latest`, it SHALL be passed as the exact version constraint. If `--module-version latest` is provided, or if no version is given, the plugin SHALL install the most recent available version without passing a version constraint to winget.
 
 #### Scenario: install package by ID
 - **WHEN** `winget install Microsoft.VisualStudioCode` is called
-- **THEN** the package is installed machine-wide and the plugin exits with code `0`
+- **THEN** the latest available version of the package is installed and the plugin exits with code `0`
 
 #### Scenario: install package with exact version
 - **WHEN** `winget install Microsoft.VisualStudioCode --module-version 1.85.0` is called
 - **THEN** version `1.85.0` of the package is installed and the plugin exits with code `0`
+
+#### Scenario: install with version 'latest' fetches most recent version
+- **WHEN** `winget install Microsoft.VisualStudioCode --module-version latest` is called
+- **THEN** the version constraint is omitted and the most recent available version is installed, exiting with code `0`
 
 #### Scenario: install unknown package ID
 - **WHEN** `winget install com.example.DoesNotExist` is called
@@ -133,12 +137,18 @@ The `update-list` command SHALL exit with code `1` immediately, signalling to th
 
 ---
 
-### Requirement: machine-scope installs
-All source-based installs SHALL use `--scope machine` to ensure packages are installed system-wide rather than for the current user only. This is required because the tedge-agent typically runs as SYSTEM or a service account.
+### Requirement: configurable install scope
+The plugin SHALL expose a single `$InstallScope` configuration variable. When set to a non-empty value (`machine` or `user`) the value is forwarded to winget as `--scope`. When empty (the default), no `--scope` argument is passed and winget selects the scope automatically based on what the package supports.
 
-#### Scenario: install is machine-scoped
-- **WHEN** `winget install <id>` is called (with or without `--file`)
-- **THEN** the resulting installation is available to all users on the device, not just the service account
+Operators MUST be aware that specifying a scope also restricts package discovery: winget only finds packages that have an installer for the requested scope. Leave `$InstallScope` empty when unsure to avoid false "No package found" errors.
+
+#### Scenario: install with no scope set uses winget default
+- **WHEN** `winget install <id>` is called and `$InstallScope` is empty
+- **THEN** winget selects the scope automatically and the plugin exits with code `0`
+
+#### Scenario: install with explicit scope forwards it to winget
+- **WHEN** `winget install <id>` is called and `$InstallScope` is set to `machine` or `user`
+- **THEN** `--scope <value>` is appended to the winget command and the plugin exits with code `0`
 
 ---
 

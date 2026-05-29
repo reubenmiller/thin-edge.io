@@ -147,7 +147,8 @@ switch ($Command) {
         }
         # Only set Scope when explicitly configured; the module expects PascalCase.
         if ($InstallScope) { $params['Scope'] = (Get-Culture).TextInfo.ToTitleCase($InstallScope) }
-        if ($null -ne $ModuleVersion) { $params['Version'] = $ModuleVersion }
+        # 'latest' means no version constraint — let winget pick the newest available.
+        if ($null -ne $ModuleVersion -and $ModuleVersion -ne 'latest') { $params['Version'] = $ModuleVersion }
 
         try {
             $result = Install-WinGetPackage @params
