@@ -10,20 +10,36 @@
 /// - Registers a control handler that accepts Stop and Shutdown events.
 /// - Reports `ServiceState::Running` so the SCM transitions the service out
 ///   of "Starting" and enables the Stop / Restart controls in the Services UI.
-/// - On Stop/Shutdown: calls `std::process::exit(0)`.  Graceful async
-///   shutdown is left as a future improvement; for now an abrupt exit is
-///   acceptable because tedge services persist all state to disk before
-///   taking any action.
+/// - On Stop/Shutdown: reports `StopPending` then calls `std::process::exit(0)`.
+///   Reporting `StopPending` before exit ensures the SCM acknowledges the stop
+///   request promptly; without it the SCM may time out waiting for a status
+///   update, causing MSIX package install/update to fail with 0x8007041d.
 pub fn register_with_scm(service_name: &str) {
+    use std::sync::OnceLock;
     use std::time::Duration;
     use windows_service::service::{
         ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
         ServiceType,
     };
-    use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
+    use windows_service::service_control_handler::{self, ServiceControlHandlerResult, ServiceStatusHandle};
+
+    // Shared storage so the stop handler can report StopPending before exit.
+    // Set once after register() returns; read when Stop/Shutdown is received.
+    static HANDLE: OnceLock<ServiceStatusHandle> = OnceLock::new();
 
     let result = service_control_handler::register(service_name, |event| match event {
         ServiceControl::Stop | ServiceControl::Shutdown => {
+            if let Some(handle) = HANDLE.get() {
+                let _ = handle.set_service_status(ServiceStatus {
+                    service_type: ServiceType::OWN_PROCESS,
+                    current_state: ServiceState::StopPending,
+                    controls_accepted: ServiceControlAccept::empty(),
+                    exit_code: ServiceExitCode::Win32(0),
+                    checkpoint: 0,
+                    wait_hint: Duration::from_secs(5),
+                    process_id: None,
+                });
+            }
             std::process::exit(0);
         }
         ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
@@ -32,6 +48,7 @@ pub fn register_with_scm(service_name: &str) {
 
     match result {
         Ok(handle) => {
+            let _ = HANDLE.set(handle);
             let _ = handle.set_service_status(ServiceStatus {
                 service_type: ServiceType::OWN_PROCESS,
                 current_state: ServiceState::Running,

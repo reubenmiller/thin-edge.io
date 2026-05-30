@@ -41,8 +41,24 @@ async fn main() -> anyhow::Result<()> {
 
     yansi::whenever(USE_COLOR);
 
-    // On Windows, bootstrap C:\ProgramData\tedge\ and default config files
-    // before any service starts. Safe to call repeatedly — all ops are idempotent.
+    // On Windows, register with the SCM *first* (before any other work) so the
+    // service transitions out of StartPending immediately.  This must happen
+    // before ensure_windows_data_dirs because that function previously called
+    // sc.exe which required an SCM lock — if the MSIX installer holds that lock
+    // while waiting for the service to become Running, the two would deadlock.
+    #[cfg(windows)]
+    match &opt {
+        TEdgeOptMulticall::Component(Component::TedgeMapper(opt)) => {
+            tedge::cli::windows_service_control::register_with_scm(&opt.service_name());
+        }
+        TEdgeOptMulticall::Component(Component::TedgeAgent(_)) => {
+            tedge::cli::windows_service_control::register_with_scm("tedge-agent");
+        }
+        _ => {}
+    }
+
+    // Bootstrap C:\ProgramData\tedge\ and default config files before any
+    // service starts. Safe to call repeatedly — all ops are idempotent.
     #[cfg(windows)]
     if let TEdgeOptMulticall::Component(_) = &opt {
         tedge::cli::windows_init::ensure_windows_data_dirs(
@@ -52,15 +68,11 @@ async fn main() -> anyhow::Result<()> {
 
     match opt {
         TEdgeOptMulticall::Component(Component::TedgeMapper(opt)) => {
-            #[cfg(windows)]
-            tedge::cli::windows_service_control::register_with_scm(&opt.service_name());
             let tedge_config = tedge_config::TEdgeConfig::load(&opt.common.config_dir).await?;
             log_memory_usage(tedge_config.run.log_memory_interval.duration());
             tedge_mapper::run(opt, tedge_config).await
         }
         TEdgeOptMulticall::Component(Component::TedgeAgent(opt)) => {
-            #[cfg(windows)]
-            tedge::cli::windows_service_control::register_with_scm("tedge-agent");
             let tedge_config = tedge_config::TEdgeConfig::load(&opt.common.config_dir).await?;
             log_memory_usage(tedge_config.run.log_memory_interval.duration());
             tedge_agent::run(opt, tedge_config).await
