@@ -41,11 +41,22 @@ async fn main() -> anyhow::Result<()> {
 
     yansi::whenever(USE_COLOR);
 
-    // On Windows, register with the SCM *first* (before any other work) so the
-    // service transitions out of StartPending immediately.  This must happen
-    // before ensure_windows_data_dirs because that function previously called
-    // sc.exe which required an SCM lock — if the MSIX installer holds that lock
-    // while waiting for the service to become Running, the two would deadlock.
+    // Bootstrap C:\ProgramData\tedge\ and default config files before any
+    // service starts.  This must run before register_with_scm so that the log
+    // directory exists for the diagnostic file written there.  Safe to call
+    // repeatedly — all ops are idempotent.  Previously this function also
+    // called sc.exe which required an SCM lock (deadlock risk during MSIX
+    // install); that call has been removed so the ordering is safe again.
+    #[cfg(windows)]
+    if let TEdgeOptMulticall::Component(_) = &opt {
+        tedge::cli::windows_init::ensure_windows_data_dirs(
+            &tedge_config::get_config_dir(),
+        );
+    }
+
+    // Register with the SCM so the service transitions out of StartPending
+    // immediately.  Called after ensure_windows_data_dirs so the log directory
+    // exists for the early diagnostic file written by register_with_scm.
     #[cfg(windows)]
     match &opt {
         TEdgeOptMulticall::Component(Component::TedgeMapper(opt)) => {
@@ -55,15 +66,6 @@ async fn main() -> anyhow::Result<()> {
             tedge::cli::windows_service_control::register_with_scm("tedge-agent");
         }
         _ => {}
-    }
-
-    // Bootstrap C:\ProgramData\tedge\ and default config files before any
-    // service starts. Safe to call repeatedly — all ops are idempotent.
-    #[cfg(windows)]
-    if let TEdgeOptMulticall::Component(_) = &opt {
-        tedge::cli::windows_init::ensure_windows_data_dirs(
-            &tedge_config::get_config_dir(),
-        );
     }
 
     match opt {
