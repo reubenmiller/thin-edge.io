@@ -30,6 +30,77 @@ static USE_COLOR: yansi::Condition = yansi::Condition::from(|| {
 #[global_allocator]
 static ALLOCATOR: Cap<alloc::System> = Cap::new(alloc::System, usize::MAX);
 
+// Register the Windows service dispatcher entry point.
+//
+// MSIX packaged services enforce that RegisterServiceCtrlHandlerExW is called
+// from within a ServiceMain function (i.e. after StartServiceCtrlDispatcher
+// has been called).  Calling it directly from main() returns
+// ERROR_FAILED_SERVICE_CONTROLLER_CONNECT for packaged services even though
+// the process was started by the SCM.  The define_windows_service! macro
+// generates an extern "system" fn (ffi_service_main) that the dispatcher
+// calls on a new thread; service_main_win is our Rust handler.
+#[cfg(windows)]
+windows_service::define_windows_service!(ffi_service_main, service_main_win);
+
+/// ServiceMain callback invoked by StartServiceCtrlDispatcher on a dispatcher
+/// thread.  RegisterServiceCtrlHandlerExW is called from here so it has the
+/// SCM connection context it requires.
+#[cfg(windows)]
+fn service_main_win(_args: Vec<OsString>) {
+    // Parse the process command line — same as main() does.
+    let exec_name = executable_name();
+    let opt = tracing::subscriber::with_default(unconfigured_logger(), || {
+        parse_multicall(&exec_name, std::env::args_os())
+    })
+    .unwrap_or_else(|code| std::process::exit(code));
+
+    // Create data dirs and seed default config before doing anything else.
+    // This also creates the log directory used by register_with_scm's
+    // diagnostic file.
+    tedge::cli::windows_init::ensure_windows_data_dirs(&tedge_config::get_config_dir());
+
+    // Register with the SCM.  Called from inside ServiceMain so
+    // RegisterServiceCtrlHandlerExW has the SCM connection the OS requires.
+    match &opt {
+        TEdgeOptMulticall::Component(Component::TedgeMapper(m)) => {
+            tedge::cli::windows_service_control::register_with_scm(&m.service_name());
+        }
+        TEdgeOptMulticall::Component(Component::TedgeAgent(_)) => {
+            tedge::cli::windows_service_control::register_with_scm("tedge-agent");
+        }
+        _ => {}
+    }
+
+    // Run the service on a dedicated tokio runtime.  The outer runtime (from
+    // #[tokio::main]) is blocked waiting for StartServiceCtrlDispatcher to
+    // return, so we create a new one here for the actual service work.
+    let result = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("failed to build tokio runtime")
+        .block_on(async {
+            match opt {
+                TEdgeOptMulticall::Component(Component::TedgeMapper(opt)) => {
+                    let config =
+                        tedge_config::TEdgeConfig::load(&opt.common.config_dir).await?;
+                    log_memory_usage(config.run.log_memory_interval.duration());
+                    tedge_mapper::run(opt, config).await
+                }
+                TEdgeOptMulticall::Component(Component::TedgeAgent(opt)) => {
+                    let config =
+                        tedge_config::TEdgeConfig::load(&opt.common.config_dir).await?;
+                    log_memory_usage(config.run.log_memory_interval.duration());
+                    tedge_agent::run(opt, config).await
+                }
+                _ => Ok(()),
+            }
+        });
+
+    if let Err(e) = result {
+        eprintln!("service error: {e:#}");
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = tracing::subscriber::with_default(unconfigured_logger(), || {
@@ -41,31 +112,52 @@ async fn main() -> anyhow::Result<()> {
 
     yansi::whenever(USE_COLOR);
 
-    // Bootstrap C:\ProgramData\tedge\ and default config files before any
-    // service starts.  This must run before register_with_scm so that the log
-    // directory exists for the diagnostic file written there.  Safe to call
-    // repeatedly — all ops are idempotent.  Previously this function also
-    // called sc.exe which required an SCM lock (deadlock risk during MSIX
-    // install); that call has been removed so the ordering is safe again.
+    // On Windows, for service components (mapper / agent) use the service
+    // control dispatcher so that RegisterServiceCtrlHandlerExW is called from
+    // within the proper ServiceMain context.  MSIX packaged services require
+    // this — calling the API directly from main() fails with
+    // ERROR_FAILED_SERVICE_CONTROLLER_CONNECT.
+    //
+    // block_in_place lets tokio know the current thread will block so that it
+    // can keep its worker pool healthy while StartServiceCtrlDispatcher runs.
+    //
+    // If the dispatcher itself fails (ERROR_FAILED_SERVICE_CONTROLLER_CONNECT)
+    // the process is not running as a Windows service (e.g. interactive
+    // terminal or `cargo run`), so we fall through to the normal async path.
+    #[cfg(windows)]
+    {
+        let svc_name = match &opt {
+            TEdgeOptMulticall::Component(Component::TedgeAgent(_)) => {
+                Some("tedge-agent".to_string())
+            }
+            TEdgeOptMulticall::Component(Component::TedgeMapper(opt)) => {
+                Some(opt.service_name())
+            }
+            _ => None,
+        };
+        if let Some(name) = svc_name {
+            let result = tokio::task::block_in_place(|| {
+                windows_service::service_dispatcher::start(&name, ffi_service_main)
+            });
+            match result {
+                Ok(()) => return Ok(()),
+                // Not a service context — fall through to the interactive path.
+                Err(_) => {}
+            }
+        }
+    }
+
+    // Interactive / non-service path: run everything on the tokio runtime that
+    // #[tokio::main] already created.
+
+    // On Windows, bootstrap C:\ProgramData\tedge\ and default config files
+    // before any service starts.  Safe to call repeatedly — all ops are
+    // idempotent.
     #[cfg(windows)]
     if let TEdgeOptMulticall::Component(_) = &opt {
         tedge::cli::windows_init::ensure_windows_data_dirs(
             &tedge_config::get_config_dir(),
         );
-    }
-
-    // Register with the SCM so the service transitions out of StartPending
-    // immediately.  Called after ensure_windows_data_dirs so the log directory
-    // exists for the early diagnostic file written by register_with_scm.
-    #[cfg(windows)]
-    match &opt {
-        TEdgeOptMulticall::Component(Component::TedgeMapper(opt)) => {
-            tedge::cli::windows_service_control::register_with_scm(&opt.service_name());
-        }
-        TEdgeOptMulticall::Component(Component::TedgeAgent(_)) => {
-            tedge::cli::windows_service_control::register_with_scm("tedge-agent");
-        }
-        _ => {}
     }
 
     match opt {
@@ -264,7 +356,7 @@ mod tests {
     #[test_case("tedge --config-dir /oops run tedge-mapper c8y --config-dir /some/dir")]
     fn setting_config_dir(cmd_line: &'static str) {
         let args: Vec<&str> = cmd_line.split(' ').collect();
-        let exec = Some(args.get(0).unwrap().to_string());
+        let exec = Some(args.first().unwrap().to_string());
         let cmd = parse_multicall(&exec, args).unwrap();
         match cmd {
             TEdgeOptMulticall::Component(Component::TedgeMapper(mapper)) => {
@@ -286,7 +378,7 @@ mod tests {
     #[test_case("tedge", 2)]
     fn subcommands_exit_with_expected_codes(cmd_line: &'static str, expected_exit_code: i32) {
         let args: Vec<&str> = cmd_line.split(' ').collect();
-        let exec = Some(args.get(0).unwrap().to_string());
+        let exec = Some(args.first().unwrap().to_string());
         let res = parse_multicall(&exec, args);
         assert!(res.is_err());
         assert_eq!(res.err().unwrap(), expected_exit_code);
