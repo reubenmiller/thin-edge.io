@@ -36,15 +36,14 @@ const DEFAULT_TEDGE_CONFIG_PATH: &str = "/etc/tedge";
 const ENV_TEDGE_CONFIG_DIR: &str = "TEDGE_CONFIG_DIR";
 const TEDGE_CONFIG_FILE: &str = "tedge.toml";
 
-/// Get the location of the configuration directory
+/// Get the location of the configuration directory.
 ///
-/// Check if the TEDGE_CONFIG_DIR env variable is set and only
-/// use the value if it is not empty, otherwise use the default
-/// location, /etc/tedge
+/// Checks `TEDGE_CONFIG_DIR` first; falls back to the platform default
+/// (`/etc/tedge` on Linux/macOS, `C:\ProgramData\tedge` on Windows).
 pub fn get_config_dir() -> PathBuf {
     match std::env::var(ENV_TEDGE_CONFIG_DIR) {
         Ok(s) if !s.is_empty() => PathBuf::from(s),
-        _ => PathBuf::from(DEFAULT_TEDGE_CONFIG_PATH),
+        _ => crate::platform::config_root(),
     }
 }
 
@@ -65,9 +64,8 @@ pub(crate) struct TEdgeConfigLocation {
 }
 
 impl Default for TEdgeConfigLocation {
-    /// `tedge.toml` is located in `/etc/tedge`.
     fn default() -> Self {
-        Self::from_custom_root(DEFAULT_TEDGE_CONFIG_PATH)
+        Self::from_custom_root(crate::platform::config_root())
     }
 }
 

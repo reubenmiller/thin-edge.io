@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AppxManifest.xml for the thin-edge.io Windows MSIX package.
+
+  Version placeholder ${VERSION} must be a four-part dotted version (e.g. 1.5.0.0).
+  Publisher placeholder ${PUBLISHER} must match the code-signing certificate subject
+  (e.g. "CN=thin-edge.io, O=Software AG, C=DE").
+
+  Service declarations require Windows 10 version 2004 (build 19041) or later.
+  Both services run as LocalSystem and start automatically.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  IgnorableNamespaces="uap rescap desktop6">
+
+  <Identity
+    Name="ThinEdge.ThinEdge"
+    Publisher="${PUBLISHER}"
+    Version="${VERSION}"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>thin-edge.io</DisplayName>
+    <PublisherDisplayName>thin-edge.io</PublisherDisplayName>
+    <Logo>assets\logo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <!-- Requires Windows 10 version 2004 (build 19041) for desktop6:Service support -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Capabilities>
+    <!-- Required to run as LocalSystem and access C:\ProgramData\ without virtualization -->
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="localSystemServices" />
+  </Capabilities>
+
+  <Extensions>
+    <!--
+      tedge-agent: device management agent.
+      Invokes: tedge.exe run tedge-agent
+    -->
+    <desktop6:Extension
+      Category="windows.service"
+      Executable="bin\tedge.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <desktop6:Service
+        Name="tedge-agent"
+        StartAccount="localSystem"
+        StartupType="auto"
+        Arguments="run tedge-agent" />
+    </desktop6:Extension>
+
+    <!--
+      tedge-mapper-c8y: Cumulocity IoT cloud mapper.
+      Invokes: tedge.exe run tedge-mapper c8y
+    -->
+    <desktop6:Extension
+      Category="windows.service"
+      Executable="bin\tedge.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <desktop6:Service
+        Name="tedge-mapper-c8y"
+        StartAccount="localSystem"
+        StartupType="auto"
+        Arguments="run tedge-mapper c8y" />
+    </desktop6:Extension>
+  </Extensions>
+
+</Package>

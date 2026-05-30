@@ -41,6 +41,15 @@ async fn main() -> anyhow::Result<()> {
 
     yansi::whenever(USE_COLOR);
 
+    // On Windows, bootstrap C:\ProgramData\tedge\ and default config files
+    // before any service starts. Safe to call repeatedly — all ops are idempotent.
+    #[cfg(windows)]
+    if let TEdgeOptMulticall::Component(_) = &opt {
+        tedge::cli::windows_init::ensure_windows_data_dirs(
+            &tedge_config::get_config_dir(),
+        );
+    }
+
     match opt {
         TEdgeOptMulticall::Component(Component::TedgeMapper(opt)) => {
             let tedge_config = tedge_config::TEdgeConfig::load(&opt.common.config_dir).await?;

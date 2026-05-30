@@ -35,6 +35,8 @@ mod mqtt;
 mod reconnect;
 mod refresh_bridges;
 mod upload;
+#[cfg(windows)]
+pub mod windows_init;
 
 #[derive(clap::Parser, Debug)]
 #[clap(
