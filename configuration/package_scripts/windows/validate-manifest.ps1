@@ -90,11 +90,14 @@ if ($logo) { $referencedFiles += $logo }
 # Application Executable
 foreach ($app in $Manifest.Package.Applications.Application) {
     if ($app.Executable) { $referencedFiles += $app.Executable }
-    # VisualElements logos
+    # VisualElements logos — guard with PSObject.Properties to avoid
+    # StrictMode throwing on attributes absent from this manifest.
     foreach ($ve in $app.VisualElements) {
         foreach ($attr in @("Square150x150Logo","Square44x44Logo","Square71x71Logo","Square310x310Logo","Wide310x150Logo")) {
-            $val = $ve.$attr
-            if ($val) { $referencedFiles += $val }
+            if ($ve.PSObject.Properties[$attr]) {
+                $val = $ve.$attr
+                if ($val) { $referencedFiles += $val }
+            }
         }
     }
     # Extension Executables
