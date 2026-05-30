@@ -108,6 +108,31 @@ New-Item -ItemType Directory -Path "$StagingDir\sm-plugins" | Out-Null
 New-Item -ItemType Directory -Path "$StagingDir\assets"     | Out-Null
 New-Item -ItemType Directory -Path $OutputDir               -Force | Out-Null
 
+# --- Developer certificate ---
+# When no thumbprint is supplied, create a self-signed dev cert, sign with it,
+# and export the public key so users can trust it via trust-dev-cert.ps1.
+# Done here (after $OutputDir is created) so the .cer lands in a known location.
+if (-not $SigningCertThumbprint) {
+    Write-Host "No signing certificate provided — creating self-signed developer certificate"
+    $cert = New-SelfSignedCertificate `
+        -Type CodeSigningCert `
+        -Subject $Publisher `
+        -KeyUsage DigitalSignature `
+        -FriendlyName "thin-edge.io Developer Certificate" `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -HashAlgorithm SHA256 `
+        -NotAfter (Get-Date).AddYears(3)
+    $SigningCertThumbprint = $cert.Thumbprint
+    $CertFile = Join-Path $OutputDir "tedge-dev.cer"
+    Export-Certificate -Cert $cert -FilePath $CertFile -Type CERT | Out-Null
+    Write-Host "Developer certificate: $($cert.Thumbprint)"
+    Write-Host "Public key exported:   $CertFile"
+    # Expose to subsequent GitHub Actions steps if running in CI
+    if ($env:GITHUB_ENV) {
+        "CERT_THUMBPRINT=$($cert.Thumbprint)" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+    }
+}
+
 # --- Copy binary ---
 $TedgeExeFull = Join-Path $RepoRoot $TedgeExe
 if (-not (Test-Path $TedgeExeFull)) {

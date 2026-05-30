@@ -102,13 +102,6 @@ jobs:
         run: pwsh configuration/package_scripts/windows/validate-manifest.ps1 -Arch ${{ matrix.arch }}
         shell: pwsh
 
-      # Create a self-signed developer certificate and set CERT_THUMBPRINT.
-      # The exported tedge-dev.cer is uploaded alongside the packages so users
-      # can run trust-dev-cert.ps1 once to enable MSIX install without dev mode.
-      - name: Create developer signing certificate
-        run: pwsh configuration/package_scripts/windows/create-dev-cert.ps1
-        shell: pwsh
-
       - name: Retrieve MSRV
         id: rust_version
         uses: SebRollen/toml-action@v1.2.0
@@ -143,13 +136,15 @@ jobs:
           echo "GIT_SEMVER=$semver" >> $env:GITHUB_ENV
         shell: pwsh
 
+      # package.ps1 auto-creates a dev cert when no MSIX_SIGNING_CERT_THUMBPRINT
+      # is set, signs all packages with it, and writes tedge-dev.cer to
+      # target\packages\ alongside the MSIX/APPX/ZIP artifacts.
       - name: Build MSIX and APPX packages
         run: >
           pwsh configuration/package_scripts/windows/package.ps1
           -Version "$env:GIT_SEMVER"
           -Arch "${{ matrix.arch }}"
           -OutputDir "target\packages"
-          -SigningCertThumbprint "$env:CERT_THUMBPRINT"
         shell: pwsh
 
       # Copy trust-dev-cert.ps1 into the output directory so it ships
