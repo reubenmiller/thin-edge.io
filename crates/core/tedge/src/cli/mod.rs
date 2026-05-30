@@ -37,6 +37,8 @@ mod refresh_bridges;
 mod upload;
 #[cfg(windows)]
 pub mod windows_init;
+#[cfg(windows)]
+pub mod windows_service_control;
 
 #[derive(clap::Parser, Debug)]
 #[clap(

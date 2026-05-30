@@ -52,11 +52,15 @@ async fn main() -> anyhow::Result<()> {
 
     match opt {
         TEdgeOptMulticall::Component(Component::TedgeMapper(opt)) => {
+            #[cfg(windows)]
+            tedge::cli::windows_service_control::register_with_scm(&opt.name.to_string());
             let tedge_config = tedge_config::TEdgeConfig::load(&opt.common.config_dir).await?;
             log_memory_usage(tedge_config.run.log_memory_interval.duration());
             tedge_mapper::run(opt, tedge_config).await
         }
         TEdgeOptMulticall::Component(Component::TedgeAgent(opt)) => {
+            #[cfg(windows)]
+            tedge::cli::windows_service_control::register_with_scm("tedge-agent");
             let tedge_config = tedge_config::TEdgeConfig::load(&opt.common.config_dir).await?;
             log_memory_usage(tedge_config.run.log_memory_interval.duration());
             tedge_agent::run(opt, tedge_config).await

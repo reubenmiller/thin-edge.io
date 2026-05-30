@@ -31,6 +31,22 @@ pub fn ensure_windows_data_dirs(config_dir: &std::path::Path) {
             }
         }
     }
+
+    // Set human-readable display names for the services registered by the MSIX
+    // package.  MSIX derives display names from the package DisplayName ("thin-edge.io")
+    // and applies it to every service, making them indistinguishable in the
+    // Services MMC snap-in.  Overwrite with distinct names via sc.exe — the
+    // change is persisted in the registry and survives reboots.
+    set_service_display_name("tedge-agent",      "thin-edge.io Agent");
+    set_service_display_name("tedge-mapper-c8y", "thin-edge.io Mapper (Cumulocity)");
+}
+
+#[cfg(windows)]
+fn set_service_display_name(service: &str, display_name: &str) {
+    // sc.exe config requires the unusual "key= value" syntax with a trailing space.
+    let _ = std::process::Command::new("sc.exe")
+        .args(["config", service, &format!("DisplayName= {display_name}")])
+        .output();
 }
 
 #[cfg(windows)]
