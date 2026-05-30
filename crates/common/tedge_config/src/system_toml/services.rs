@@ -41,6 +41,7 @@ impl From<InitConfigToml> for InitConfig {
     }
 }
 
+#[cfg(not(windows))]
 impl Default for InitConfig {
     fn default() -> Self {
         Self {
@@ -52,6 +53,37 @@ impl Default for InitConfig {
             enable: vec!["/bin/systemctl".into(), "enable".into(), "{}".into()],
             disable: vec!["/bin/systemctl".into(), "disable".into(), "{}".into()],
             is_active: vec!["/bin/systemctl".into(), "is-active".into(), "{}".into()],
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Default for InitConfig {
+    fn default() -> Self {
+        let ps = |cmd: &str| {
+            vec![
+                "powershell".into(),
+                "-NonInteractive".into(),
+                "-Command".into(),
+                cmd.into(),
+            ]
+        };
+        Self {
+            name: "Windows SCM".to_string(),
+            is_available: vec![
+                "powershell".into(),
+                "-NonInteractive".into(),
+                "-Command".into(),
+                "exit 0".into(),
+            ],
+            restart: ps("Restart-Service '{}'"),
+            stop: ps("Stop-Service '{}' -Force"),
+            start: ps("Start-Service '{}'"),
+            enable: ps("Set-Service '{}' -StartupType Automatic"),
+            disable: ps("Set-Service '{}' -StartupType Disabled"),
+            is_active: ps(
+                "if ((Get-Service '{}' -ErrorAction Stop).Status -ne 'Running') { exit 1 }",
+            ),
         }
     }
 }

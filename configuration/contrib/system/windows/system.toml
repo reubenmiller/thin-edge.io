@@ -1,0 +1,9 @@
+[init]
+name = "Windows SCM"
+is_available = ["powershell", "-NonInteractive", "-Command", "exit 0"]
+restart    = ["powershell", "-NonInteractive", "-Command", "Restart-Service '{}'"]
+stop       = ["powershell", "-NonInteractive", "-Command", "Stop-Service '{}' -Force"]
+start      = ["powershell", "-NonInteractive", "-Command", "Start-Service '{}'"]
+enable     = ["powershell", "-NonInteractive", "-Command", "Set-Service '{}' -StartupType Automatic"]
+disable    = ["powershell", "-NonInteractive", "-Command", "Set-Service '{}' -StartupType Disabled"]
+is_active  = ["powershell", "-NonInteractive", "-Command", "if ((Get-Service '{}' -ErrorAction Stop).Status -ne 'Running') { exit 1 }"]
