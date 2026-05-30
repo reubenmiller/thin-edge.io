@@ -52,16 +52,18 @@ if ($syspath -notlike "*$InstallDir*") {
 
 # --- Bootstrap data directories ---
 Write-Step "Bootstrapping $ConfigDir"
-foreach ($sub in @("data", "log", "tmp", "sm-plugins")) {
+foreach ($sub in @("data", "log", "tmp", "sm-plugins", "config-plugins", "log-plugins")) {
     New-Item -ItemType Directory -Path (Join-Path $ConfigDir $sub) -Force | Out-Null
 }
 
 # Write default tedge.toml only if absent (preserve user config on upgrade)
 $TomlPath = Join-Path $ConfigDir "tedge.toml"
 if (-not (Test-Path $TomlPath)) {
-    $dataDir = (Join-Path $ConfigDir "data") -replace '\\', '/'
-    $logDir  = (Join-Path $ConfigDir "log")  -replace '\\', '/'
-    $tmpDir  = (Join-Path $ConfigDir "tmp")  -replace '\\', '/'
+    $dataDir          = (Join-Path $ConfigDir "data")           -replace '\\', '/'
+    $logDir           = (Join-Path $ConfigDir "log")            -replace '\\', '/'
+    $tmpDir           = (Join-Path $ConfigDir "tmp")            -replace '\\', '/'
+    $configPluginsDir = (Join-Path $ConfigDir "config-plugins") -replace '\\', '/'
+    $logPluginsDir    = (Join-Path $ConfigDir "log-plugins")    -replace '\\', '/'
     Set-Content -Path $TomlPath -Encoding UTF8 -Value @"
 [data]
 path = '$dataDir'
@@ -71,6 +73,12 @@ path = '$logDir'
 
 [tmp]
 path = '$tmpDir'
+
+[configuration]
+plugin_paths = '$configPluginsDir'
+
+[log]
+plugin_paths = '$logPluginsDir'
 "@
     Write-Host "    Created $TomlPath"
 } else {
@@ -85,6 +93,21 @@ if ((Test-Path $WingetSrc) -and -not (Test-Path $WingetDst)) {
     Write-Host "    Installed winget.ps1"
 } elseif (Test-Path $WingetDst) {
     Write-Host "    Preserved existing winget.ps1"
+}
+
+# Copy config and log plugin .cmd wrappers only if absent
+foreach ($plugin in @(
+    @{ Src = "config-plugins\file.cmd"; Dst = "config-plugins\file.cmd" },
+    @{ Src = "log-plugins\file.cmd";   Dst = "log-plugins\file.cmd" }
+)) {
+    $src = Join-Path $ScriptDir $plugin.Src
+    $dst = Join-Path $ConfigDir $plugin.Dst
+    if ((Test-Path $src) -and -not (Test-Path $dst)) {
+        Copy-Item $src $dst
+        Write-Host "    Installed $($plugin.Dst)"
+    } elseif (Test-Path $dst) {
+        Write-Host "    Preserved existing $($plugin.Dst)"
+    }
 }
 
 # --- Register Windows Services ---

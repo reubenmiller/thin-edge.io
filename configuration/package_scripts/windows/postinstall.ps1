@@ -60,11 +60,15 @@ Ensure-Dir "$ConfigDir\data"
 Ensure-Dir "$ConfigDir\log"
 Ensure-Dir "$ConfigDir\tmp"
 Ensure-Dir "$ConfigDir\sm-plugins"
+Ensure-Dir "$ConfigDir\config-plugins"
+Ensure-Dir "$ConfigDir\log-plugins"
 
 # --- Default tedge.toml ---
-$ConfigDataDir  = "$ConfigDir\data" -replace '\\', '/'
-$ConfigLogDir   = "$ConfigDir\log"  -replace '\\', '/'
-$ConfigTmpDir   = "$ConfigDir\tmp"  -replace '\\', '/'
+$ConfigDataDir          = "$ConfigDir\data"           -replace '\\', '/'
+$ConfigLogDir           = "$ConfigDir\log"            -replace '\\', '/'
+$ConfigTmpDir           = "$ConfigDir\tmp"            -replace '\\', '/'
+$ConfigPluginsDir       = "$ConfigDir\config-plugins" -replace '\\', '/'
+$LogPluginsDir          = "$ConfigDir\log-plugins"    -replace '\\', '/'
 
 $DefaultToml = @"
 [data]
@@ -75,6 +79,12 @@ path = '$ConfigLogDir'
 
 [tmp]
 path = '$ConfigTmpDir'
+
+[configuration]
+plugin_paths = '$ConfigPluginsDir'
+
+[log]
+plugin_paths = '$LogPluginsDir'
 "@
 
 Write-IfAbsent -Path "$ConfigDir\tedge.toml" -Content $DefaultToml
@@ -83,6 +93,14 @@ Write-IfAbsent -Path "$ConfigDir\tedge.toml" -Content $DefaultToml
 Copy-IfAbsent `
     -Src "$PackageRoot\sm-plugins\winget.ps1" `
     -Dst "$ConfigDir\sm-plugins\winget.ps1"
+
+# --- Config and log plugin .cmd wrappers ---
+Copy-IfAbsent `
+    -Src "$PackageRoot\config-plugins\file.cmd" `
+    -Dst "$ConfigDir\config-plugins\file.cmd"
+Copy-IfAbsent `
+    -Src "$PackageRoot\log-plugins\file.cmd" `
+    -Dst "$ConfigDir\log-plugins\file.cmd"
 
 Write-Host ""
 Write-Host "thin-edge.io bootstrap complete."

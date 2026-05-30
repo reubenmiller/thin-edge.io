@@ -10,7 +10,7 @@
 pub fn ensure_windows_data_dirs(config_dir: &std::path::Path) {
     use std::fs;
 
-    for subdir in &["data", "log", "tmp", "sm-plugins"] {
+    for subdir in &["data", "log", "tmp", "sm-plugins", "config-plugins", "log-plugins"] {
         let _ = fs::create_dir_all(config_dir.join(subdir));
     }
 
@@ -19,14 +19,21 @@ pub fn ensure_windows_data_dirs(config_dir: &std::path::Path) {
         default_tedge_toml(config_dir).as_bytes(),
     );
 
-    // Copy winget.ps1 from the package directory (two levels up from the
+    // Copy bundled plugins from the package directory (two levels up from the
     // service executable: {package_root}\bin\tedge.exe → {package_root}).
     if let Ok(exe) = std::env::current_exe() {
         if let Some(package_root) = exe.parent().and_then(|p| p.parent()) {
-            let src = package_root.join("sm-plugins").join("winget.ps1");
-            let dst = config_dir.join("sm-plugins").join("winget.ps1");
-            if src.exists() && !dst.exists() {
-                let _ = fs::copy(&src, &dst);
+            let copies: &[(&str, &str)] = &[
+                ("sm-plugins/winget-exe.ps1", "sm-plugins/winget.ps1"),
+                ("config-plugins/file.cmd", "config-plugins/file.cmd"),
+                ("log-plugins/file.cmd", "log-plugins/file.cmd"),
+            ];
+            for (src_rel, dst_rel) in copies {
+                let src = package_root.join(src_rel);
+                let dst = config_dir.join(dst_rel);
+                if src.exists() && !dst.exists() {
+                    let _ = fs::copy(&src, &dst);
+                }
             }
         }
     }
@@ -44,7 +51,19 @@ fn default_tedge_toml(config_dir: &std::path::Path) -> String {
     let data = config_dir.join("data").display().to_string().replace('\\', "/");
     let log = config_dir.join("log").display().to_string().replace('\\', "/");
     let tmp = config_dir.join("tmp").display().to_string().replace('\\', "/");
+    let config_plugins = config_dir
+        .join("config-plugins")
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    let log_plugins = config_dir
+        .join("log-plugins")
+        .display()
+        .to_string()
+        .replace('\\', "/");
     format!(
-        "[data]\npath = '{data}'\n\n[logs]\npath = '{log}'\n\n[tmp]\npath = '{tmp}'\n"
+        "[data]\npath = '{data}'\n\n[logs]\npath = '{log}'\n\n[tmp]\npath = '{tmp}'\n\n\
+         [configuration]\nplugin_paths = '{config_plugins}'\n\n\
+         [log]\nplugin_paths = '{log_plugins}'\n"
     )
 }
