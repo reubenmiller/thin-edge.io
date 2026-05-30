@@ -70,10 +70,12 @@ if ($Arch -notin $ValidArches) {
     Write-Error "Arch must be one of: $($ValidArches -join ', ') (got: '$Arch')"
 }
 
-# Default binary path depends on architecture
+# Default binary path depends on architecture.
+# When --target is passed to Cargo the output goes to target\<triple>\release\,
+# not target\release\, so all three arches use their explicit triple path.
 if (-not $TedgeExe) {
     $TedgeExe = switch ($Arch) {
-        "x64"   { "target\release\tedge.exe" }
+        "x64"   { "target\x86_64-pc-windows-msvc\release\tedge.exe" }
         "arm64" { "target\aarch64-pc-windows-msvc\release\tedge.exe" }
         "x86"   { "target\i686-pc-windows-msvc\release\tedge.exe" }
     }
