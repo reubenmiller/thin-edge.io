@@ -69,6 +69,42 @@ fn logger(
     config_dir: Option<&Utf8Path>,
     default_level: tracing::Level,
 ) -> Result<Arc<dyn tracing::Subscriber + Send + Sync>, SystemTomlError> {
+    // On Windows, when stderr is not a terminal (i.e. running as a Windows
+    // Service), redirect all output to a log file so failures are observable.
+    // The guard is intentionally leaked: services are long-running and the
+    // process is killed rather than gracefully exited, so flushing on drop
+    // is not required.
+    #[cfg(windows)]
+    if !std::io::stderr().is_terminal() {
+        if let Some(config_dir) = config_dir {
+            let log_dir = config_dir.join("log");
+            let _ = std::fs::create_dir_all(&log_dir);
+            let file_appender =
+                tracing_appender::rolling::never(log_dir, format!("{sname}.log"));
+            let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+            std::mem::forget(guard);
+
+            let level = flags
+                .log_level
+                .or(flags.debug.then_some(tracing::Level::DEBUG))
+                .or_else(|| {
+                    get_log_level_from_config_file(sname, config_dir)
+                        .ok()
+                        .flatten()
+                })
+                .unwrap_or(default_level);
+
+            return Ok(Arc::new(
+                tracing_subscriber::fmt()
+                    .with_writer(non_blocking)
+                    .with_ansi(false)
+                    .with_timer(tracing_subscriber::fmt::time::UtcTime::rfc_3339())
+                    .with_max_level(level)
+                    .finish(),
+            ));
+        }
+    }
+
     let subscriber = subscriber_builder!();
 
     // Added by systemd if the process is running as systemd unit

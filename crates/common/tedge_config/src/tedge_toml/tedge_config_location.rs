@@ -32,7 +32,7 @@ use super::tedge_config;
 use super::ParseKeyError;
 use super::WritableKey;
 
-const DEFAULT_TEDGE_CONFIG_PATH: &str = "/etc/tedge";
+
 const ENV_TEDGE_CONFIG_DIR: &str = "TEDGE_CONFIG_DIR";
 const TEDGE_CONFIG_FILE: &str = "tedge.toml";
 
