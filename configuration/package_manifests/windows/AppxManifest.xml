@@ -43,36 +43,56 @@
     <rescap:Capability Name="localSystemServices" />
   </Capabilities>
 
-  <Extensions>
+  <Applications>
     <!--
-      tedge-agent: device management agent.
-      Invokes: tedge.exe run tedge-agent
+      A package-level Application entry is required; service Extensions must be
+      declared here, not at the top-level Package/Extensions.
     -->
-    <desktop6:Extension
-      Category="windows.service"
+    <Application
+      Id="TedgeServices"
       Executable="bin\tedge.exe"
       EntryPoint="Windows.FullTrustApplication">
-      <desktop6:Service
-        Name="tedge-agent"
-        StartAccount="localSystem"
-        StartupType="auto"
-        Arguments="run tedge-agent" />
-    </desktop6:Extension>
 
-    <!--
-      tedge-mapper-c8y: Cumulocity IoT cloud mapper.
-      Invokes: tedge.exe run tedge-mapper c8y
-    -->
-    <desktop6:Extension
-      Category="windows.service"
-      Executable="bin\tedge.exe"
-      EntryPoint="Windows.FullTrustApplication">
-      <desktop6:Service
-        Name="tedge-mapper-c8y"
-        StartAccount="localSystem"
-        StartupType="auto"
-        Arguments="run tedge-mapper c8y" />
-    </desktop6:Extension>
-  </Extensions>
+      <uap:VisualElements
+        DisplayName="thin-edge.io"
+        Description="thin-edge.io device management services"
+        BackgroundColor="transparent"
+        Square150x150Logo="assets\logo.png"
+        Square44x44Logo="assets\logo.png" />
+
+      <Extensions>
+        <!--
+          tedge-agent: device management agent.
+          Invokes: tedge.exe run tedge-agent
+        -->
+        <desktop6:Extension
+          Category="windows.service"
+          Executable="bin\tedge.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <desktop6:Service
+            Name="tedge-agent"
+            StartAccount="localSystem"
+            StartupType="auto"
+            Arguments="run tedge-agent" />
+        </desktop6:Extension>
+
+        <!--
+          tedge-mapper-c8y: Cumulocity IoT cloud mapper.
+          Invokes: tedge.exe run tedge-mapper c8y
+        -->
+        <desktop6:Extension
+          Category="windows.service"
+          Executable="bin\tedge.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <desktop6:Service
+            Name="tedge-mapper-c8y"
+            StartAccount="localSystem"
+            StartupType="auto"
+            Arguments="run tedge-mapper c8y" />
+        </desktop6:Extension>
+      </Extensions>
+
+    </Application>
+  </Applications>
 
 </Package>

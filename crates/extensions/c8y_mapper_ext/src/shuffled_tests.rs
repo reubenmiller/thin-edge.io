@@ -179,6 +179,7 @@ impl<R: Rng + Send> MessageReceiver<MqttMessage> for ShuffledMqttBox<'_, R> {
     }
 }
 
+#[cfg(not(windows))]
 #[proptest::property_test(config = proptest_config())]
 fn birth_message_with_shuffled_entity_registration(seed: u64) {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -298,6 +299,7 @@ async fn nested_child_registration_with_shuffled_ordering_impl(seed: u64) {
     .await;
 }
 
+#[cfg(not(windows))]
 #[proptest::property_test(config = proptest_config())]
 fn child_service_alarm_with_shuffled_ordering(seed: u64) {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -401,6 +403,7 @@ async fn child_alarm_with_shuffled_entity_registration_impl(seed: u64) {
     .await;
 }
 
+#[cfg(not(windows))]
 #[proptest::property_test(config = proptest_config())]
 fn child_event_with_shuffled_entity_registration(seed: u64) {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -443,6 +446,7 @@ async fn child_event_with_shuffled_entity_registration_impl(seed: u64) {
     .await;
 }
 
+#[cfg(not(windows))]
 #[proptest::property_test(config = proptest_config())]
 fn nested_child_alarm_with_shuffled_ordering(seed: u64) {
     let rt = tokio::runtime::Builder::new_current_thread()

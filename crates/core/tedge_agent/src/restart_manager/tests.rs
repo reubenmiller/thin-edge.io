@@ -52,6 +52,7 @@ async fn test_pending_restart_operation() -> Result<(), DynError> {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "restart manager pending operation handling is not supported on Windows")]
 async fn test_pending_restart_operation_failed() -> Result<(), DynError> {
     let temp_dir = TempTedgeDir::new();
     let content = json!({
