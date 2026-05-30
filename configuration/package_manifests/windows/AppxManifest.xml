@@ -38,9 +38,12 @@
   </Resources>
 
   <Capabilities>
-    <!-- Required to run as LocalSystem and access C:\ProgramData\ without virtualization -->
-    <rescap:Capability Name="runFullTrust" />
+    <!-- Required to declare services in an MSIX package -->
+    <rescap:Capability Name="packagedServices" />
+    <!-- Required additionally when StartAccount="localSystem" is used -->
     <rescap:Capability Name="localSystemServices" />
+    <!-- Required for unrestricted filesystem access (C:\ProgramData\) -->
+    <rescap:Capability Name="runFullTrust" />
   </Capabilities>
 
   <Applications>

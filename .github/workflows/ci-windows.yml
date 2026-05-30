@@ -90,6 +90,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Validate the manifest early — before spending time on the cargo build.
+      # Uses makeappx.exe with stub files so no compiled binary is needed.
+      # Run this locally too: pwsh configuration/package_scripts/windows/validate-manifest.ps1
+      - name: Validate AppxManifest.xml
+        run: pwsh configuration/package_scripts/windows/validate-manifest.ps1
+        shell: pwsh
+
       - name: Retrieve MSRV
         id: rust_version
         uses: SebRollen/toml-action@v1.2.0
