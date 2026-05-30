@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  AppxManifest.xml for the thin-edge.io Windows MSIX package.
+  AppxManifest.xml for the thin-edge.io Windows MSIX/APPX package.
 
-  Version placeholder ${VERSION} must be a four-part dotted version (e.g. 1.5.0.0).
-  Publisher placeholder ${PUBLISHER} must match the code-signing certificate subject
-  (e.g. "CN=thin-edge.io, O=Software AG, C=DE").
+  Placeholders substituted at build time by package.ps1:
+    ${VERSION}    four-part dotted version  (e.g. 1.5.0.0)
+    ${PUBLISHER}  signing certificate subject (e.g. CN=thin-edge.io)
+    ${ARCH}       processor architecture: x64 | arm64
 
-  Service declarations require Windows 10 version 2004 (build 19041) or later.
-  Both services run as LocalSystem and start automatically.
+  Service declarations (desktop6:Extension) require Windows 10 v2004+ on
+  Desktop/IoT Enterprise. The package is also installable on Windows IoT Core
+  (Windows.IoT family) for arm64 devices, though service auto-registration via
+  desktop6 is a Desktop/IoT Enterprise capability.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -20,7 +23,7 @@
     Name="ThinEdge.ThinEdge"
     Publisher="${PUBLISHER}"
     Version="${VERSION}"
-    ProcessorArchitecture="x64" />
+    ProcessorArchitecture="${ARCH}" />
 
   <Properties>
     <DisplayName>thin-edge.io</DisplayName>
@@ -29,8 +32,10 @@
   </Properties>
 
   <Dependencies>
-    <!-- Requires Windows 10 version 2004 (build 19041) for desktop6:Service support -->
+    <!-- Desktop and IoT Enterprise: full service support via desktop6 -->
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+    <!-- IoT Core: package installable; service auto-registration requires IoT Enterprise -->
+    <TargetDeviceFamily Name="Windows.IoT"     MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
   </Dependencies>
 
   <Resources>
@@ -38,7 +43,7 @@
   </Resources>
 
   <Capabilities>
-    <!-- Required to declare services in an MSIX package -->
+    <!-- Required to declare services in an MSIX/APPX package -->
     <rescap:Capability Name="packagedServices" />
     <!-- Required additionally when StartAccount="localSystem" is used -->
     <rescap:Capability Name="localSystemServices" />

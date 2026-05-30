@@ -81,9 +81,17 @@ jobs:
             configuration/contrib/sm-plugins/install.ps1
           retention-days: 14
 
-  package-windows-msix:
-    name: Package MSIX (windows-latest)
+  package-windows:
+    name: Package MSIX+APPX (${{ matrix.arch }})
     runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            cargo_target: x86_64-pc-windows-msvc
+          - arch: arm64
+            cargo_target: aarch64-pc-windows-msvc
+
     steps:
       - uses: actions/checkout@v4
 
@@ -91,7 +99,7 @@ jobs:
       # Uses makeappx.exe with stub files so no compiled binary is needed.
       # Run this locally too: pwsh configuration/package_scripts/windows/validate-manifest.ps1
       - name: Validate AppxManifest.xml
-        run: pwsh configuration/package_scripts/windows/validate-manifest.ps1
+        run: pwsh configuration/package_scripts/windows/validate-manifest.ps1 -Arch ${{ matrix.arch }}
         shell: pwsh
 
       - name: Retrieve MSRV
@@ -105,11 +113,14 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.rust_version.outputs.value }}
+          targets: ${{ matrix.cargo_target }}
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.cargo_target }}
 
       - name: Build tedge (release)
-        run: cargo build --package tedge --locked --release
+        run: cargo build --package tedge --locked --release --target ${{ matrix.cargo_target }}
         shell: pwsh
 
       - name: Determine version
@@ -119,25 +130,25 @@ jobs:
           if ($tag -match '^v(\d+\.\d+\.\d+)') {
             $semver = $Matches[1]
           } else {
-            # Fallback: read from Cargo.toml
             $semver = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' |
               Select-Object -First 1).Matches.Groups[1].Value
           }
           echo "GIT_SEMVER=$semver" >> $env:GITHUB_ENV
-          echo "semver=$semver" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
-      - name: Build MSIX package
+      - name: Build MSIX and APPX packages
         run: >
           pwsh configuration/package_scripts/windows/package.ps1
           -Version "$env:GIT_SEMVER"
-          -TedgeExe "target\release\tedge.exe"
+          -Arch "${{ matrix.arch }}"
           -OutputDir "target\packages"
         shell: pwsh
 
-      - name: Upload MSIX artifact
+      - name: Upload packages artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tedge-windows-msix
-          path: target/packages/*.msix
+          name: tedge-windows-${{ matrix.arch }}
+          path: |
+            target/packages/*.msix
+            target/packages/*.appx
           retention-days: 30

@@ -24,6 +24,9 @@
 .PARAMETER Publisher
     Publisher string inserted for ${PUBLISHER}. Defaults to "CN=TestPublisher".
 
+.PARAMETER Arch
+    Architecture inserted for ${ARCH}. Defaults to "x64".
+
 .EXAMPLE
     # Run from the repo root
     pwsh configuration/package_scripts/windows/validate-manifest.ps1
@@ -36,7 +39,8 @@
 param(
     [string]$ManifestTemplate = $null,
     [string]$Version          = "1.0.0.0",
-    [string]$Publisher        = "CN=TestPublisher"
+    [string]$Publisher        = "CN=TestPublisher",
+    [string]$Arch             = "x64"
 )
 
 Set-StrictMode -Version Latest
@@ -70,6 +74,7 @@ if ($Version -match '^\d+\.\d+\.\d+$') { $Version = "$Version.0" }
 $ManifestContent = Get-Content $ManifestTemplate -Raw
 $ManifestContent = $ManifestContent -replace '\$\{VERSION\}',   $Version
 $ManifestContent = $ManifestContent -replace '\$\{PUBLISHER\}', $Publisher
+$ManifestContent = $ManifestContent -replace '\$\{ARCH\}',      $Arch
 
 # --- Parse manifest to discover referenced files ---
 [xml]$Manifest = $ManifestContent
