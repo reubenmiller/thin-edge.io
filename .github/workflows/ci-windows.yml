@@ -151,4 +151,5 @@ jobs:
           path: |
             target/packages/*.msix
             target/packages/*.appx
+            target/packages/*.zip
           retention-days: 30

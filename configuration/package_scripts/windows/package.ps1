@@ -34,13 +34,26 @@
 
 .PARAMETER OutputDir
     Directory where packages are written. Defaults to target\packages.
+
+.PARAMETER SigningCertThumbprint
+    Thumbprint of a certificate in the current user's My store to sign the
+    MSIX/APPX with signtool.exe. When omitted, packages are produced unsigned.
+    Unsigned packages can only be installed with developer mode or
+    Add-AppxPackage -AllowUnsigned; use the ZIP installer for policy-restricted
+    machines instead.
+
+.NOTES
+    Two installation methods are produced:
+      *.msix / *.appx  MSIX/APPX package (requires signing for non-dev machines)
+      *-installer.zip  ZIP with install.ps1 — no certificate required, uses sc.exe
 #>
 param(
-    [string]$Version   = $env:GIT_SEMVER,
-    [string]$Publisher = $(if ($env:MSIX_PUBLISHER) { $env:MSIX_PUBLISHER } else { "CN=thin-edge.io" }),
-    [string]$Arch      = $(if ($env:CARGO_ARCH) { $env:CARGO_ARCH } else { "x64" }),
-    [string]$TedgeExe  = "",
-    [string]$OutputDir = "target\packages"
+    [string]$Version                  = $env:GIT_SEMVER,
+    [string]$Publisher                = $(if ($env:MSIX_PUBLISHER) { $env:MSIX_PUBLISHER } else { "CN=thin-edge.io" }),
+    [string]$Arch                     = $(if ($env:CARGO_ARCH) { $env:CARGO_ARCH } else { "x64" }),
+    [string]$TedgeExe                 = "",
+    [string]$OutputDir                = "target\packages",
+    [string]$SigningCertThumbprint    = $env:MSIX_SIGNING_CERT_THUMBPRINT
 )
 
 Set-StrictMode -Version Latest
@@ -139,12 +152,62 @@ foreach ($ext in @("msix", "appx")) {
     if ($LASTEXITCODE -ne 0) {
         Write-Error "makeappx.exe failed (exit $LASTEXITCODE) producing .$ext"
     }
+
+    # Sign if a certificate thumbprint was provided
+    if ($SigningCertThumbprint) {
+        $SignTool = Get-ChildItem `
+            "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" `
+            -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+
+        if (-not $SignTool) { Write-Error "signtool.exe not found in Windows SDK." }
+
+        Write-Host "Signing: $OutputFile"
+        & $SignTool sign /fd SHA256 /sha1 $SigningCertThumbprint /td SHA256 /tr http://timestamp.digicert.com $OutputFile
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "signtool.exe failed signing $OutputFile (exit $LASTEXITCODE)"
+        }
+    }
 }
+
+# --- ZIP installer: no certificate or MSIX policy required ---
+# Contains tedge.exe, winget.ps1, install.ps1, uninstall.ps1.
+# Install with: PowerShell -ExecutionPolicy Bypass -File install.ps1
+$ZipStagingDir = Join-Path $RepoRoot "target\zip-staging-$Arch"
+if (Test-Path $ZipStagingDir) { Remove-Item $ZipStagingDir -Recurse -Force }
+New-Item -ItemType Directory -Path "$ZipStagingDir\bin"        | Out-Null
+New-Item -ItemType Directory -Path "$ZipStagingDir\sm-plugins" | Out-Null
+
+Copy-Item "$StagingDir\bin\tedge.exe"             "$ZipStagingDir\bin\tedge.exe"
+if (Test-Path "$StagingDir\sm-plugins\winget.ps1") {
+    Copy-Item "$StagingDir\sm-plugins\winget.ps1" "$ZipStagingDir\sm-plugins\winget.ps1"
+}
+
+$PkgScripts = Join-Path $RepoRoot "configuration\package_scripts\windows"
+Copy-Item (Join-Path $PkgScripts "install.ps1")   "$ZipStagingDir\install.ps1"
+Copy-Item (Join-Path $PkgScripts "uninstall.ps1") "$ZipStagingDir\uninstall.ps1"
+
+$ZipFile = Join-Path $OutputDir "tedge_${Version}_${Arch}-installer.zip"
+Write-Host "Zipping: $ZipFile"
+Compress-Archive -Path "$ZipStagingDir\*" -DestinationPath $ZipFile -Force
+Remove-Item $ZipStagingDir -Recurse -Force
 
 Write-Host ""
 Write-Host "Packages produced in: $OutputDir"
-Write-Host "  tedge_${Version}_${Arch}.msix  — Desktop / IoT Enterprise"
-Write-Host "  tedge_${Version}_${Arch}.appx  — IoT Core / legacy sideload"
+Write-Host "  tedge_${Version}_${Arch}.msix          — Desktop / IoT Enterprise (MSIX)"
+Write-Host "  tedge_${Version}_${Arch}.appx          — IoT Core / legacy sideload (APPX)"
+Write-Host "  tedge_${Version}_${Arch}-installer.zip — ZIP installer, no certificate required"
 Write-Host ""
-Write-Host "To install (sideload, unsigned):"
-Write-Host "  Add-AppxPackage -AllowUnsigned '$(Join-Path $OutputDir "tedge_${Version}_${Arch}.msix")'"
+if ($SigningCertThumbprint) {
+    Write-Host "Packages are signed. Install with:"
+    Write-Host "  Add-AppxPackage '$(Join-Path $OutputDir "tedge_${Version}_${Arch}.msix")'"
+} else {
+    Write-Host "Packages are UNSIGNED. MSIX install options:"
+    Write-Host "  Add-AppxPackage -AllowUnsigned '$(Join-Path $OutputDir "tedge_${Version}_${Arch}.msix")'"
+    Write-Host "  (requires Developer Mode or sideloading policy)"
+    Write-Host ""
+    Write-Host "To install without any certificate policy restriction:"
+    Write-Host "  Expand-Archive tedge_${Version}_${Arch}-installer.zip"
+    Write-Host "  PowerShell -ExecutionPolicy Bypass -File install.ps1"
+}
