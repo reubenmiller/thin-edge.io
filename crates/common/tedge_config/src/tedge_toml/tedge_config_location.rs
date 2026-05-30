@@ -715,13 +715,12 @@ mod tests {
     #[test]
     fn test_from_default_system_location() {
         let config_location = TEdgeConfigLocation::default();
-        assert_eq!(
-            config_location.tedge_config_root_path,
-            Utf8Path::new("/etc/tedge")
-        );
+        let expected_root = crate::platform::config_root();
+        let expected_root = Utf8Path::from_path(&expected_root).unwrap();
+        assert_eq!(config_location.tedge_config_root_path, expected_root);
         assert_eq!(
             config_location.tedge_config_file_path,
-            Utf8Path::new("/etc/tedge/tedge.toml")
+            expected_root.join("tedge.toml")
         );
     }
 

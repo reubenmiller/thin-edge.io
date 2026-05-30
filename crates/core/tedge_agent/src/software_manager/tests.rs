@@ -63,6 +63,7 @@ async fn test_pending_software_update_operation() -> Result<(), DynError> {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "apt and docker sm-plugins are not available on Windows")]
 async fn test_new_software_update_operation() -> Result<(), DynError> {
     let temp_dir = TempTedgeDir::new();
     temp_dir.dir(".agent");

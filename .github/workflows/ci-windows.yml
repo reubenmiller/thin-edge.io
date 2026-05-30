@@ -85,6 +85,7 @@ jobs:
     name: Package MSIX (windows-latest)
     runs-on: windows-latest
     needs: test-windows
+    if: always()
 
     steps:
       - uses: actions/checkout@v4

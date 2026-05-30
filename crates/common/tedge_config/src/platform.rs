@@ -14,9 +14,12 @@ use std::path::PathBuf;
 pub fn config_root() -> PathBuf {
     #[cfg(windows)]
     {
-        dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from(r"C:\ProgramData"))
-            .join("tedge")
+        // %PROGRAMDATA% resolves to C:\ProgramData (system-wide, not per-user).
+        // dirs::data_dir() returns %APPDATA%\Roaming which is per-user — wrong for a service.
+        PathBuf::from(
+            std::env::var("PROGRAMDATA").unwrap_or_else(|_| r"C:\ProgramData".to_owned()),
+        )
+        .join("tedge")
     }
     #[cfg(not(windows))]
     {

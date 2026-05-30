@@ -116,10 +116,11 @@ mod tests {
         remove_cmd.assert().success();
 
         // which can no more be displayed
+        // "No such file" (Linux) / "cannot find the file" (Windows) — check os error 2
         show_cmd
             .assert()
             .failure()
-            .stderr(predicate::str::contains("No such file"));
+            .stderr(predicate::str::contains("os error 2"));
 
         // The remove command also removed the device id from the config
         get_device_id_cmd
@@ -229,6 +230,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        windows,
+        ignore = "path separator mismatch and c8y.root_cert_path has no default on Windows (system cert store)"
+    )]
     fn run_config_defaults() -> Result<(), Box<dyn std::error::Error>> {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_dir_path = temp_dir.path();
