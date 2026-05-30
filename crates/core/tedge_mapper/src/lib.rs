@@ -148,6 +148,13 @@ pub struct MapperOpt {
     pub common: CommonArgs,
 }
 
+impl MapperOpt {
+    /// Returns the service name for this mapper (e.g. `"tedge-mapper-c8y"`).
+    pub fn service_name(&self) -> String {
+        self.name.to_string()
+    }
+}
+
 #[derive(Debug, clap::Subcommand, Clone)]
 #[clap(rename_all = "kebab-case")]
 pub enum MapperName {
