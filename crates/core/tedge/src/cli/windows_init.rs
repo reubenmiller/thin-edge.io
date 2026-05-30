@@ -19,22 +19,28 @@ pub fn ensure_windows_data_dirs(config_dir: &std::path::Path) {
         default_tedge_toml(config_dir).as_bytes(),
     );
 
-    // Copy bundled plugins from the package directory (two levels up from the
-    // service executable: {package_root}\bin\tedge.exe → {package_root}).
     if let Ok(exe) = std::env::current_exe() {
+        // Copy winget.ps1 from the package directory (two levels up from the
+        // service executable: {package_root}\bin\tedge.exe → {package_root}).
         if let Some(package_root) = exe.parent().and_then(|p| p.parent()) {
-            let copies: &[(&str, &str)] = &[
-                ("sm-plugins/winget-exe.ps1", "sm-plugins/winget.ps1"),
-                ("config-plugins/file.cmd", "config-plugins/file.cmd"),
-                ("log-plugins/file.cmd", "log-plugins/file.cmd"),
-            ];
-            for (src_rel, dst_rel) in copies {
-                let src = package_root.join(src_rel);
-                let dst = config_dir.join(dst_rel);
-                if src.exists() && !dst.exists() {
-                    let _ = fs::copy(&src, &dst);
-                }
+            let src = package_root.join("sm-plugins").join("winget-exe.ps1");
+            let dst = config_dir.join("sm-plugins").join("winget.ps1");
+            if src.exists() && !dst.exists() {
+                let _ = fs::copy(&src, &dst);
             }
+        }
+
+        // Always regenerate file.cmd wrappers with the absolute path to the current
+        // tedge.exe. The MSIX install location changes on every upgrade, so the path
+        // must be kept current rather than written once and left stale.
+        let exe_path = exe.to_string_lossy();
+        for (subdir, subcommand) in &[
+            ("config-plugins", "tedge-file-config-plugin"),
+            ("log-plugins", "tedge-file-log-plugin"),
+        ] {
+            let content =
+                format!("@echo off\r\n\"{exe_path}\" run {subcommand} %*\r\n");
+            let _ = fs::write(config_dir.join(subdir).join("file.cmd"), content.as_bytes());
         }
     }
 }

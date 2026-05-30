@@ -94,14 +94,6 @@ Copy-IfAbsent `
     -Src "$PackageRoot\sm-plugins\winget.ps1" `
     -Dst "$ConfigDir\sm-plugins\winget.ps1"
 
-# --- Config and log plugin .cmd wrappers ---
-Copy-IfAbsent `
-    -Src "$PackageRoot\config-plugins\file.cmd" `
-    -Dst "$ConfigDir\config-plugins\file.cmd"
-Copy-IfAbsent `
-    -Src "$PackageRoot\log-plugins\file.cmd" `
-    -Dst "$ConfigDir\log-plugins\file.cmd"
-
 Write-Host ""
 Write-Host "thin-edge.io bootstrap complete."
 Write-Host "Configure cloud connectivity with: tedge config set c8y.url <your-tenant>.cumulocity.com"

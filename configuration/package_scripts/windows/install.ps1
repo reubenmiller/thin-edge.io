@@ -95,21 +95,6 @@ if ((Test-Path $WingetSrc) -and -not (Test-Path $WingetDst)) {
     Write-Host "    Preserved existing winget.ps1"
 }
 
-# Copy config and log plugin .cmd wrappers only if absent
-foreach ($plugin in @(
-    @{ Src = "config-plugins\file.cmd"; Dst = "config-plugins\file.cmd" },
-    @{ Src = "log-plugins\file.cmd";   Dst = "log-plugins\file.cmd" }
-)) {
-    $src = Join-Path $ScriptDir $plugin.Src
-    $dst = Join-Path $ConfigDir $plugin.Dst
-    if ((Test-Path $src) -and -not (Test-Path $dst)) {
-        Copy-Item $src $dst
-        Write-Host "    Installed $($plugin.Dst)"
-    } elseif (Test-Path $dst) {
-        Write-Host "    Preserved existing $($plugin.Dst)"
-    }
-}
-
 # --- Register Windows Services ---
 $TedgeExe = Join-Path $InstallDir "tedge.exe"
 

@@ -103,12 +103,10 @@ $OutputDir  = Join-Path $RepoRoot $OutputDir
 
 # Clean and recreate staging area
 if (Test-Path $StagingDir) { Remove-Item $StagingDir -Recurse -Force }
-New-Item -ItemType Directory -Path "$StagingDir\bin"            | Out-Null
-New-Item -ItemType Directory -Path "$StagingDir\sm-plugins"     | Out-Null
-New-Item -ItemType Directory -Path "$StagingDir\config-plugins" | Out-Null
-New-Item -ItemType Directory -Path "$StagingDir\log-plugins"    | Out-Null
-New-Item -ItemType Directory -Path "$StagingDir\assets"         | Out-Null
-New-Item -ItemType Directory -Path $OutputDir                   -Force | Out-Null
+New-Item -ItemType Directory -Path "$StagingDir\bin"        | Out-Null
+New-Item -ItemType Directory -Path "$StagingDir\sm-plugins" | Out-Null
+New-Item -ItemType Directory -Path "$StagingDir\assets"     | Out-Null
+New-Item -ItemType Directory -Path $OutputDir               -Force | Out-Null
 
 # --- Developer certificate ---
 # When no thumbprint is supplied, create a self-signed dev cert, sign with it,
@@ -149,13 +147,6 @@ if (Test-Path $WingetSrc) {
 } else {
     Write-Warning "winget.ps1 not found at $WingetSrc — sm-plugins will be empty"
 }
-
-# --- Config and log plugin .cmd wrappers ---
-# These delegate to the built-in plugin implementations via `tedge run`.
-Set-Content -Path "$StagingDir\config-plugins\file.cmd" `
-    -Value "@echo off`r`ntedge run tedge-file-config-plugin %*" -Encoding ASCII
-Set-Content -Path "$StagingDir\log-plugins\file.cmd" `
-    -Value "@echo off`r`ntedge run tedge-file-log-plugin %*" -Encoding ASCII
 
 # --- Logo ---
 $LogoSrc = Join-Path $RepoRoot "configuration\package_manifests\windows\assets\logo.png"
@@ -212,17 +203,13 @@ foreach ($ext in @("msix", "appx")) {
 # Install with: PowerShell -ExecutionPolicy Bypass -File install.ps1
 $ZipStagingDir = Join-Path $RepoRoot "target\zip-staging-$Arch"
 if (Test-Path $ZipStagingDir) { Remove-Item $ZipStagingDir -Recurse -Force }
-New-Item -ItemType Directory -Path "$ZipStagingDir\bin"            | Out-Null
-New-Item -ItemType Directory -Path "$ZipStagingDir\sm-plugins"     | Out-Null
-New-Item -ItemType Directory -Path "$ZipStagingDir\config-plugins" | Out-Null
-New-Item -ItemType Directory -Path "$ZipStagingDir\log-plugins"    | Out-Null
+New-Item -ItemType Directory -Path "$ZipStagingDir\bin"        | Out-Null
+New-Item -ItemType Directory -Path "$ZipStagingDir\sm-plugins" | Out-Null
 
 Copy-Item "$StagingDir\bin\tedge.exe" "$ZipStagingDir\bin\tedge.exe"
 if (Test-Path "$StagingDir\sm-plugins\winget.ps1") {
     Copy-Item "$StagingDir\sm-plugins\winget.ps1" "$ZipStagingDir\sm-plugins\winget.ps1"
 }
-Copy-Item "$StagingDir\config-plugins\file.cmd" "$ZipStagingDir\config-plugins\file.cmd"
-Copy-Item "$StagingDir\log-plugins\file.cmd"   "$ZipStagingDir\log-plugins\file.cmd"
 
 $PkgScripts = Join-Path $RepoRoot "configuration\package_scripts\windows"
 Copy-Item (Join-Path $PkgScripts "install.ps1")   "$ZipStagingDir\install.ps1"
