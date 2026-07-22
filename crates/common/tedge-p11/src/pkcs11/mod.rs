@@ -100,6 +100,8 @@ use std::sync::Mutex;
 pub use cryptoki::types::AuthPin;
 
 use crate::service;
+use crate::service::ChangePinRequest;
+use crate::service::ChangePinResponse;
 use crate::service::ChooseSchemeRequest;
 use crate::service::ChooseSchemeResponse;
 use crate::service::CreateKeyRequest;
@@ -247,6 +249,99 @@ impl TedgeP11Service for Cryptoki {
         }
 
         Ok(ListTokensResponse { tokens })
+    }
+
+    #[instrument(skip_all)]
+    fn change_pin(&self, request: ChangePinRequest) -> anyhow::Result<ChangePinResponse> {
+        // Refresh the slot list so a recently attached/initialized token is visible.
+        let _ = self.reinit();
+        let context = match self.context.lock() {
+            Ok(c) => c,
+            Err(e) => e.into_inner(),
+        };
+        let slots = context
+            .get_slots_with_token()
+            .context("Failed to list slots with a token")?;
+
+        // Only an initialized token has a user PIN to change.
+        let initialized: Vec<Slot> = slots
+            .iter()
+            .copied()
+            .filter(|s| {
+                context
+                    .get_token_info(*s)
+                    .map(|i| i.token_initialized())
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        let slot = match request.slot {
+            Some(id) => {
+                let slot = Slot::try_from(id).with_context(|| format!("Invalid slot id {id}"))?;
+                let info = context
+                    .get_token_info(slot)
+                    .with_context(|| format!("No token present in slot {id}"))?;
+                anyhow::ensure!(
+                    info.token_initialized(),
+                    "Slot {id} holds an uninitialized token. Initialize it first with \
+                     `tedge hsm init`."
+                );
+                slot
+            }
+            None => match initialized.as_slice() {
+                [] => anyhow::bail!(
+                    "No initialized token was found. Ensure the HSM is connected and a token has \
+                     been initialized with `tedge hsm init`."
+                ),
+                [slot] => *slot,
+                many => {
+                    let ids: Vec<u64> = many.iter().map(|s| s.id()).collect();
+                    anyhow::bail!(
+                        "Found multiple initialized tokens ({ids:?}). \
+                         Please select one explicitly using --slot."
+                    );
+                }
+            },
+        };
+
+        // NOTE: changing a PIN mutates the token, so a read-write session is required.
+        let session = context
+            .open_rw_session(slot)
+            .context("Failed to open a read-write session")?;
+
+        if request.reset {
+            // Recovery path: a Security Officer resets the user PIN without knowing the old one.
+            let so_pin = request.so_pin.context(
+                "A Security Officer PIN is required to reset the user PIN (pass --so-pin).",
+            )?;
+            session
+                .login(UserType::So, Some(&AuthPin::from(so_pin)))
+                .context("Failed to log in as Security Officer")?;
+            session
+                .init_pin(&AuthPin::from(request.new_pin))
+                .context("Failed to reset the user PIN (C_InitPIN)")?;
+        } else {
+            // Normal path: change the user PIN using the current one. While PKCS #11 allows
+            // C_SetPIN in a public session, several modules (SoftHSM2, tpm2-pkcs11) expect the user
+            // to be logged in first, so log in with the current PIN before changing it.
+            let old_pin = request.old_pin.unwrap_or_else(|| self.config.pin.clone());
+            session
+                .login(UserType::User, Some(&AuthPin::from(old_pin.clone())))
+                .context(
+                    "Failed to log in with the current user PIN. Check that it is correct, or use \
+                     --reset with the Security Officer PIN.",
+                )?;
+            session
+                .set_pin(&AuthPin::from(old_pin), &AuthPin::from(request.new_pin))
+                .context("Failed to change the user PIN (C_SetPIN)")?;
+        }
+
+        let info = context
+            .get_token_info(slot)
+            .context("Failed to read token info after changing the PIN")?;
+        Ok(ChangePinResponse {
+            uri: export_session_uri(&info),
+        })
     }
 
     fn create_key(&self, request: CreateKeyRequest) -> anyhow::Result<CreateKeyResponse> {
