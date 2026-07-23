@@ -1,10 +1,17 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::service::ChangePinRequest;
+use crate::service::ChangePinResponse;
 use crate::service::ChooseSchemeRequest;
 use crate::service::ChooseSchemeResponse;
 use crate::service::CreateKeyRequest;
 use crate::service::CreateKeyResponse;
+use crate::service::DeleteKeyRequest;
+use crate::service::DeleteKeyResponse;
+use crate::service::InitTokenRequest;
+use crate::service::InitTokenResponse;
+use crate::service::ListTokensResponse;
 use crate::service::SignRequest;
 use crate::service::SignRequestWithSigScheme;
 use crate::service::SignResponse;
@@ -29,6 +36,14 @@ pub enum Frame1 {
     CreateKeyResponse(CreateKeyResponse),
     GetTokensUrisRequest,
     GetTokensUrisResponse(Vec<String>),
+    InitTokenRequest(InitTokenRequest),
+    InitTokenResponse(InitTokenResponse),
+    ListTokensRequest,
+    ListTokensResponse(ListTokensResponse),
+    ChangePinRequest(ChangePinRequest),
+    ChangePinResponse(ChangePinResponse),
+    DeleteKeyRequest(DeleteKeyRequest),
+    DeleteKeyResponse(DeleteKeyResponse),
 }
 
 /// An error that can be returned to the client by the server.
@@ -46,6 +61,7 @@ mod tests {
     use crate::pkcs11::SigScheme;
     use crate::service::SignatureAlgorithm;
     use crate::service::SignatureScheme;
+    use crate::service::TokenDetails;
     use crate::SecretString;
 
     use super::*;
@@ -231,6 +247,146 @@ mod tests {
         assert_eq!(
             request,
             Frame1::GetTokensUrisResponse(vec!["a".to_string(), "b".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_deserialize_init_token_request() {
+        let input = vec![14, 2, 116, 107, 1, 2, 115, 111, 1, 3, 112, 105, 110, 1, 3];
+        let request: Frame1 = postcard::from_bytes(&input).unwrap();
+        assert_eq!(
+            request,
+            Frame1::InitTokenRequest(InitTokenRequest {
+                label: "tk".to_string(),
+                so_pin: Some(SecretString::new("so".to_string())),
+                pin: Some(SecretString::new("pin".to_string())),
+                slot: Some(3),
+            })
+        );
+    }
+
+    #[test]
+    fn test_deserialize_init_token_request_defaults() {
+        let input = vec![14, 2, 116, 107, 0, 0, 0];
+        let request: Frame1 = postcard::from_bytes(&input).unwrap();
+        assert_eq!(
+            request,
+            Frame1::InitTokenRequest(InitTokenRequest {
+                label: "tk".to_string(),
+                so_pin: None,
+                pin: None,
+                slot: None,
+            })
+        );
+    }
+
+    #[test]
+    fn test_deserialize_init_token_response() {
+        let input = vec![15, 1, 117];
+        let frame: Frame1 = postcard::from_bytes(&input).unwrap();
+        assert_eq!(
+            frame,
+            Frame1::InitTokenResponse(InitTokenResponse {
+                uri: "u".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_deserialize_list_tokens_request() {
+        let input = vec![16];
+        let frame: Frame1 = postcard::from_bytes(&input).unwrap();
+        assert_eq!(frame, Frame1::ListTokensRequest);
+    }
+
+    #[test]
+    fn test_deserialize_list_tokens_response() {
+        let input = vec![
+            17, 1, 1, 2, 116, 107, 1, 109, 2, 109, 102, 1, 115, 1, 1, 117,
+        ];
+        let frame: Frame1 = postcard::from_bytes(&input).unwrap();
+        assert_eq!(
+            frame,
+            Frame1::ListTokensResponse(ListTokensResponse {
+                tokens: vec![TokenDetails {
+                    slot: 1,
+                    label: "tk".to_string(),
+                    model: "m".to_string(),
+                    manufacturer: "mf".to_string(),
+                    serial: "s".to_string(),
+                    initialized: true,
+                    uri: "u".to_string(),
+                }],
+            })
+        );
+    }
+
+    #[test]
+    fn test_deserialize_change_pin_request() {
+        let input = vec![18, 1, 3, 2, 110, 112, 1, 2, 111, 112, 1, 2, 115, 111, 1];
+        let frame: Frame1 = postcard::from_bytes(&input).unwrap();
+        assert_eq!(
+            frame,
+            Frame1::ChangePinRequest(ChangePinRequest {
+                slot: Some(3),
+                new_pin: SecretString::new("np".to_string()),
+                old_pin: Some(SecretString::new("op".to_string())),
+                so_pin: Some(SecretString::new("so".to_string())),
+                reset: true,
+            })
+        );
+    }
+
+    #[test]
+    fn test_deserialize_change_pin_request_defaults() {
+        let input = vec![18, 0, 2, 110, 112, 0, 0, 0];
+        let frame: Frame1 = postcard::from_bytes(&input).unwrap();
+        assert_eq!(
+            frame,
+            Frame1::ChangePinRequest(ChangePinRequest {
+                slot: None,
+                new_pin: SecretString::new("np".to_string()),
+                old_pin: None,
+                so_pin: None,
+                reset: false,
+            })
+        );
+    }
+
+    #[test]
+    fn test_deserialize_change_pin_response() {
+        let input = vec![19, 1, 117];
+        let frame: Frame1 = postcard::from_bytes(&input).unwrap();
+        assert_eq!(
+            frame,
+            Frame1::ChangePinResponse(ChangePinResponse {
+                uri: "u".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_deserialize_delete_key_request() {
+        let input = vec![20, 1, 117, 1, 1, 112];
+        let frame: Frame1 = postcard::from_bytes(&input).unwrap();
+        assert_eq!(
+            frame,
+            Frame1::DeleteKeyRequest(DeleteKeyRequest {
+                uri: "u".to_string(),
+                pin: Some(SecretString::new("p".to_string())),
+            })
+        );
+    }
+
+    #[test]
+    fn test_deserialize_delete_key_response() {
+        let input = vec![21, 2, 1, 97, 1, 98];
+        let frame: Frame1 = postcard::from_bytes(&input).unwrap();
+        assert_eq!(
+            frame,
+            Frame1::DeleteKeyResponse(DeleteKeyResponse {
+                deleted: vec!["a".to_string(), "b".to_string()],
+            })
         );
     }
 }

@@ -26,8 +26,42 @@ pub trait TedgeP11Service: Send + Sync {
 
     fn get_tokens_uris(&self) -> anyhow::Result<Vec<String>>;
 
+    /// List every slot that holds a token, along with the token's metadata and URI.
+    ///
+    /// Unlike [`get_tokens_uris`](Self::get_tokens_uris), which only returns the URIs of
+    /// initialized tokens, this reports every token present (initialized or not) so uninitialized
+    /// slots waiting for `tedge hsm init` are visible too. It reads only public token metadata, so
+    /// no PIN or login is required.
+    fn list_tokens(&self) -> anyhow::Result<ListTokensResponse>;
+
+    /// Change or reset the user PIN of an initialized PKCS #11 token.
+    ///
+    /// By default the current user PIN is changed to a new one (`C_SetPIN`). When
+    /// [`ChangePinRequest::reset`] is set, the user PIN is instead reset using the Security Officer
+    /// PIN (`C_InitPIN`), which is the recovery path when the current user PIN is unknown or the
+    /// token is locked out.
+    fn change_pin(&self, request: ChangePinRequest) -> anyhow::Result<ChangePinResponse>;
+
+    /// Delete key objects from a token.
+    ///
+    /// Every token object matching the selector in [`DeleteKeyRequest::uri`] (both the private and
+    /// public key objects sharing the label/id) is destroyed. The selector must identify a key by
+    /// object (label) and/or id; deleting all objects on a token is not supported.
+    fn delete_key(&self, request: DeleteKeyRequest) -> anyhow::Result<DeleteKeyResponse>;
+
     /// Generate a new keypair, saving the private key on the token and returning the public key as PEM.
     fn create_key(&self, request: CreateKeyRequest) -> anyhow::Result<CreateKeyResponse>;
+
+    /// Initialize a token in a slot so that it can be used to store keys.
+    ///
+    /// This performs the full PKCS #11 initialization sequence: `C_InitToken` (which sets the
+    /// Security Officer PIN and the token label) followed by a Security Officer login and
+    /// `C_InitPIN` (which sets the user PIN used by all other operations).
+    ///
+    /// If the target slot is not specified, the single slot holding an uninitialized token is
+    /// selected automatically. The operation is idempotent: if a token with the requested label is
+    /// already initialized with a user PIN, it is left untouched and its URI is returned.
+    fn init_token(&self, request: InitTokenRequest) -> anyhow::Result<InitTokenResponse>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -113,6 +147,88 @@ pub struct CreateKeyRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateKeyResponse {
     pub pem: String,
+    pub uri: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeleteKeyRequest {
+    /// URI selecting the key object(s) to delete. Must include an object (label) and/or id so the
+    /// selection is specific; deleting an entire token's contents is not supported.
+    pub uri: String,
+    /// PIN for logging into the token (required to destroy private objects). If `None`, the
+    /// configured PIN is used.
+    pub pin: Option<SecretString>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeleteKeyResponse {
+    /// URIs of the objects that were destroyed.
+    pub deleted: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChangePinRequest {
+    /// Slot id of the token whose user PIN to change. If `None`, the single initialized token is
+    /// selected; if several exist the operation fails asking for an explicit slot.
+    pub slot: Option<u64>,
+    /// The new user PIN to set on the token.
+    pub new_pin: SecretString,
+    /// The current user PIN, used for a normal change (`C_SetPIN`). If `None`, the PIN configured
+    /// for the service is used. Ignored when `reset` is set.
+    pub old_pin: Option<SecretString>,
+    /// The Security Officer PIN. Required when `reset` is set; used to reset the user PIN via
+    /// `C_InitPIN`.
+    pub so_pin: Option<SecretString>,
+    /// When true, reset the user PIN using the Security Officer PIN (`C_InitPIN`) instead of
+    /// changing it with the current user PIN (`C_SetPIN`).
+    pub reset: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChangePinResponse {
+    /// URI identifying the token whose PIN was changed.
+    pub uri: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListTokensResponse {
+    pub tokens: Vec<TokenDetails>,
+}
+
+/// Public metadata describing a single PKCS #11 token present in a slot.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TokenDetails {
+    /// Slot id holding the token.
+    pub slot: u64,
+    /// Token label (CKA_LABEL). Empty for tokens that have not been initialized.
+    pub label: String,
+    /// Token model as reported by the module.
+    pub model: String,
+    /// Token manufacturer as reported by the module.
+    pub manufacturer: String,
+    /// Token serial number as reported by the module.
+    pub serial: String,
+    /// Whether the token has been initialized (`C_InitToken` has run).
+    pub initialized: bool,
+    /// PKCS #11 URI selecting this token, suitable for use with other `tedge hsm` commands.
+    pub uri: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InitTokenRequest {
+    /// Token label (CKA_LABEL) to assign to the initialized token.
+    pub label: String,
+    /// Security Officer PIN used by `C_InitToken`. If not set, the user PIN is used as the SO PIN.
+    pub so_pin: Option<SecretString>,
+    /// User PIN set on the token via `C_InitPIN`. If not set, the configured PIN is used.
+    pub pin: Option<SecretString>,
+    /// Slot id to initialize. If not set, the single slot with an uninitialized token is selected.
+    pub slot: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InitTokenResponse {
+    /// URI identifying the initialized token.
     pub uri: String,
 }
 

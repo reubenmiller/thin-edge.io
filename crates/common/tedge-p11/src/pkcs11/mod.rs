@@ -79,6 +79,7 @@ use cryptoki::object::ObjectClass;
 use cryptoki::object::ObjectHandle;
 use cryptoki::session::Session;
 use cryptoki::session::UserType;
+use cryptoki::slot::Slot;
 use cryptoki::slot::SlotInfo;
 use cryptoki::slot::TokenInfo;
 use rsa::pkcs1::EncodeRsaPublicKey;
@@ -99,14 +100,22 @@ use std::sync::Mutex;
 pub use cryptoki::types::AuthPin;
 
 use crate::service;
+use crate::service::ChangePinRequest;
+use crate::service::ChangePinResponse;
 use crate::service::ChooseSchemeRequest;
 use crate::service::ChooseSchemeResponse;
 use crate::service::CreateKeyRequest;
 use crate::service::CreateKeyResponse;
+use crate::service::DeleteKeyRequest;
+use crate::service::DeleteKeyResponse;
+use crate::service::InitTokenRequest;
+use crate::service::InitTokenResponse;
+use crate::service::ListTokensResponse;
 use crate::service::SecretString;
 use crate::service::SignRequestWithSigScheme;
 use crate::service::SignResponse;
 use crate::service::TedgeP11Service;
+use crate::service::TokenDetails;
 
 mod signing;
 pub use signing::Pkcs11Signer;
@@ -210,6 +219,184 @@ impl TedgeP11Service for Cryptoki {
         Ok(uris)
     }
 
+    fn list_tokens(&self) -> anyhow::Result<ListTokensResponse> {
+        // Refresh the slot list so recently attached/initialized tokens are visible.
+        let _ = self.reinit();
+        let context = match self.context.lock() {
+            Ok(c) => c,
+            Err(e) => e.into_inner(),
+        };
+        let slots = context
+            .get_slots_with_token()
+            .context("Failed to list slots with a token")?;
+
+        let mut tokens = Vec::with_capacity(slots.len());
+        for slot in slots {
+            let info = match context.get_token_info(slot) {
+                Ok(info) => info,
+                Err(e) => {
+                    error!(?e, slot = slot.id(), "Failed to get_token_info for slot");
+                    continue;
+                }
+            };
+            tokens.push(TokenDetails {
+                slot: slot.id(),
+                label: info.label().to_string(),
+                model: info.model().to_string(),
+                manufacturer: info.manufacturer_id().to_string(),
+                serial: info.serial_number().to_string(),
+                initialized: info.token_initialized(),
+                uri: export_session_uri(&info),
+            });
+        }
+
+        Ok(ListTokensResponse { tokens })
+    }
+
+    #[instrument(skip_all)]
+    fn change_pin(&self, request: ChangePinRequest) -> anyhow::Result<ChangePinResponse> {
+        // Refresh the slot list so a recently attached/initialized token is visible.
+        let _ = self.reinit();
+        let context = match self.context.lock() {
+            Ok(c) => c,
+            Err(e) => e.into_inner(),
+        };
+        let slots = context
+            .get_slots_with_token()
+            .context("Failed to list slots with a token")?;
+
+        // Only an initialized token has a user PIN to change.
+        let initialized: Vec<Slot> = slots
+            .iter()
+            .copied()
+            .filter(|s| {
+                context
+                    .get_token_info(*s)
+                    .map(|i| i.token_initialized())
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        let slot = match request.slot {
+            Some(id) => {
+                let slot = Slot::try_from(id).with_context(|| format!("Invalid slot id {id}"))?;
+                let info = context
+                    .get_token_info(slot)
+                    .with_context(|| format!("No token present in slot {id}"))?;
+                anyhow::ensure!(
+                    info.token_initialized(),
+                    "Slot {id} holds an uninitialized token. Initialize it first with \
+                     `tedge hsm init`."
+                );
+                slot
+            }
+            None => match initialized.as_slice() {
+                [] => anyhow::bail!(
+                    "No initialized token was found. Ensure the HSM is connected and a token has \
+                     been initialized with `tedge hsm init`."
+                ),
+                [slot] => *slot,
+                many => {
+                    let ids: Vec<u64> = many.iter().map(|s| s.id()).collect();
+                    anyhow::bail!(
+                        "Found multiple initialized tokens ({ids:?}). \
+                         Please select one explicitly using --slot."
+                    );
+                }
+            },
+        };
+
+        // NOTE: changing a PIN mutates the token, so a read-write session is required.
+        let session = context
+            .open_rw_session(slot)
+            .context("Failed to open a read-write session")?;
+
+        if request.reset {
+            // Recovery path: a Security Officer resets the user PIN without knowing the old one.
+            let so_pin = request.so_pin.context(
+                "A Security Officer PIN is required to reset the user PIN (pass --so-pin).",
+            )?;
+            session
+                .login(UserType::So, Some(&AuthPin::from(so_pin)))
+                .context("Failed to log in as Security Officer")?;
+            session
+                .init_pin(&AuthPin::from(request.new_pin))
+                .context("Failed to reset the user PIN (C_InitPIN)")?;
+        } else {
+            // Normal path: change the user PIN using the current one. While PKCS #11 allows
+            // C_SetPIN in a public session, several modules (SoftHSM2, tpm2-pkcs11) expect the user
+            // to be logged in first, so log in with the current PIN before changing it.
+            let old_pin = request.old_pin.unwrap_or_else(|| self.config.pin.clone());
+            session
+                .login(UserType::User, Some(&AuthPin::from(old_pin.clone())))
+                .context(
+                    "Failed to log in with the current user PIN. Check that it is correct, or use \
+                     --reset with the Security Officer PIN.",
+                )?;
+            session
+                .set_pin(&AuthPin::from(old_pin), &AuthPin::from(request.new_pin))
+                .context("Failed to change the user PIN (C_SetPIN)")?;
+        }
+
+        let info = context
+            .get_token_info(slot)
+            .context("Failed to read token info after changing the PIN")?;
+        Ok(ChangePinResponse {
+            uri: export_session_uri(&info),
+        })
+    }
+
+    #[instrument(skip_all)]
+    fn delete_key(&self, request: DeleteKeyRequest) -> anyhow::Result<DeleteKeyResponse> {
+        let params = SessionParams {
+            uri: Some(request.uri),
+            pin: request.pin,
+        };
+        // Destroying objects requires a read-write session, and private objects require a login;
+        // open_session_rw provides both.
+        let session = self.open_session_rw(&params)?;
+
+        // Require a specific selector so a whole token's contents can never be wiped by accident.
+        anyhow::ensure!(
+            session.uri_attributes.object.is_some() || session.uri_attributes.id.is_some(),
+            "Refusing to delete: the key must be identified by a label and/or id. Provide a label \
+             (and optionally an id), or a URI that selects an object."
+        );
+
+        let mut template = vec![Attribute::Token(true)];
+        if let Some(object) = &session.uri_attributes.object {
+            template.push(Attribute::Label(object.as_bytes().to_vec()));
+        }
+        if let Some(id) = &session.uri_attributes.id {
+            template.push(Attribute::Id(id.clone()));
+        }
+
+        // Matches both the private and public key objects that share the label/id.
+        let objects = session
+            .session
+            .find_objects(&template)
+            .context("Failed to find key objects to delete")?;
+        anyhow::ensure!(
+            !objects.is_empty(),
+            "No matching key objects were found on the token for the given selector."
+        );
+
+        let mut deleted = Vec::with_capacity(objects.len());
+        for object in objects {
+            // Read the URI before destroying the object so it can be reported back.
+            let uri = session
+                .export_object_uri(object)
+                .unwrap_or_else(|_| "<unknown object>".to_string());
+            session
+                .session
+                .destroy_object(object)
+                .with_context(|| format!("Failed to destroy object {uri}"))?;
+            deleted.push(uri);
+        }
+
+        Ok(DeleteKeyResponse { deleted })
+    }
+
     fn create_key(&self, request: CreateKeyRequest) -> anyhow::Result<CreateKeyResponse> {
         let session_params = SessionParams {
             uri: Some(request.uri.to_string()),
@@ -221,6 +408,123 @@ impl TedgeP11Service for Cryptoki {
         let pem = session.export_public_key_pem(key)?;
         let uri = session.export_object_uri(key)?;
         Ok(CreateKeyResponse { pem, uri })
+    }
+
+    #[instrument(skip_all)]
+    fn init_token(&self, request: InitTokenRequest) -> anyhow::Result<InitTokenResponse> {
+        let label = request.label;
+        // The user PIN is the one used by all subsequent operations. The SO PIN is only needed to
+        // initialize the token; when not provided we reuse the user PIN, which works out of the box
+        // for tokens that don't enforce distinct PINs (e.g. SoftHSM2).
+        let user_pin = request.pin.unwrap_or_else(|| self.config.pin.clone());
+        let so_pin = request.so_pin.unwrap_or_else(|| user_pin.clone());
+
+        // Refresh the slot list before inspecting the token state.
+        let _ = self.reinit();
+
+        let token_info = {
+            let context = match self.context.lock() {
+                Ok(c) => c,
+                Err(e) => e.into_inner(),
+            };
+
+            let slots = context
+                .get_slots_with_token()
+                .context("Failed to list slots with a token")?;
+
+            // Idempotency: if a token with this label is already initialized with a user PIN, leave
+            // it untouched and return its URI.
+            for slot in &slots {
+                let info = context
+                    .get_token_info(*slot)
+                    .context("Failed to get token info")?;
+                if info.token_initialized() && info.user_pin_initialized() && info.label() == label
+                {
+                    debug!(
+                        slot = slot.id(),
+                        %label, "Token is already initialized, skipping initialization"
+                    );
+                    return Ok(InitTokenResponse {
+                        uri: export_session_uri(&info),
+                    });
+                }
+            }
+
+            // Resolve the slot to initialize.
+            let slot = match request.slot {
+                Some(id) => {
+                    let slot =
+                        Slot::try_from(id).with_context(|| format!("Invalid slot id {id}"))?;
+                    let info = context
+                        .get_token_info(slot)
+                        .with_context(|| format!("No token present in slot {id}"))?;
+                    // Never reinitialize an already-initialized token: C_InitToken would erase it.
+                    anyhow::ensure!(
+                        !info.token_initialized(),
+                        "Slot {id} already holds an initialized token (label '{}'). \
+                         Refusing to reinitialize it as this would erase its contents.",
+                        info.label()
+                    );
+                    slot
+                }
+                None => {
+                    let uninitialized: Vec<Slot> = slots
+                        .iter()
+                        .copied()
+                        .filter(|s| {
+                            context
+                                .get_token_info(*s)
+                                .map(|i| !i.token_initialized())
+                                .unwrap_or(false)
+                        })
+                        .collect();
+                    match uninitialized.as_slice() {
+                        [] => anyhow::bail!(
+                            "No uninitialized token was found. Ensure the HSM is connected and \
+                             exposes a slot with an uninitialized token, or pass an explicit slot."
+                        ),
+                        [slot] => *slot,
+                        many => {
+                            let ids: Vec<u64> = many.iter().map(|s| s.id()).collect();
+                            anyhow::bail!(
+                                "Found multiple uninitialized slots ({ids:?}). \
+                                 Please select one explicitly using the slot argument."
+                            );
+                        }
+                    }
+                }
+            };
+
+            debug!(slot = slot.id(), %label, "Initializing token");
+
+            let so_auth = AuthPin::from(so_pin.clone());
+            context
+                .init_token(slot, &so_auth, &label)
+                .context("Failed to initialize the token (C_InitToken)")?;
+
+            // Set the user PIN: open a RW session, log in as Security Officer, then C_InitPIN.
+            let session = context
+                .open_rw_session(slot)
+                .context("Failed to open a read-write session after initializing the token")?;
+            session
+                .login(UserType::So, Some(&so_auth))
+                .context("Failed to log in as Security Officer")?;
+            session
+                .init_pin(&AuthPin::from(user_pin))
+                .context("Failed to set the user PIN (C_InitPIN)")?;
+            drop(session);
+
+            context
+                .get_token_info(slot)
+                .context("Failed to read token info after initialization")?
+        };
+
+        // Refresh the slot list; some libraries (e.g. SoftHSM2) renumber slots after init.
+        let _ = self.reinit();
+
+        Ok(InitTokenResponse {
+            uri: export_session_uri(&token_info),
+        })
     }
 }
 
