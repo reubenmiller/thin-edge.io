@@ -70,6 +70,9 @@ async fn bridge_republishes_messages_to_cloud_on_error() {
 
     cloud_broker.disable_acknowledgements().await;
 
+    // Health "up" does not guarantee the bridge has subscribed on the local
+    // broker yet; wait for the subscription so the publish below is not dropped.
+    local_broker.wait_until_subscribed("c8y/s/us").await;
     local_broker
         .publish_to_clients("c8y/s/us", b"a,fake,smartrest,message", QoS::AtLeastOnce)
         .await
@@ -120,6 +123,9 @@ async fn bridge_republishes_messages_to_local_on_error() {
 
     local_broker.disable_acknowledgements().await;
 
+    // Health "up" does not guarantee the bridge has subscribed on the cloud
+    // broker yet; wait for the subscription so the publish below is not dropped.
+    cloud_broker.wait_until_subscribed("s/ds").await;
     cloud_broker
         .publish_to_clients("s/ds", b"a,fake,smartrest,message", QoS::AtLeastOnce)
         .await
@@ -180,6 +186,9 @@ async fn bridge_delivers_republishes_to_cloud_before_novel_publishes() {
 
     cloud_broker.disable_acknowledgements().await;
 
+    // Health "up" does not guarantee the bridge has subscribed on the local
+    // broker yet; wait for the subscription so the publish below is not dropped.
+    local_broker.wait_until_subscribed("c8y/s/us").await;
     local_broker
         .publish_to_clients("c8y/s/us", b"a,fake,smartrest,message", QoS::AtLeastOnce)
         .await

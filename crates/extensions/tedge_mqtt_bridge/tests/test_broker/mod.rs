@@ -194,6 +194,34 @@ impl TestMqttBroker {
         .expect("timed out waiting for message")
     }
 
+    /// Waits until at least one client has an active subscription whose filter
+    /// matches `topic`.
+    ///
+    /// [`Self::publish_to_clients`] only delivers to clients that are already
+    /// subscribed at the moment it is called; a message published to a topic
+    /// with no matching subscriber is silently dropped (it is not retained).
+    /// Health status going "up" does not imply the bridge has finished
+    /// subscribing on *this* broker, so tests must synchronise on the
+    /// subscription before publishing, otherwise the publish can race ahead of
+    /// the SUBSCRIBE and be lost.
+    pub async fn wait_until_subscribed(&self, topic: &str) {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                {
+                    let subs = self.subscriptions.lock().await;
+                    if subs.iter().any(|(filter, senders)| {
+                        !senders.is_empty() && mqttbytes::matches(topic, filter)
+                    }) {
+                        return;
+                    }
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("timed out waiting for a subscription matching {topic:?}"));
+    }
+
     pub async fn wait_until_all_messages_acked(&self) {
         let mut last_acks = None;
         let res = tokio::time::timeout(Duration::from_secs(5), async {

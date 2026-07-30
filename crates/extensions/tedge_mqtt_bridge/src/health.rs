@@ -82,23 +82,43 @@ impl BridgeHealth {
 
     pub async fn update(&mut self, result: &NotificationRes) {
         let name = self.name;
-        let err = match result {
+        match result {
             Ok(event) => {
                 if let Event::Incoming(Incoming::ConnAck(_)) = event {
                     log_event!(name, "MQTT bridge connected to {name} broker");
                 }
-                None
+                // A successful poll only proves the connection works, not that the
+                // subscriptions are established, so `Up` is deliberately not
+                // reported here. It is reported via [Self::notify_ready] once this
+                // half is actually ready to forward messages, so that a component
+                // seeing `up` can rely on the bridge's subscriptions existing and
+                // safely publish messages for it.
             }
-            Err(err) => Some(err.to_string()),
-        };
+            Err(err) => {
+                let err = Some(err.to_string());
+                if self.last_err != err {
+                    if let Some(err) = &err {
+                        log_event!(error: name, "MQTT bridge failed to connect to {name} broker: {err}");
+                    }
+                    self.last_err = err;
+                    self.tx_health.send((name, Status::Down)).await.unwrap()
+                }
+            }
+        }
+    }
 
-        if self.last_err != err {
-            if let Some(err) = &err {
-                log_event!(error: name, "MQTT bridge failed to connect to {name} broker: {err}");
-            }
-            self.last_err = err;
-            let status = self.last_err.as_ref().map_or(Status::Up, |_| Status::Down);
-            self.tx_health.send((name, status)).await.unwrap()
+    /// Report this bridge half as `Up` now that it is ready to forward messages
+    ///
+    /// Ready means the connection's subscriptions are established: the broker
+    /// has acknowledged them, or the session was resumed (so the broker retained
+    /// them), or there are none to establish. Reporting `Up` any earlier (e.g.
+    /// at CONNACK) would invite other components to publish messages that the
+    /// broker silently drops because the bridge's subscription does not exist
+    /// yet.
+    pub async fn notify_ready(&mut self) {
+        if self.last_err.is_some() {
+            self.last_err = None;
+            self.tx_health.send((self.name, Status::Up)).await.unwrap()
         }
     }
 }

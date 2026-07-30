@@ -139,7 +139,9 @@ impl<C: MqttClient + 'static> SubackTracker<C> {
         );
     }
 
-    fn handle_timeout(&mut self, name: &'static str, gate: &SubscriptionGateController) {
+    /// Returns `true` if the gate was forced open after exhausting all
+    /// re-subscribe rounds, so the caller can report the half as ready
+    fn handle_timeout(&mut self, name: &'static str, gate: &SubscriptionGateController) -> bool {
         if self.subscribe_round < MAX_SUBSCRIBE_ROUNDS {
             self.subscribe_round += 1;
             log_event!(warn: name,
@@ -152,6 +154,7 @@ impl<C: MqttClient + 'static> SubackTracker<C> {
             );
             self.start_subscribe_round();
             self.deadline = Some(tokio::time::Instant::now() + SUBACK_TIMEOUT);
+            false
         } else {
             log_event!(error: name,
                 "SUBACK timeout: opening gate despite missing SUBACKs after {MAX_SUBSCRIBE_ROUNDS} rounds, \
@@ -164,6 +167,7 @@ impl<C: MqttClient + 'static> SubackTracker<C> {
             gate.open();
             self.deadline = None;
             self.subscribe_round = 0;
+            true
         }
     }
 }
@@ -752,7 +756,11 @@ async fn half_bridge(
                 biased;
                 res = recv_event_loop.poll() => res,
                 _ = tokio::time::sleep_until(deadline) => {
-                    suback_tracker.handle_timeout(name, &gate);
+                    if suback_tracker.handle_timeout(name, &gate) {
+                        // The gate was forced open: report ready so consumers waiting
+                        // on the health status are not blocked forever
+                        bridge_health.notify_ready().await;
+                    }
                     continue;
                 }
             }
@@ -829,6 +837,9 @@ async fn half_bridge(
                 if conn_ack.session_present || suback_tracker.subacks_needed == 0 {
                     gate.open();
                     suback_tracker.deadline = None;
+                    // The broker retained our subscriptions (or there are none):
+                    // this half is immediately ready to forward
+                    bridge_health.notify_ready().await;
                 } else {
                     gate.close();
                     suback_tracker.deadline = Some(tokio::time::Instant::now() + SUBACK_TIMEOUT);
@@ -950,6 +961,10 @@ async fn half_bridge(
                         seen = suback_tracker.subacks_seen,
                         needed = suback_tracker.subacks_needed,
                     );
+                    // The subscriptions now provably exist on the broker: only from
+                    // this point may the half be advertised as up, so that anyone
+                    // seeing `up` can safely publish messages for the bridge
+                    bridge_health.notify_ready().await;
                 }
             }
 
@@ -1770,6 +1785,44 @@ mod tests {
                 .await;
             assert_eq!(bridge.next_health_message(), Some(("local", Status::Down)));
             assert_eq!(bridge.next_health_message(), Some(("local", Status::Up)));
+        }
+
+        #[tokio::test]
+        async fn health_up_is_not_published_before_subscriptions_are_acknowledged() {
+            // On a clean session, `up` must not be advertised at CONNACK: the
+            // subscriptions do not exist on the broker yet, so a component
+            // publishing on seeing `up` would have its messages silently dropped
+            let subscription_topics = vec![SubscribeFilter::new("s/ds".into(), QoS::AtLeastOnce)];
+            let mut bridge = Bridge::default()
+                .with_subscription_topics(subscription_topics)
+                .with_cloud_events([inc!(clean_connack), out!(subscribe(1))])
+                .process_all_events()
+                .await;
+            assert_eq!(bridge.next_health_message(), None);
+        }
+
+        #[tokio::test]
+        async fn health_up_is_published_once_subscriptions_are_acknowledged() {
+            let subscription_topics = vec![SubscribeFilter::new("s/ds".into(), QoS::AtLeastOnce)];
+            let mut bridge = Bridge::default()
+                .with_subscription_topics(subscription_topics)
+                .with_cloud_events([inc!(clean_connack), out!(subscribe(1)), inc!(suback)])
+                .process_all_events()
+                .await;
+            assert_eq!(bridge.next_health_message(), Some(("cloud", Status::Up)));
+        }
+
+        #[tokio::test]
+        async fn health_up_is_published_immediately_when_session_is_resumed() {
+            // A resumed session means the broker retained the subscriptions, so
+            // the half is ready to forward as soon as it (re)connects
+            let subscription_topics = vec![SubscribeFilter::new("s/ds".into(), QoS::AtLeastOnce)];
+            let mut bridge = Bridge::default()
+                .with_subscription_topics(subscription_topics)
+                .with_cloud_events([inc!(connack)])
+                .process_all_events()
+                .await;
+            assert_eq!(bridge.next_health_message(), Some(("cloud", Status::Up)));
         }
 
         #[tokio::test]
