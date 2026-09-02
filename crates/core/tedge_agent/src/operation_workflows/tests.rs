@@ -43,11 +43,14 @@ use tedge_api::mqtt_topics::OperationType;
 use tedge_api::workflow::log::log_dir::OperationLogs;
 use tedge_api::workflow::GenericCommandData;
 use tedge_api::workflow::GenericCommandState;
+use tedge_api::workflow::GenericStateUpdate;
+use tedge_api::workflow::OperationAction;
 use tedge_api::workflow::OperationName;
 use tedge_api::workflow::OperationStep;
 use tedge_api::workflow::OperationStepHandler;
 use tedge_api::workflow::OperationStepRequest;
 use tedge_api::workflow::OperationStepResponse;
+use tedge_api::workflow::OperationWorkflow;
 use tedge_api::workflow::SyncOnCommand;
 use tedge_api::RestartCommand;
 use tedge_api::SoftwareUpdateCommand;
@@ -1366,6 +1369,50 @@ impl MessageSink<RequestEnvelope<OperationStepRequest, OperationStepResponse>>
     ) -> DynSender<RequestEnvelope<OperationStepRequest, OperationStepResponse>> {
         self.0.get_sender()
     }
+}
+
+#[test]
+fn builtin_workflows_are_valid_operation_workflows() {
+    for (name, definition) in [
+        (
+            "device_profile.toml",
+            include_str!("../resources/device_profile.toml"),
+        ),
+        (
+            "shell_execute.toml",
+            include_str!("../resources/shell_execute.toml"),
+        ),
+    ] {
+        toml::from_str::<OperationWorkflow>(definition)
+            .unwrap_or_else(|err| panic!("{name} is not a valid workflow definition: {err}"));
+    }
+}
+
+/// The workflow TOML is deserialized leniently: an unknown or misplaced handler key,
+/// e.g. `on_timeout` which is only honoured when awaiting a sub-operation, is silently
+/// ignored. Check the handlers of the `run` state are the ones actually taken into account.
+#[test]
+fn the_shell_execute_run_step_handlers_are_taken_into_account() {
+    let workflow: OperationWorkflow =
+        toml::from_str(include_str!("../resources/shell_execute.toml")).unwrap();
+
+    let Some(OperationAction::Script(_, handlers)) = workflow.states.get("run") else {
+        panic!("the shell_execute workflow to have a `run` state executing a script");
+    };
+
+    assert_eq!(
+        handlers.graceful_timeout(),
+        Some(Duration::from_secs(3600)),
+        "the `run` state has no timeout"
+    );
+    assert_eq!(
+        handlers.state_update_on_kill("tedge-shell-plugin", 9),
+        GenericStateUpdate {
+            status: "failed".to_string(),
+            reason: Some("Command timed out".to_string()),
+        },
+        "a killed script must fail the command with the timeout reason"
+    );
 }
 
 // A fake actor that listens for sync signals emitted on the completion of `config_update`

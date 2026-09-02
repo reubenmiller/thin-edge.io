@@ -58,6 +58,14 @@ overrides:
       postremove: configuration/package_scripts/_generated/tedge/rpm/postrm
     suggests:
       - mosquitto
+    # The superseded community packages are obsoleted by `replaces` (see below), which is all
+    # the Fedora packaging guidelines ask for when replacing a package. `provides` lets the old
+    # names keep resolving to this package, e.g. in provisioning scripts.
+    # Note: this list replaces the top-level `provides` rather than extending it.
+    provides:
+      - tedge-flows-plugin
+      - tedge-command-plugin
+      - c8y-command-plugin
 
   deb:
     scripts:
@@ -67,6 +75,18 @@ overrides:
       postremove: configuration/package_scripts/_generated/tedge/deb/postrm
     suggests:
       - mosquitto
+    # Provides/Conflicts/Replaces is the Debian Policy pattern (7.6.2) for replacing a whole package:
+    # `replaces` alone lets apt keep the superseded community package installed, and its own
+    # workflow definition would then shadow the built-in one. `conflicts` is not declared for ipk,
+    # as opkg aborts an install on a conflict instead of removing the superseded package.
+    # Note: this list replaces the top-level `provides` rather than extending it.
+    provides:
+      - tedge-flows-plugin
+      - tedge-command-plugin
+      - c8y-command-plugin
+    conflicts:
+      - tedge-command-plugin
+      - c8y-command-plugin
 
   ipk:
     scripts:
@@ -85,8 +105,16 @@ deb:
 
 replaces:
   - tedge-flows-plugin
+  # The shell_execute operation is now built-in, it used to be provided by
+  # the tedge-command-plugin (and formerly the c8y-command-plugin) community package
+  - tedge-command-plugin
+  - c8y-command-plugin
 provides:
   - tedge-flows-plugin
+# Note: the superseded community packages are only listed under `provides` for deb and rpm.
+# apk refuses to install a package providing the name of an already installed package,
+# so declaring them here would break `apk add tedge` on any Alpine device which still has
+# the tedge-command-plugin installed.
 
 contents:
   # binary
