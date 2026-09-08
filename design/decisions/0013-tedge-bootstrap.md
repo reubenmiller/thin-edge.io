@@ -828,7 +828,9 @@ They ship one register hook:
 #!/bin/sh
 # /usr/share/tedge/bootstrap.d/register.d/50_dps_enroll
 # args: <phase> --cloud <cloud> [--profile <name>] --config-dir <dir>
-[ "$3" = "az" ] || exit 2   # not applicable for other clouds
+CLOUD=""
+while [ $# -gt 0 ]; do case "$1" in --cloud) CLOUD="$2"; shift ;; esac; shift; done
+[ "$CLOUD" = "az" ] || exit 2   # not applicable for other clouds
 
 CERT_PATH=$(tedge config get device.cert_path)
 KEY_PATH=$(tedge config get device.key_path)
@@ -1377,12 +1379,20 @@ alongside the mapper configuration, one register hook:
 # /usr/share/tedge/bootstrap.d/register.d/40_thingsboard
 # args: <phase> --cloud <cloud> --config-dir <dir> [--register-method <name>]
 set -e
-[ "$3" = "thingsboard" ] || exit 2   # self-select: only handle our own cloud
+CLOUD=""; METHOD=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --cloud) CLOUD="$2"; shift ;;
+        --register-method) METHOD="$2"; shift ;;
+    esac
+    shift
+done
+[ "$CLOUD" = "thingsboard" ] || exit 2   # self-select: only handle our own cloud
 
 CRED=/etc/tedge/mappers/thingsboard/credentials.toml
 umask 077
-case "$*" in
-    *"--register-method provision"*)
+case "$METHOD" in
+    provision)
         # zero-touch: exchange a provision key/secret for a token
         # via POST https://<url>/api/v1/provision (curl), then write $CRED
         ;;
