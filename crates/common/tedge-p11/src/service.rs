@@ -149,12 +149,17 @@ pub struct CreateKeyRequest {
     pub uri: String,
     pub params: CreateKeyParams,
     pub pin: Option<SecretString>,
+    /// Create a new keypair even if one with the same label (and id, if given) already exists on
+    /// the token. Otherwise the existing key is returned, making the request idempotent.
+    pub force_new: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateKeyResponse {
     pub pem: String,
     pub uri: String,
+    /// Whether a keypair was created; `false` when an existing one was reused.
+    pub created: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

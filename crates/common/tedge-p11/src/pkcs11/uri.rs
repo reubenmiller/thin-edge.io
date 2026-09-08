@@ -131,6 +131,37 @@ impl<'a> Pkcs11Uri<'a> {
             }
         }
     }
+
+    /// Resolve this request URI against a configured one, letting the request win.
+    ///
+    /// Attributes form three groups, each inherited as a unit rather than attribute by attribute:
+    ///
+    /// - Token selection (`token`, `serial`, `slot-id`, and the remaining attributes such as
+    ///   `model`) is taken from the configured URI only when the request names no token at all.
+    ///   Mixing the two — the token of one URI with the serial of the other — describes a token
+    ///   that doesn't exist. A request naming only an object still lands on the configured token.
+    /// - Object selection (`object`, `id`) is never inherited: a configured object would silently
+    ///   narrow a request that asked for a whole token.
+    /// - Credentials (`pin-value`) are inherited when the request carries none; a PIN selects
+    ///   nothing, so it can't misdirect the request.
+    pub fn with_defaults_from(mut self, configured: Self) -> Self {
+        if !self.names_a_token() {
+            self.token = configured.token;
+            self.serial = configured.serial;
+            self.slot_id = configured.slot_id;
+            self.other = configured.other;
+        }
+        self.pin_value = self.pin_value.take().or(configured.pin_value);
+        self
+    }
+
+    /// Whether any attribute selecting a token, rather than an object on it, is set.
+    fn names_a_token(&self) -> bool {
+        self.token.is_some()
+            || self.serial.is_some()
+            || self.slot_id.is_some()
+            || !self.other.is_empty()
+    }
 }
 
 const PKCS11_ASCII_SET: &percent_encoding::AsciiSet =

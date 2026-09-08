@@ -75,6 +75,65 @@ Select Private key using a request URI
     ${stderr}=    Tedge Reconnect Should Succeed
     Should Contain    ${stderr}    item=cryptoki: socket (key: pkcs11:token=tedge;object=tedge)
 
+Management commands act on the requested URI
+    [Documentation]    `device.cryptoki.uri` narrows the tokens a client may sign with, so a signing
+    ...    request that names another token does not escape it. The `tedge hsm` commands are instead
+    ...    told which token to act on, so the same conflict has to resolve the other way: redirecting
+    ...    them to the configured token makes them report one token and act on another.
+    ...
+    ...    Both settings are pointed at different tokens here so it is unambiguous which one won.
+
+    # a second token, holding no keys, so a command that acted on the wrong one is visible, and a
+    # third one that no setting names at all
+    Execute Command    softhsm2-util --init-token --free --label spare --pin "123456" --so-pin "123456"
+    Execute Command    softhsm2-util --init-token --free --label other --pin "123456" --so-pin "123456"
+
+    Execute Command    cmd=tedge config set device.key_uri "pkcs11:token=tedge;object=tedge"
+    Set tedge-p11-server Uri    value=pkcs11:token=spare
+
+    # signing: the server URI still wins, leaving the key on `tedge` out of reach
+    Tedge Reconnect Should Fail With    Failed to find a signing key
+
+    # management: the same conflict resolves the other way round
+    ${stdout}=    Execute Command    cmd=tedge hsm list-keys "pkcs11:token=tedge"
+    Should Contain    ${stdout}    item=Label: tedge
+
+    # and a command given no URI of its own still falls back to the configured token
+    ${stderr}=    Execute Command    cmd=tedge hsm list-keys    stdout=${False}    stderr=${True}
+    Should Contain    ${stderr}    item=No keys were found on the token
+
+    # a URI naming only an object also lands on the configured token, as the --label flags do
+    ${stderr}=    Execute Command
+    ...    cmd=tedge hsm list-keys "pkcs11:object=tedge"
+    ...    stdout=${False}
+    ...    stderr=${True}
+    Should Contain    ${stderr}    item=No keys matching the given filters were found on the token
+
+    # create-key looks for an existing key on the requested token, not on the configured one: the
+    # key labelled `tedge` exists on `tedge`, so it is reused rather than duplicated
+    ${stderr}=    Execute Command
+    ...    cmd=tedge hsm create-key --type ecdsa --label tedge "pkcs11:token=tedge"
+    ...    stdout=${False}
+    ...    stderr=${True}
+    Should Contain    ${stderr}    item=already exists on the token; reusing it
+    ${stdout}=    Execute Command    cmd=tedge hsm list-keys --label tedge "pkcs11:token=tedge"
+    Should Contain X Times    ${stdout}    Private key    1
+
+    # changing the PIN of a token other than the one tedge signs with leaves the configured PIN alone
+    ${stderr}=    Execute Command
+    ...    cmd=tedge hsm change-pin --new-pin 654321 --current-pin 123456 "pkcs11:token=other"
+    ...    stdout=${False}
+    ...    stderr=${True}
+    Should Contain    ${stderr}    item=was changed
+    Should Contain    ${stderr}    item=`device.cryptoki.pin` was left unchanged
+    ${pin}=    Execute Command    tedge config get device.cryptoki.pin    strip=${True}
+    Should Be Equal    ${pin}    123456
+    [Teardown]    Restore Default Key Selection
+
+Restore Default Key Selection
+    Execute Command    cmd=tedge config unset device.key_uri
+    Unset tedge-p11-server Uri
+
 Connects to C8y using an RSA key
     [Documentation]    Test that we can connect to C8y using an RSA private keys of all sizes.
     [Setup]    Unset tedge-p11-server Uri

@@ -136,6 +136,49 @@ pub struct SessionParams {
     pub(crate) uri: Option<String>,
     /// User PIN value when logging in to the token.
     pub(crate) pin: Option<SecretString>,
+    /// How `uri` relates to the URI this service is configured with.
+    pub(crate) uri_precedence: UriPrecedence,
+}
+
+impl SessionParams {
+    /// Parameters for the signing path, where the configured URI narrows what may be reached.
+    pub(crate) fn for_signing(uri: Option<String>, pin: Option<SecretString>) -> Self {
+        Self {
+            uri,
+            pin,
+            uri_precedence: UriPrecedence::Configured,
+        }
+    }
+
+    /// Parameters for a management command, where an explicitly given URI selects what to act on.
+    pub(crate) fn for_management(uri: Option<String>, pin: Option<SecretString>) -> Self {
+        Self {
+            uri,
+            pin,
+            uri_precedence: UriPrecedence::Request,
+        }
+    }
+}
+
+/// Which of the configured and the requested PKCS #11 URI wins when the two disagree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UriPrecedence {
+    /// The configured URI wins; a request only fills in the attributes it leaves out.
+    ///
+    /// This is what makes `device.cryptoki.uri` a restriction on the signing path: an operator can
+    /// scope `tedge-p11-server` to one token, and a client asking for another one does not escape
+    /// it. It also keeps a certificate request coherent, since the public key read to build a CSR
+    /// must come from the same key that will later sign with it.
+    Configured,
+
+    /// The request's URI wins; the configured URI only supplies the token when the request names
+    /// none (see [`uri::Pkcs11Uri::with_defaults_from`]).
+    ///
+    /// Management commands are told which token or key to act on, so ignoring what they were given
+    /// makes them report one thing and do another. The configured URI is a poor default for them
+    /// anyway: in `module` mode it is `device.key_uri`, the key tedge signs with, which says
+    /// nothing about the token an operator wants to inspect or repair.
+    Request,
 }
 
 // oIDs for curves defined here: https://datatracker.ietf.org/doc/html/rfc5480#section-2.1.1.1
@@ -174,10 +217,8 @@ pub struct Cryptoki {
 impl TedgeP11Service for Cryptoki {
     #[instrument(skip_all)]
     fn choose_scheme(&self, request: ChooseSchemeRequest) -> anyhow::Result<ChooseSchemeResponse> {
-        let signing_key = self.signing_key_retry(SessionParams {
-            uri: request.uri,
-            pin: request.pin,
-        })?;
+        let signing_key =
+            self.signing_key_retry(SessionParams::for_signing(request.uri, request.pin))?;
         let offered: Vec<_> = request.offered.into_iter().map(|s| s.0).collect();
         let signer = signing_key
             .choose_scheme(&offered[..])
@@ -191,20 +232,17 @@ impl TedgeP11Service for Cryptoki {
 
     #[instrument(skip_all)]
     fn sign(&self, request: SignRequestWithSigScheme) -> anyhow::Result<SignResponse> {
-        let signing_key = self.signing_key_retry(SessionParams {
-            uri: request.uri,
-            pin: request.pin,
-        })?;
+        let signing_key =
+            self.signing_key_retry(SessionParams::for_signing(request.uri, request.pin))?;
         let signature = signing_key.sign(&request.to_sign, request.sigscheme)?;
         Ok(SignResponse(signature))
     }
 
     fn get_public_key_pem(&self, uri: Option<&str>) -> anyhow::Result<String> {
-        let params = SessionParams {
-            uri: uri.map(|s| s.to_string()),
-            // PIN is not required when reading public objects like public keys
-            pin: None,
-        };
+        // Signing precedence: the public key read here goes into a CSR that the private key
+        // selected by the same rules must later sign, so the two must resolve to the same key.
+        // PIN is not required when reading public objects like public keys.
+        let params = SessionParams::for_signing(uri.map(|s| s.to_string()), None);
         let session = self.open_session_ro(&params)?;
         session.get_public_key_pem()
     }
@@ -248,10 +286,7 @@ impl TedgeP11Service for Cryptoki {
 
     #[instrument(skip_all)]
     fn list_keys(&self, request: ListKeysRequest) -> anyhow::Result<ListKeysResponse> {
-        let params = SessionParams {
-            uri: request.uri,
-            pin: request.pin,
-        };
+        let params = SessionParams::for_management(request.uri, request.pin);
         let session = self.open_session_ro(&params)?;
 
         let mut keys = Vec::new();
@@ -320,7 +355,7 @@ impl TedgeP11Service for Cryptoki {
     fn change_pin(&self, request: ChangePinRequest) -> anyhow::Result<ChangePinResponse> {
         // Identify the token by its stable URI attributes (token label / serial) rather than a
         // library-defined slot index, which can be reordered between calls.
-        let uri_attributes = self.request_uri(request.uri.as_deref())?;
+        let uri_attributes = self.request_uri(request.uri.as_deref(), UriPrecedence::Request)?;
         let wanted_label = uri_attributes.token.as_ref();
         let wanted_serial = uri_attributes.serial.as_ref();
 
@@ -426,10 +461,7 @@ impl TedgeP11Service for Cryptoki {
 
     #[instrument(skip_all)]
     fn delete_key(&self, request: DeleteKeyRequest) -> anyhow::Result<DeleteKeyResponse> {
-        let params = SessionParams {
-            uri: Some(request.uri),
-            pin: request.pin,
-        };
+        let params = SessionParams::for_management(Some(request.uri), request.pin);
         // Destroying objects requires a read-write session, and private objects require a login;
         // open_session_rw provides both.
         let session = self.open_session_rw(&params)?;
@@ -487,16 +519,36 @@ impl TedgeP11Service for Cryptoki {
     }
 
     fn create_key(&self, request: CreateKeyRequest) -> anyhow::Result<CreateKeyResponse> {
-        let session_params = SessionParams {
-            uri: Some(request.uri.to_string()),
-            pin: request.pin,
-        };
+        let session_params =
+            SessionParams::for_management(Some(request.uri.to_string()), request.pin);
         // NOTE: when writing to HSM, session must always be rw
         let session = self.open_session_rw(&session_params)?;
+
+        // Idempotent unless told otherwise: a key with the requested label (and id, if given) is
+        // returned instead of creating a duplicate. This is decided in the very session the key
+        // would be created in, so it is the requested token that is checked; a lookup through
+        // `get_public_key_pem` would resolve on the signing rules and could answer for the
+        // configured token instead.
+        if !request.force_new {
+            if let Some(key) = session.find_public_key(&request.params)? {
+                let pem = session.export_public_key_pem(key)?;
+                let uri = session.export_object_uri(key)?;
+                return Ok(CreateKeyResponse {
+                    pem,
+                    uri,
+                    created: false,
+                });
+            }
+        }
+
         let key = session.create_key(request.params)?;
         let pem = session.export_public_key_pem(key)?;
         let uri = session.export_object_uri(key)?;
-        Ok(CreateKeyResponse { pem, uri })
+        Ok(CreateKeyResponse {
+            pem,
+            uri,
+            created: true,
+        })
     }
 
     #[instrument(skip_all)]
@@ -847,7 +899,7 @@ impl Cryptoki {
         params: &'a SessionParams,
         session_type: CryptokiSessionType,
     ) -> anyhow::Result<CryptokiSession<'a>> {
-        let uri_attributes = self.request_uri(params.uri.as_deref())?;
+        let uri_attributes = self.request_uri(params.uri.as_deref(), params.uri_precedence)?;
 
         let wanted_label = uri_attributes.token.as_ref();
         let wanted_serial = uri_attributes.serial.as_ref();
@@ -950,22 +1002,35 @@ impl Cryptoki {
     fn request_uri<'a>(
         &'a self,
         request_uri: Option<&'a str>,
+        precedence: UriPrecedence,
     ) -> anyhow::Result<uri::Pkcs11Uri<'a>> {
-        let mut config_uri = self
-            .config
-            .uri
-            .as_deref()
-            .map(|u| uri::Pkcs11Uri::parse(u).context("Failed to parse config PKCS#11 URI"))
-            .transpose()?
-            .unwrap_or_default();
+        combine_uris(self.config.uri.as_deref(), request_uri, precedence)
+    }
+}
 
-        let request_uri = request_uri
-            .map(|uri| uri::Pkcs11Uri::parse(uri).context("Failed to parse PKCS #11 URI"))
-            .transpose()?
-            .unwrap_or_default();
+/// Resolves the URI an operation acts on from the configured and the requested one.
+fn combine_uris<'a>(
+    config_uri: Option<&'a str>,
+    request_uri: Option<&'a str>,
+    precedence: UriPrecedence,
+) -> anyhow::Result<uri::Pkcs11Uri<'a>> {
+    let mut config_uri = config_uri
+        .map(|u| uri::Pkcs11Uri::parse(u).context("Failed to parse config PKCS#11 URI"))
+        .transpose()?
+        .unwrap_or_default();
 
-        config_uri.append_attributes(request_uri);
-        Ok(config_uri)
+    // Without a URI of its own, a request always acts on the configured one.
+    let Some(request_uri) = request_uri else {
+        return Ok(config_uri);
+    };
+    let request_uri = uri::Pkcs11Uri::parse(request_uri).context("Failed to parse PKCS #11 URI")?;
+
+    match precedence {
+        UriPrecedence::Configured => {
+            config_uri.append_attributes(request_uri);
+            Ok(config_uri)
+        }
+        UriPrecedence::Request => Ok(request_uri.with_defaults_from(config_uri)),
     }
 }
 
@@ -1202,6 +1267,25 @@ impl CryptokiSession<'_> {
         Ok(key_uri)
     }
 
+    /// Find the public key of a keypair with the label (and id, if given) that `params` would
+    /// create one with, if the token already holds one.
+    fn find_public_key(&self, params: &CreateKeyParams) -> anyhow::Result<Option<ObjectHandle>> {
+        let mut template = vec![
+            Attribute::Token(true),
+            Attribute::Class(ObjectClass::PUBLIC_KEY),
+            Attribute::Label(params.label.clone().into()),
+        ];
+        if let Some(id) = &params.id {
+            template.push(Attribute::Id(id.clone()));
+        }
+        let mut keys = self
+            .session
+            .find_objects(&template)
+            .context("Failed to look for an existing key")?
+            .into_iter();
+        Ok(keys.next())
+    }
+
     /// Create a new keypair on the token.
     fn create_key(&self, params: CreateKeyParams) -> anyhow::Result<ObjectHandle> {
         let (mechanism, attrs_pub) = match params.key {
@@ -1414,4 +1498,94 @@ fn export_session_uri(token_info: &TokenInfo) -> String {
     uri.push_str(&token);
 
     uri
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The signing path: `device.cryptoki.uri` scopes what a client can reach, so a request asking
+    /// for another token stays on the configured one.
+    #[test]
+    fn a_configured_uri_restricts_the_signing_path() {
+        let uri = combine_uris(
+            Some("pkcs11:token=configured"),
+            Some("pkcs11:token=requested;object=key1"),
+            UriPrecedence::Configured,
+        )
+        .unwrap();
+
+        assert_eq!(uri.token.unwrap(), "configured");
+        assert_eq!(uri.object.unwrap(), "key1");
+    }
+
+    /// A management command acts on the token it was given, not on the configured one.
+    #[test]
+    fn a_requested_uri_wins_for_management_commands() {
+        let uri = combine_uris(
+            Some("pkcs11:token=configured;object=key1"),
+            Some("pkcs11:token=requested"),
+            UriPrecedence::Request,
+        )
+        .unwrap();
+
+        assert_eq!(uri.token.unwrap(), "requested");
+        // Not merged: the configured URI's object would silently narrow the request.
+        assert!(uri.object.is_none());
+    }
+
+    /// A request naming only an object still lands on the configured token: `delete-key --label x`
+    /// without a token promises to act on "the configured/single token".
+    #[test]
+    fn a_request_naming_only_an_object_inherits_the_configured_token() {
+        let uri = combine_uris(
+            Some("pkcs11:token=configured;serial=0123;object=key1"),
+            Some("pkcs11:object=requested"),
+            UriPrecedence::Request,
+        )
+        .unwrap();
+
+        assert_eq!(uri.token.unwrap(), "configured");
+        assert_eq!(uri.serial.unwrap(), "0123");
+        // ...but the configured object never narrows the request.
+        assert_eq!(uri.object.unwrap(), "requested");
+    }
+
+    /// Token selection is inherited as a set, so a request never ends up describing a token that
+    /// is half one URI and half the other, and therefore matches nothing.
+    #[test]
+    fn a_requested_uri_does_not_inherit_a_conflicting_serial() {
+        let uri = combine_uris(
+            Some("pkcs11:token=configured;serial=0123456789abcdef"),
+            Some("pkcs11:token=requested"),
+            UriPrecedence::Request,
+        )
+        .unwrap();
+
+        assert_eq!(uri.token.unwrap(), "requested");
+        assert!(uri.serial.is_none());
+    }
+
+    /// A PIN is a credential rather than a selector, so it still applies to a request that
+    /// overrides which token to act on.
+    #[test]
+    fn a_requested_uri_inherits_the_configured_pin() {
+        let uri = combine_uris(
+            Some("pkcs11:token=configured?pin-value=123456"),
+            Some("pkcs11:token=requested"),
+            UriPrecedence::Request,
+        )
+        .unwrap();
+
+        assert_eq!(uri.pin_value.unwrap().expose(), "123456");
+    }
+
+    /// A request that carries no URI of its own falls back to the configured one either way.
+    #[test]
+    fn a_request_without_a_uri_uses_the_configured_one() {
+        for precedence in [UriPrecedence::Configured, UriPrecedence::Request] {
+            let uri = combine_uris(Some("pkcs11:token=configured"), None, precedence).unwrap();
+            assert_eq!(uri.token.unwrap(), "configured", "{precedence:?}");
+        }
+    }
 }

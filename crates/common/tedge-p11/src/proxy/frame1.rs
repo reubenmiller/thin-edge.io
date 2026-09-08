@@ -206,7 +206,7 @@ mod tests {
     fn test_deserialize_create_key_request() {
         let input = vec![
             10, 4, 97, 115, 100, 102, 1, 128, 2, 6, 109, 121, 32, 107, 101, 121, 1, 3, 1, 2, 3, 1,
-            3, 112, 105, 110,
+            3, 112, 105, 110, 1,
         ];
         let request: Frame1 = postcard::from_bytes(&input).unwrap();
         assert_eq!(
@@ -219,6 +219,7 @@ mod tests {
                     label: "my key".to_string(),
                 },
                 pin: Some(SecretString::new("pin".to_string())),
+                force_new: true,
             })
         );
     }
@@ -226,7 +227,7 @@ mod tests {
     #[test]
     fn test_deserialize_create_key_response() {
         let input = vec![
-            11, 7, 107, 101, 121, 32, 112, 101, 109, 7, 107, 101, 121, 32, 117, 114, 105,
+            11, 7, 107, 101, 121, 32, 112, 101, 109, 7, 107, 101, 121, 32, 117, 114, 105, 1,
         ];
         let frame: Frame1 = postcard::from_bytes(&input).unwrap();
         assert_eq!(
@@ -234,6 +235,7 @@ mod tests {
             Frame1::CreateKeyResponse(CreateKeyResponse {
                 pem: "key pem".to_string(),
                 uri: "key uri".to_string(),
+                created: true,
             })
         );
     }

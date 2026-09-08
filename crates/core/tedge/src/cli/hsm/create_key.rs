@@ -263,44 +263,31 @@ impl CreateKeyHsmCmd {
             }
         };
 
-        // Unless --force-new is given, reuse an existing key with the same label (and id, if
-        // provided) instead of creating a duplicate, keeping the command idempotent.
-        let existing = if self.force_new {
-            None
+        let params = CreateKeyParams {
+            key,
+            label: self.label.clone(),
+            id,
+        };
+
+        // Unless --force-new is given, a key with the same label (and id, if provided) is reused
+        // instead of creating a duplicate, keeping the command idempotent. The service decides
+        // this on the token it would create on, so the check and the creation cannot disagree.
+        // should probably verify the keys before using them
+        let key = cryptoki.create_key(CreateKeyRequest {
+            uri: token,
+            params,
+            pin: self.pin.clone().map(SecretString::from),
+            force_new: self.force_new,
+        })?;
+        if key.created {
+            eprintln!("New keypair was successfully created.");
         } else {
-            let key_uri = existing_key_uri(&token, &self.label, id.as_deref());
-            match cryptoki.get_public_key_pem(Some(&key_uri)) {
-                Ok(pem) => Some((pem, key_uri)),
-                Err(_) => None,
-            }
-        };
-
-        let (pubkey_pem, uri) = match existing {
-            Some((pubkey_pem, uri)) => {
-                eprintln!(
-                    "A key labelled '{}' already exists on the token; reusing it (pass --force-new to create a new key instead).",
-                    self.label
-                );
-                (pubkey_pem, uri)
-            }
-            None => {
-                let params = CreateKeyParams {
-                    key,
-                    label: self.label.clone(),
-                    id,
-                };
-
-                // generate a keypair
-                // should probably verify the keys before using them
-                let key = cryptoki.create_key(CreateKeyRequest {
-                    uri: token,
-                    params,
-                    pin: self.pin.clone().map(SecretString::from),
-                })?;
-                eprintln!("New keypair was successfully created.");
-                (key.pem, key.uri)
-            }
-        };
+            eprintln!(
+                "A key labelled '{}' already exists on the token; reusing it (pass --force-new to create a new key instead).",
+                self.label
+            );
+        }
+        let (pubkey_pem, uri) = (key.pem, key.uri);
 
         eprintln!("Key URI: {uri}");
         eprintln!("Public key:\n{pubkey_pem}\n");
@@ -409,18 +396,6 @@ fn extract_device_id_for_cloud(
 
     key.parse::<WritableKey>()
         .with_context(|| format!("failed to parse '{key}' as a WritableKey"))
-}
-
-/// Builds a PKCS #11 URI that selects a key on `token_uri` by its label (and id, if provided).
-///
-/// Used to check whether a matching key already exists on the token so it can be reused.
-fn existing_key_uri(token_uri: &str, label: &str, id: Option<&[u8]>) -> String {
-    let mut uri = format!("{token_uri};object={}", encode_uri_attr(label));
-    if let Some(id) = id {
-        uri.push_str(";id=");
-        uri.push_str(&encode_id_attr(id));
-    }
-    uri
 }
 
 /// Percent-encodes a key id as a PKCS #11 `id=` attribute value, e.g. `%01%AB`.
@@ -697,22 +672,6 @@ mod tests {
         );
 
         std::fs::remove_file(tempdir.file("tedge.toml").path()).unwrap();
-    }
-
-    #[test]
-    fn builds_existing_key_uri_by_label() {
-        assert_eq!(
-            existing_key_uri("pkcs11:token=tedge", "my-key", None),
-            "pkcs11:token=tedge;object=my-key"
-        );
-    }
-
-    #[test]
-    fn builds_existing_key_uri_with_id() {
-        assert_eq!(
-            existing_key_uri("pkcs11:token=tedge", "my-key", Some(&[0x01, 0x02, 0xab])),
-            "pkcs11:token=tedge;object=my-key;id=%01%02%AB"
-        );
     }
 
     #[test]

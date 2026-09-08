@@ -32,6 +32,9 @@ Can select Private key using tedge-p11-server URI
 Can select Private key using a request URI
     Select Private key using a request URI
 
+Management commands act on the requested URI
+    Management commands act on the requested URI
+
 Can connect to C8y using an RSA key
     Connects to C8y using an RSA key
 

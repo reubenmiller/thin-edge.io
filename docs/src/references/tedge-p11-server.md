@@ -75,12 +75,20 @@ tedge config set device.cryptoki.uri "pkcs11:model=SoftHSM%20v2;manufacturer=Sof
 
 ## Key selection
 
-<!-- NOTE: this behaviour is currently not tested directly -->
 In addition to the key selection behaviour described on [main HSM reference page](./hsm-support.md#key-selection),
 the `tedge-p11-server`, using the `device.cryptoki.uri` option, can be used to set a filter that
 narrows down tokens/key objects `tedge` can access. For example, if `device.cryptoki.uri` contains a
 URI that identifies a token, then regardless of value of `device.key_uri`, only objects from this
 token will be considered for a key.
+
+This filter applies to signing,
+which is what `device.key_uri` selects a key for.
+It does not apply to the `tedge hsm` management commands:
+those act on the URI they are given,
+so a token can be inspected or repaired without first widening the filter.
+For example, with `device.cryptoki.uri=pkcs11:token=token1`,
+`tedge hsm list-keys "pkcs11:token=token2"` lists the keys on `token2`,
+while a signing request for a key on `token2` still resolves to `token1`.
 
 ## Relevant configuration
 

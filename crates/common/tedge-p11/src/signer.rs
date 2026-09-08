@@ -55,7 +55,7 @@ pub fn signing_key(config: CryptokiConfig) -> anyhow::Result<Arc<dyn TedgeP11Sig
                 Cryptoki::new(config_direct).context("Failed to load cryptoki library")?;
             Arc::new(
                 cryptoki
-                    .signing_key_retry(SessionParams { uri, pin })
+                    .signing_key_retry(SessionParams::for_signing(uri, pin))
                     .context("failed to create a TLS signer using PKCS#11 device")?,
             )
         }

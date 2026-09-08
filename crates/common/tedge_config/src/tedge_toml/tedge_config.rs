@@ -535,6 +535,9 @@ define_tedge_config! {
             /// For example, if `cryptoki.uri=pkcs11:token=token1` and `device.key_uri=pkcs11:token2;object=key1`,
             /// `tedge-p11-server` will use URI `pkcs11:token1;object=key1`.
             ///
+            /// This scoping applies to signing. The `tedge hsm` management commands act on the URI they are given, so
+            /// a token can still be inspected or repaired without changing this setting.
+            ///
             /// For more information about PKCS11 URIs, see RFC7512.
 
             // NOTE: combining URI behaviour seems unintuitive and surprising. If a client asks for a key on `token2`,
