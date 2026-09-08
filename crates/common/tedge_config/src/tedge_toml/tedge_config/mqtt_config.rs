@@ -264,6 +264,7 @@ impl TEdgeConfigReaderDevice {
                     .into(),
                 pin: SecretString::new(cryptoki.pin.to_string()),
                 uri,
+                find_objects_batch_size: cryptoki.find_objects_batch_size,
             }))),
             Cryptoki::Socket => Ok(Some(CryptokiConfig::SocketService {
                 socket_path: cryptoki.socket_path.clone(),

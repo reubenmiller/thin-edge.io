@@ -87,6 +87,7 @@ use rsa::pkcs1::EncodeRsaPublicKey;
 use rustls::sign::SigningKey;
 use serde::Deserialize;
 use serde::Serialize;
+use std::num::NonZeroU16;
 use tracing::debug;
 use tracing::error;
 use tracing::instrument;
@@ -144,11 +145,19 @@ const SECP256R1_OID: &str = "1.2.840.10045.3.1.7";
 const SECP384R1_OID: &str = "1.3.132.0.34";
 const SECP521R1_OID: &str = "1.3.132.0.35";
 
+/// Default number of object handles requested per `C_FindObjects` call.
+///
+/// A batch size of 1 improves compatibility with PKCS#11 modules that mishandle
+/// larger batches.
+pub const DEFAULT_FIND_OBJECTS_BATCH_SIZE: NonZeroU16 = NonZeroU16::new(1).unwrap();
+
 #[derive(Clone)]
 pub struct CryptokiConfigDirect {
     pub module_path: Utf8PathBuf,
     pub pin: SecretString,
     pub uri: Option<Arc<str>>,
+    /// Number of object handles to request per `C_FindObjects` call.
+    pub find_objects_batch_size: NonZeroU16,
 }
 
 impl Debug for CryptokiConfigDirect {
@@ -157,6 +166,7 @@ impl Debug for CryptokiConfigDirect {
             .field("module_path", &self.module_path)
             .field("pin", &"[REDACTED]")
             .field("uri", &self.uri)
+            .field("find_objects_batch_size", &self.find_objects_batch_size)
             .finish()
     }
 }
@@ -260,7 +270,7 @@ impl TedgeP11Service for Cryptoki {
             (ObjectClass::PUBLIC_KEY, "public"),
         ] {
             let template = [Attribute::Token(true), Attribute::Class(class)];
-            let objects = match session.session.find_objects(&template) {
+            let objects = match self.find_objects(&session.session, &template) {
                 Ok(objects) => objects,
                 Err(e) => {
                     error!(?e, class = class_name, "Failed to find key objects");
@@ -451,9 +461,8 @@ impl TedgeP11Service for Cryptoki {
 
         // Matches both the private and public key objects that share the label/id. A missing key
         // is not an error: delete is idempotent, so an empty result means there was nothing to do.
-        let objects = session
-            .session
-            .find_objects(&template)
+        let objects = self
+            .find_objects(&session.session, &template)
             .context("Failed to find key objects to delete")?;
 
         // Attempt to destroy every matching object even if some fail, so one failure doesn't
@@ -925,7 +934,7 @@ impl Cryptoki {
         };
 
         let template = [];
-        let objects = session.session.find_objects(&template);
+        let objects = self.find_objects(&session.session, &template);
         match objects {
             Err(err) => {
                 error!(?template, ?err, "failed to find objects");
@@ -945,6 +954,19 @@ impl Cryptoki {
         }
 
         Ok(session)
+    }
+
+    /// Find objects matching `template`, using the configured batch size.
+    ///
+    /// `Session::find_objects` is not used because it hardcodes a batch size of 10.
+    fn find_objects(
+        &self,
+        session: &Session,
+        template: &[Attribute],
+    ) -> Result<Vec<ObjectHandle>, cryptoki::error::Error> {
+        session
+            .iter_objects_with_cache_size(template, self.config.find_objects_batch_size.into())?
+            .collect()
     }
 
     fn request_uri<'a>(
