@@ -184,6 +184,13 @@ impl MqttEvents for LoggingEventLoop {
     fn set_pending(&mut self, requests: Vec<Request>) {
         self.inner.pending = requests.into_iter().collect();
     }
+
+    fn disconnect(&mut self) {
+        // Drops the network connection and moves the inflight messages to the pending ones,
+        // exactly as rumqttc does when the connection fails
+        self.inner.clean();
+        self.has_logged_connect = false;
+    }
 }
 
 #[cfg(test)]

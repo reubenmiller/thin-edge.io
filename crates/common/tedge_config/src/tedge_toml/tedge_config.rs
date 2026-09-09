@@ -1210,6 +1210,12 @@ define_tedge_config! {
                 #[tedge_config(example = "5m", default(from_str = "5m"))]
                 reset_window: SecondsOrHumanTime,
             },
+
+            /// How long the built-in bridge waits for a broker to acknowledge the messages it
+            /// published before it assumes the connection is stale, drops it and reconnects
+            #[tedge_config(example = "2m", default(from_str = "2m"))]
+            #[tedge_config(note = "The messages that were not acknowledged are published again once reconnected")]
+            ack_timeout: SecondsOrHumanTime,
         },
     },
 

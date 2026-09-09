@@ -16,6 +16,7 @@ use rumqttc::QoS;
 use rumqttc::SubscribeFilter;
 use std::collections::VecDeque;
 use std::sync::atomic::AtomicU16;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -93,11 +94,17 @@ pub trait AllProcessed {
 /// A fixed stream of events
 pub struct FixedEventStream {
     events: Arc<Mutex<VecDeque<EventRes>>>,
+    disconnections: Arc<AtomicUsize>,
 }
 
 impl FixedEventStream {
     fn next_event(&self) -> Option<EventRes> {
         self.events.lock().unwrap().pop_front()
+    }
+
+    /// How many times the bridge dropped the connection on purpose
+    pub fn disconnections(&self) -> usize {
+        self.disconnections.load(Ordering::SeqCst)
     }
 }
 
@@ -105,6 +112,7 @@ impl<I: Into<VecDeque<EventRes>>> From<I> for FixedEventStream {
     fn from(value: I) -> Self {
         Self {
             events: Arc::new(Mutex::new(value.into())),
+            disconnections: <_>::default(),
         }
     }
 }
@@ -124,6 +132,10 @@ impl MqttEvents for FixedEventStream {
     }
 
     fn set_pending(&mut self, _requests: Vec<Request>) {}
+
+    fn disconnect(&mut self) {
+        self.disconnections.fetch_add(1, Ordering::SeqCst);
+    }
 }
 
 #[async_trait::async_trait]
@@ -335,6 +347,8 @@ impl MqttEvents for ChannelEvents {
     fn set_pending(&mut self, _requests: Vec<Request>) {
         unimplemented!()
     }
+
+    fn disconnect(&mut self) {}
 }
 
 #[derive(Clone)]
