@@ -19,11 +19,18 @@ use tedge_actors::ServerConfig;
 
 pub use backoff;
 
+/// How long a request may wait for the response headers before it is given up
+///
+/// Without a bound, a server that accepts the connection but never answers holds the caller
+/// forever, and the actors awaiting the response inline stop processing anything else.
+pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+
 #[derive(Debug)]
 pub struct HttpActor {
     config: ServerConfig,
     tls_client_config: rustls::ClientConfig,
     backoff: ExponentialBackoff,
+    request_timeout: Duration,
 }
 
 impl HttpActor {
@@ -37,15 +44,32 @@ impl HttpActor {
                 randomization_factor: 0.1,
                 ..Default::default()
             },
+            request_timeout: DEFAULT_REQUEST_TIMEOUT,
         }
     }
 
     pub fn builder(&self) -> ServerActorBuilder<HttpService, Concurrent> {
         ServerActorBuilder::new(
-            HttpService::new(self.tls_client_config.clone(), self.backoff.clone()),
+            HttpService::new(
+                self.tls_client_config.clone(),
+                self.backoff.clone(),
+                self.request_timeout,
+            ),
             &self.config,
             Concurrent,
         )
+    }
+
+    /// Bounds how long a request waits for the response headers
+    pub fn with_request_timeout(self, request_timeout: Duration) -> Self {
+        Self {
+            request_timeout,
+            ..self
+        }
+    }
+
+    pub fn request_timeout(&self) -> Duration {
+        self.request_timeout
     }
 
     pub fn with_capacity(self, capacity: usize) -> Self {

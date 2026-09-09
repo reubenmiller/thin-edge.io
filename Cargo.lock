@@ -975,6 +975,7 @@ dependencies = [
  "mockito",
  "proptest",
  "rand 0.10.1",
+ "rustls",
  "serde",
  "serde_json",
  "tedge_actors",

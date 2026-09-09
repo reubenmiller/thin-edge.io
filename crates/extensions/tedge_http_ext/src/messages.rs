@@ -1,5 +1,6 @@
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use http::header::HeaderName;
@@ -36,6 +37,13 @@ pub enum HttpError {
 
     #[error(transparent)]
     HyperUtilError(#[from] hyper_util::client::legacy::Error),
+
+    #[error("No response within {timeout:?} for {method} request to endpoint {endpoint}")]
+    Timeout {
+        timeout: Duration,
+        endpoint: String,
+        method: Method,
+    },
 }
 
 type Body = BoxBody<Bytes, hyper::Error>;

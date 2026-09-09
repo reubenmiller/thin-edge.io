@@ -10,6 +10,8 @@ use crate::operations::OperationHandler;
 use crate::Capabilities;
 use c8y_api::json_c8y::C8yEventResponse;
 use c8y_api::json_c8y::InternalIdResponse;
+mod http_stall;
+
 use c8y_api::json_c8y_deserializer::C8yDeviceControlTopic;
 use c8y_api::proxy_url::Protocol;
 use c8y_api::smartrest::topic::C8yTopic;
@@ -39,6 +41,7 @@ use tedge_actors::NoMessage;
 use tedge_actors::RuntimeRequest;
 use tedge_actors::RuntimeRequestSink;
 use tedge_actors::Sender;
+use tedge_actors::Service;
 use tedge_actors::SimpleMessageBox;
 use tedge_actors::SimpleMessageBoxBuilder;
 use tedge_api::file_transfer_url::FileTransferUrls;
@@ -3195,6 +3198,40 @@ pub(crate) async fn c8y_mapper_builder(
     config: C8yMapperConfig,
     init: bool,
 ) -> TestHandleBuilder {
+    let mut http_builder: FakeServerBoxBuilder<HttpRequest, HttpResult> =
+        FakeServerBoxBuilder::default();
+    let builders = c8y_mapper_builder_with_http(tmp_dir, config, init, &mut http_builder).await;
+    TestHandleBuilder {
+        c8y: builders.c8y,
+        flows: builders.flows,
+        mqtt: builders.mqtt,
+        http: http_builder,
+        fs: builders.fs,
+        ul: builders.ul,
+        dl: builders.dl,
+        avail: builders.avail,
+    }
+}
+
+/// The mapper builders, minus the HTTP service the mapper was connected to
+pub(crate) struct MapperBuilders {
+    pub c8y: C8yMapperBuilder,
+    pub flows: FlowsMapperBuilder,
+    pub mqtt: MockMqttBoxBuilder,
+    pub fs: SimpleMessageBoxBuilder<NoMessage, FsWatchEvent>,
+    pub ul: FakeServerBoxBuilder<IdUploadRequest, IdUploadResult>,
+    pub dl: FakeServerBoxBuilder<IdDownloadRequest, IdDownloadResult>,
+    pub avail: SimpleMessageBoxBuilder<MqttMessage, MqttMessage>,
+}
+
+/// Builds the mapper connected to `http_builder` as its HTTP service,
+/// which can be a fake server or the real HTTP actor
+pub(crate) async fn c8y_mapper_builder_with_http(
+    tmp_dir: &TempTedgeDir,
+    config: C8yMapperConfig,
+    init: bool,
+    http_builder: &mut impl Service<HttpRequest, HttpResult>,
+) -> MapperBuilders {
     if init {
         tmp_dir.dir("operations").dir("c8y");
         tmp_dir.dir("mappers").dir("c8y");
@@ -3202,8 +3239,6 @@ pub(crate) async fn c8y_mapper_builder(
     }
 
     let mut mqtt_builder = MockMqttBoxBuilder::new();
-    let mut http_builder: FakeServerBoxBuilder<HttpRequest, HttpResult> =
-        FakeServerBoxBuilder::default();
     let mut fs_watcher_builder: SimpleMessageBoxBuilder<NoMessage, FsWatchEvent> =
         SimpleMessageBoxBuilder::new("FS", 5);
     let mut uploader_builder: FakeServerBoxBuilder<IdUploadRequest, IdUploadResult> =
@@ -3214,7 +3249,7 @@ pub(crate) async fn c8y_mapper_builder(
     let mut c8y_mapper_builder = C8yMapperBuilder::try_new(
         config,
         &mut mqtt_builder,
-        &mut http_builder,
+        http_builder,
         &mut uploader_builder,
         &mut downloader_builder,
         &mut fs_watcher_builder,
@@ -3254,11 +3289,10 @@ pub(crate) async fn c8y_mapper_builder(
     // => for these tests, the flows mapper is only connected to mqtt ignoring all fs events
     c8y_mapper_builder.set_flow_context(flows_mapper.context_handle());
 
-    TestHandleBuilder {
+    MapperBuilders {
         c8y: c8y_mapper_builder,
         flows: flows_mapper,
         mqtt: mqtt_builder,
-        http: http_builder,
         fs: fs_watcher_builder,
         ul: uploader_builder,
         dl: downloader_builder,
@@ -3267,6 +3301,14 @@ pub(crate) async fn c8y_mapper_builder(
 }
 
 pub(crate) fn test_mapper_config(tmp_dir: &TempTedgeDir) -> C8yMapperConfig {
+    test_mapper_config_with_auth_proxy_port(tmp_dir, 8001)
+}
+
+/// A test mapper config whose Cumulocity HTTP requests go to a local proxy on `auth_proxy_port`
+pub(crate) fn test_mapper_config_with_auth_proxy_port(
+    tmp_dir: &TempTedgeDir,
+    auth_proxy_port: u16,
+) -> C8yMapperConfig {
     let device_name = "test-device".into();
     let device_topic_id = EntityTopicId::default_main_device();
     let service_topic_id = EntityTopicId::default_main_service("tedge-mapper-c8y").unwrap();
@@ -3275,7 +3317,6 @@ pub(crate) fn test_mapper_config(tmp_dir: &TempTedgeDir) -> C8yMapperConfig {
     let file_transfer_urls = FileTransferUrls::new("localhost:8888".into(), Protocol::Http);
     let mqtt_schema = MqttSchema::default();
     let auth_proxy_addr = "127.0.0.1".into();
-    let auth_proxy_port = 8001;
     let bridge_config = BridgeConfig {
         c8y_prefix: TopicPrefix::try_from("c8y").unwrap(),
     };

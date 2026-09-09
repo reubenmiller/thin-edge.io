@@ -18,6 +18,7 @@ use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 use rustls::ClientConfig;
+use std::time::Duration;
 use tedge_actors::Server;
 
 use certificate::http_client::USER_AGENT;
@@ -26,10 +27,15 @@ use certificate::http_client::USER_AGENT;
 pub struct HttpService {
     client: Client<HttpsConnector<HttpConnector>, BoxBody<Bytes, hyper::Error>>,
     backoff: ExponentialBackoff,
+    request_timeout: Duration,
 }
 
 impl HttpService {
-    pub(crate) fn new(client_config: ClientConfig, backoff: ExponentialBackoff) -> Self {
+    pub(crate) fn new(
+        client_config: ClientConfig,
+        backoff: ExponentialBackoff,
+        request_timeout: Duration,
+    ) -> Self {
         let https = HttpsConnectorBuilder::new()
             .with_tls_config(client_config)
             .https_or_http()
@@ -37,7 +43,11 @@ impl HttpService {
             .enable_http2()
             .build();
         let client = Client::builder(TokioExecutor::new()).build(https);
-        HttpService { client, backoff }
+        HttpService {
+            client,
+            backoff,
+            request_timeout,
+        }
     }
 }
 
@@ -79,7 +89,19 @@ impl Server for HttpService {
             let method = method.clone();
 
             async {
-                let response = self.client.request(request).await;
+                let response =
+                    match tokio::time::timeout(self.request_timeout, self.client.request(request))
+                        .await
+                    {
+                        Ok(response) => response,
+                        Err(_elapsed) => {
+                            return Err(backoff::Error::transient(HttpError::Timeout {
+                                timeout: self.request_timeout,
+                                endpoint,
+                                method,
+                            }))
+                        }
+                    };
                 match response {
                     Err(err) => Err(to_backoff_error(err)),
                     Ok(response)

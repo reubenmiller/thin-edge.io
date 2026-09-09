@@ -179,6 +179,63 @@ async fn retries_only_idempotent_methods() {
     mock.assert_async().await;
 }
 
+#[tokio::test]
+async fn requests_are_given_up_when_the_server_never_answers() {
+    // A server that accepts connections and never responds
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        let mut sockets = Vec::new();
+        while let Ok((socket, _)) = listener.accept().await {
+            sockets.push(socket);
+        }
+    });
+
+    let mut http = spawn_http_actor_with_request_timeout(Duration::from_millis(200)).await;
+    // A POST is not retried, so the timeout error surfaces after a single attempt
+    let request = HttpRequestBuilder::post(format!("http://127.0.0.1:{port}/never"))
+        .build()
+        .unwrap();
+    let started = std::time::Instant::now();
+    let response = tokio::time::timeout(Duration::from_secs(5), http.await_response(request))
+        .await
+        .expect("the request must not hang")
+        .expect("the actor must answer");
+    assert!(
+        matches!(response, Err(HttpError::Timeout { .. })),
+        "expected a timeout error, got {response:?}"
+    );
+    assert!(started.elapsed() < Duration::from_secs(2));
+}
+
+#[test]
+fn requests_time_out_by_default() {
+    let config = ClientConfig::builder()
+        .with_root_certificates(RootCertStore::empty())
+        .with_no_client_auth();
+    assert_eq!(
+        HttpActor::new(config).request_timeout(),
+        DEFAULT_REQUEST_TIMEOUT
+    );
+}
+
+async fn spawn_http_actor_with_request_timeout(
+    request_timeout: Duration,
+) -> ClientMessageBox<HttpRequest, HttpResult> {
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+    let config = ClientConfig::builder()
+        .with_root_certificates(RootCertStore::empty())
+        .with_no_client_auth();
+    let mut builder = HttpActor::new(config)
+        .with_request_timeout(request_timeout)
+        .builder();
+    let handle = ClientMessageBox::new(&mut builder);
+    tokio::spawn(async move { builder.run().await });
+    handle
+}
+
 async fn spawn_http_actor() -> ClientMessageBox<HttpRequest, HttpResult> {
     if rustls::crypto::CryptoProvider::get_default().is_none() {
         let _ = rustls::crypto::ring::default_provider().install_default();

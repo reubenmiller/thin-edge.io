@@ -35,6 +35,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true, default-features = false, features = [
     "macros",
     "rt",
+    "time",
 ] }
 
 [dev-dependencies]
