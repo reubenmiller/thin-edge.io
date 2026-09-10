@@ -344,8 +344,12 @@ impl MqttEvents for ChannelEvents {
         unimplemented!()
     }
 
-    fn set_pending(&mut self, _requests: Vec<Request>) {
-        unimplemented!()
+    fn set_pending(&mut self, requests: Vec<Request>) {
+        // This stream never loses a connection, so there is never anything to republish
+        assert!(
+            requests.is_empty(),
+            "unexpected pending requests: {requests:?}"
+        );
     }
 
     fn disconnect(&mut self) {}

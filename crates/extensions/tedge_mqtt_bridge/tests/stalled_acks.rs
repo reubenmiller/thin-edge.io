@@ -56,8 +56,10 @@ use tokio::time::sleep;
 const MAX_PACKET: usize = 268435455;
 const SERVICE_NAME: &str = "tedge-mapper-test";
 const MOSQUITTO_MAX_INFLIGHT: usize = 20; // mosquitto default
-/// After this long without any acknowledgement progress the bridge is expected to reconnect
+/// A publish left unacknowledged for this long makes the bridge reconnect
 const ACK_TIMEOUT_SECS: u64 = 5;
+/// Keep-alive of the cloud connection, which also paces rumqttc's collision timeout
+const CLOUD_KEEP_ALIVE: Duration = Duration::from_secs(5);
 
 // ---------------------------------------------------------------------------------------------
 // Packet-inspecting chaos proxy
@@ -101,6 +103,15 @@ struct ChaosProxy {
     /// Drop only this many PUBACKs, then let the rest through (0 = no limit)
     drop_at_most: Arc<AtomicUsize>,
     dropped: Arc<AtomicUsize>,
+    /// Rewrite this many CONNACKs from the broker to claim a resumed session
+    claim_session_present: Arc<AtomicUsize>,
+}
+
+/// What the proxy does with a packet
+enum Action {
+    Forward,
+    Drop,
+    Replace(Vec<u8>),
 }
 
 impl ChaosProxy {
@@ -120,6 +131,7 @@ impl ChaosProxy {
             drop_pubacks_until_reconnect: Default::default(),
             drop_at_most: Default::default(),
             dropped: Default::default(),
+            claim_session_present: Default::default(),
         };
         let p = proxy.clone();
         tokio::spawn(async move {
@@ -161,10 +173,19 @@ impl ChaosProxy {
         proxy
     }
 
-    /// Returns whether the packet should be forwarded
-    fn inspect(&self, dir: Dir, packet: &Packet) -> bool {
+    fn inspect(&self, dir: Dir, packet: &Packet) -> Action {
         let mut ledger = self.ledger.lock().unwrap();
         match packet {
+            Packet::ConnAck(ack) if dir == Dir::ToClient => {
+                let remaining = self.claim_session_present.load(Ordering::Relaxed);
+                if remaining > 0 {
+                    self.claim_session_present
+                        .store(remaining - 1, Ordering::Relaxed);
+                    // Fixed header, remaining length, flags (bit 0 = session present), code
+                    return Action::Replace(vec![0x20, 0x02, 0x01, ack.code as u8]);
+                }
+                Action::Forward
+            }
             Packet::Publish(publish) if dir == self.publish_dir => {
                 if publish.qos == QoS::AtMostOnce {
                     ledger.qos0_delivered += 1;
@@ -175,7 +196,7 @@ impl ChaosProxy {
                     }
                     ledger.inflight.insert(publish.pkid, publish.topic.clone());
                 }
-                true
+                Action::Forward
             }
             Packet::PubAck(ack) if dir != self.publish_dir => {
                 let every = self.drop_puback_every.load(Ordering::Relaxed);
@@ -184,7 +205,7 @@ impl ChaosProxy {
                     let n = self.puback_counter.fetch_add(1, Ordering::Relaxed) + 1;
                     if n.is_multiple_of(every) {
                         self.dropped.fetch_add(1, Ordering::Relaxed);
-                        return false; // drop the ack: the publisher never learns it was received
+                        return Action::Drop; // the publisher never learns it was received
                     }
                 }
                 if ledger.inflight.remove(&ack.pkid).is_some() {
@@ -192,10 +213,15 @@ impl ChaosProxy {
                 } else {
                     ledger.unknown_acks += 1;
                 }
-                true
+                Action::Forward
             }
-            _ => true,
+            _ => Action::Forward,
         }
+    }
+
+    /// The next `n` CONNACKs claim that a session was resumed
+    fn claim_session_present(&self, n: usize) {
+        self.claim_session_present.store(n, Ordering::Relaxed);
     }
 
     fn interrupt_connections(&self) {
@@ -257,7 +283,7 @@ async fn pump(
     mut from: OwnedReadHalf,
     mut to: OwnedWriteHalf,
     mut stop: watch::Receiver<()>,
-    mut inspect: impl FnMut(&Packet) -> bool,
+    mut inspect: impl FnMut(&Packet) -> Action,
 ) -> std::io::Result<()> {
     let mut buf = BytesMut::with_capacity(64 * 1024);
     loop {
@@ -273,8 +299,10 @@ async fn pump(
             match Packet::read(&mut buf, MAX_PACKET) {
                 Ok(packet) => {
                     let consumed = snapshot.len() - buf.len();
-                    if inspect(&packet) {
-                        to.write_all(&snapshot[..consumed]).await?;
+                    match inspect(&packet) {
+                        Action::Forward => to.write_all(&snapshot[..consumed]).await?,
+                        Action::Drop => {}
+                        Action::Replace(bytes) => to.write_all(&bytes).await?,
                     }
                 }
                 Err(PacketError::InsufficientBytes(_)) => break,
@@ -414,12 +442,12 @@ async fn wait_until_port_listening(port: u16) {
     panic!("port {port} never started listening");
 }
 
-fn tedge_mqtt_config(mqtt_port: u16) -> TEdgeConfig {
+fn tedge_mqtt_config(mqtt_port: u16, ack_timeout_secs: u64) -> TEdgeConfig {
     TEdgeConfig::load_toml_str(&format!(
         "
     mqtt.client.port = {mqtt_port}
     mqtt.bridge.reconnect_policy.initial_interval = \"0s\"
-    mqtt.bridge.ack_timeout = \"{ACK_TIMEOUT_SECS}s\"
+    mqtt.bridge.ack_timeout = \"{ack_timeout_secs}s\"
     "
     ))
 }
@@ -447,7 +475,7 @@ struct Rig {
 }
 
 impl Rig {
-    async fn start() -> Option<Self> {
+    async fn start_with_ack_timeout(ack_timeout_secs: u64) -> Option<Self> {
         let _ = env_logger::builder()
             .parse_filters(&std::env::var("RUST_LOG").unwrap_or("tedge_mqtt_bridge=info".into()))
             .is_test(false)
@@ -465,13 +493,14 @@ impl Rig {
         rules.forward_from_local("s/uat", "c8y/", "").unwrap();
         rules.forward_from_remote("s/ds", "c8y/", "").unwrap();
 
-        let cloud_config = MqttOptions::new("a-device-id", "127.0.0.1", cloud_proxy.port);
+        let mut cloud_config = MqttOptions::new("a-device-id", "127.0.0.1", cloud_proxy.port);
+        cloud_config.set_keep_alive(CLOUD_KEEP_ALIVE);
         let health_topic = format!("te/device/main/service/{SERVICE_NAME}/status/health")
             .as_str()
             .try_into()
             .unwrap();
         MqttBridgeActorBuilder::new(
-            &tedge_mqtt_config(local_proxy.port),
+            &tedge_mqtt_config(local_proxy.port, ack_timeout_secs),
             SERVICE_NAME,
             &health_topic,
             rules,
@@ -539,6 +568,21 @@ impl Rig {
         };
         rig.wait_health("up", Duration::from_secs(10)).await;
         Some(rig)
+    }
+
+    /// Waits until the cloud proxy has accepted at least `n` connections from the bridge
+    async fn wait_cloud_connections(&self, n: usize, timeout: Duration) {
+        let start = Instant::now();
+        while start.elapsed() < timeout {
+            if self.cloud_proxy.connections() >= n {
+                return;
+            }
+            sleep(Duration::from_millis(20)).await;
+        }
+        panic!(
+            "the bridge did not open {n} cloud connections (got {})",
+            self.cloud_proxy.connections()
+        );
     }
 
     async fn wait_health(&self, expected: &str, timeout: Duration) {
@@ -661,7 +705,10 @@ fn flap(
 
 macro_rules! rig {
     () => {
-        match Rig::start().await {
+        rig!(ACK_TIMEOUT_SECS)
+    };
+    ($ack_timeout_secs:expr) => {
+        match Rig::start_with_ack_timeout($ack_timeout_secs).await {
             Some(rig) => rig,
             None => {
                 eprintln!("mosquitto not found in PATH, skipping");
@@ -837,6 +884,79 @@ async fn bridge_recovers_a_single_message_the_cloud_never_acknowledges() {
         "the bridge never reconnected although one message was never acknowledged"
     );
     assert_eq!(got, 60, "messages never reached the cloud");
+    assert_eq!(
+        rig.local_proxy.unacked(),
+        0,
+        "leaked local acks: {}",
+        rig.local_proxy.snapshot()
+    );
+}
+
+/// Experiment: could a packet-id mix-up leave local deliveries unacknowledged?
+///
+/// rumqttc numbers publishes 1..=500 and reuses a packet id once it wraps around. One
+/// message the cloud never acknowledges still holds its packet id when the counter comes
+/// back to it 500 publishes later, which rumqttc reports as a collision, stops sending, and
+/// resolves by dropping the connection two keep-alives later. The ledger tells whether the
+/// resend pairs every acknowledgement with the right local delivery afterwards. The ack
+/// watchdog is set far out so that it does not interfere.
+#[tokio::test]
+async fn packet_id_wrap_around_over_a_withheld_ack_does_not_mismatch_acks() {
+    let rig = rig!(600);
+    rig.cloud_proxy.drop_next_puback_until_reconnect();
+    rig.publish_qos1(0..600, Duration::from_millis(2)).await;
+    let got = rig.wait_cloud_received(600, CLOUD_KEEP_ALIVE * 6).await;
+    sleep(Duration::from_secs(1)).await;
+    rig.report("after 600 messages with one withheld PUBACK");
+    assert_eq!(got, 600, "messages never reached the cloud");
+    assert!(rig.probe_qos1(9_000).await, "QoS 1 path is stalled");
+    assert_eq!(
+        rig.local_proxy.unacked(),
+        0,
+        "leaked local acks: {}",
+        rig.local_proxy.snapshot()
+    );
+    eprintln!(
+        "    cloud connections={} (2 = rumqttc dropped the connection to resolve the collision)",
+        rig.cloud_proxy.connections()
+    );
+}
+
+/// Experiment: the bridge trusts the broker's session-present flag to decide who republishes.
+///
+/// After a connection error, the bridge moves rumqttc's unacknowledged messages into its own
+/// keeping only when the last CONNACK said the session was not resumed; otherwise it leaves
+/// them to rumqttc, which drops them if the next CONNACK says the session was not resumed
+/// after all. A cloud that claims a resumed session once, then forgets it, loses every
+/// in-flight message: their local deliveries can never be acknowledged and the mosquitto
+/// window fills at once. Cumulocity is documented never to resume sessions, so this is a
+/// robustness check rather than a field scenario.
+#[tokio::test]
+async fn bridge_republishes_even_when_the_cloud_lies_about_the_session() {
+    let rig = rig!();
+    // Reconnect once so the CONNACK the bridge trusts is the rewritten one
+    rig.cloud_proxy.claim_session_present(1);
+    rig.cloud_proxy.interrupt_connections();
+    rig.wait_cloud_connections(2, Duration::from_secs(10)).await;
+    rig.wait_health("up", Duration::from_secs(10)).await;
+    // Hold every ack on this connection, so messages are in flight when it drops
+    rig.cloud_proxy.drop_puback_every_until_reconnect(1);
+    rig.publish_qos1(0..40, Duration::from_millis(2)).await;
+    sleep(Duration::from_millis(500)).await;
+    rig.report("in flight on the session the cloud claimed to have resumed");
+    rig.cloud_proxy.interrupt_connections();
+    rig.wait_cloud_connections(3, Duration::from_secs(10)).await;
+    rig.wait_health("up", Duration::from_secs(10)).await;
+    let got = rig
+        .wait_cloud_received(40, Duration::from_secs(ACK_TIMEOUT_SECS * 4))
+        .await;
+    sleep(Duration::from_secs(1)).await;
+    rig.report("after reconnecting with a genuine CONNACK");
+    assert_eq!(
+        got, 40,
+        "messages lost when the cloud forgot the session it claimed"
+    );
+    assert!(rig.probe_qos1(9_000).await, "QoS 1 path is stalled");
     assert_eq!(
         rig.local_proxy.unacked(),
         0,

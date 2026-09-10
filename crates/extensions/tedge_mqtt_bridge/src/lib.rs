@@ -926,11 +926,12 @@ async fn half_bridge(
     let mut published = 0; // Count of messages published (by the companion)
     let mut acknowledged = 0; // Count of messages acknowledged (by the MQTT end-point of the companion)
 
-    // Keeps track of whether we have a non-clean session with the broker. This
-    // is set based on the value in the `ConnAck` packet to ensure it aligns
-    // with whether a session exists, not just that we requested one. This is
-    // used to republish messages in cases where rumqttc doesn't.
-    let mut session_present: Option<bool> = None;
+    // The messages published on a connection that was lost before they were acknowledged.
+    //
+    // They are kept here rather than left to rumqttc, which drops them when the broker
+    // reports that the new connection did not resume the session, and republished on the
+    // next connection whatever the broker says about the session: a message the broker
+    // already has is delivered twice, a message it does not have is not lost.
     let mut pending = Vec::new();
 
     let mut suback_tracker = SubackTracker::new(recv_client.clone(), topics.clone());
@@ -969,11 +970,9 @@ async fn half_bridge(
                 recv_event_loop.disconnect();
                 readiness.not_ready().await;
                 suback_tracker.deadline = None;
-                if session_present != Some(true) {
-                    let msgs = recv_event_loop.take_pending();
-                    log_event!(debug: name, "Extending pending with: {msgs:?}");
-                    pending.extend(msgs);
-                }
+                let msgs = recv_event_loop.take_pending();
+                log_event!(debug: name, "Extending pending with: {msgs:?}");
+                pending.extend(msgs);
                 // Give the new connection a full period before judging it
                 ack_watchdog.restart(&mut forward_pkid_to_received_msg);
                 continue;
@@ -1000,15 +999,10 @@ async fn half_bridge(
                 }
                 tokio::time::sleep(time).await;
 
-                // If the session is not managed by the current connection,
-                // handle the pending messages ourselves. If this isn't the
-                // case, rumqttc will handle republishing messages as per
-                // the MQTT specification.
-                if session_present != Some(true) {
-                    let msgs = recv_event_loop.take_pending();
-                    log_event!(debug: name, "Extending pending with: {msgs:?}");
-                    pending.extend(msgs);
-                }
+                // Keep the unacknowledged messages ourselves until the next connection
+                let msgs = recv_event_loop.take_pending();
+                log_event!(debug: name, "Extending pending with: {msgs:?}");
+                pending.extend(msgs);
                 continue;
             }
         };
@@ -1055,14 +1049,11 @@ async fn half_bridge(
                     suback_tracker.deadline = Some(tokio::time::Instant::now() + SUBACK_TIMEOUT);
                 }
 
-                session_present = Some(conn_ack.session_present);
-
-                if !conn_ack.session_present {
-                    // Republish any outstanding messages
-                    let msgs = std::mem::take(&mut pending);
-                    log_event!(debug: name, "Setting pending messages to {msgs:?}");
-                    recv_event_loop.set_pending(msgs);
-                }
+                // Republish any outstanding messages, whether or not the broker resumed the
+                // session: rumqttc has nothing of its own to republish at this point
+                let msgs = std::mem::take(&mut pending);
+                log_event!(debug: name, "Setting pending messages to {msgs:?}");
+                recv_event_loop.set_pending(msgs);
             }
 
             // Forward messages from event loop to target
