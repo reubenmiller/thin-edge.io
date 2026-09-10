@@ -22,6 +22,8 @@ use clap::Parser;
 use flockfile::Flockfile;
 use flockfile::FlockfileError;
 use serde::Deserialize;
+use std::num::NonZeroU16;
+use tedge_p11::pkcs11::DEFAULT_FIND_OBJECTS_BATCH_SIZE;
 use tedge_p11::CryptokiConfigDirect;
 use tedge_p11::TedgeP11Client;
 use tedge_p11::TedgeP11Server;
@@ -111,6 +113,7 @@ struct TomlCryptokiConfig {
     module_path: Option<Utf8PathBuf>,
     socket_path: Option<Utf8PathBuf>,
     uri: Option<String>,
+    find_objects_batch_size: Option<NonZeroU16>,
 }
 
 fn default_socket_path() -> Utf8PathBuf {
@@ -119,6 +122,28 @@ fn default_socket_path() -> Utf8PathBuf {
 
 fn default_pin() -> String {
     "123456".into()
+}
+
+/// The environment variable overriding `device.cryptoki.find_objects_batch_size`.
+///
+/// This is a rarely needed compatibility knob, so unlike the other cryptoki settings it has no
+/// command-line flag: it is read from `tedge.toml`, or from the environment as any other
+/// `tedge config` value can be.
+const FIND_OBJECTS_BATCH_SIZE_ENV: &str = "TEDGE_DEVICE_CRYPTOKI_FIND_OBJECTS_BATCH_SIZE";
+
+fn find_objects_batch_size_from_env() -> anyhow::Result<Option<NonZeroU16>> {
+    let Ok(value) = std::env::var(FIND_OBJECTS_BATCH_SIZE_ENV) else {
+        return Ok(None);
+    };
+    // A set-but-empty value is treated as unset, as it is for the other settings.
+    if value.is_empty() {
+        return Ok(None);
+    }
+    value.parse().map(Some).map_err(|_| {
+        anyhow::anyhow!(
+            "Invalid {FIND_OBJECTS_BATCH_SIZE_ENV}={value:?}: must be a positive integer between 1 and 65535"
+        )
+    })
 }
 
 /// Cache the result of reading a Cryptoki configuration from tedge.toml
@@ -187,6 +212,11 @@ impl TomlConfig {
     fn uri(&mut self) -> Option<String> {
         self.config().and_then(|config| config.uri.to_owned())
     }
+
+    fn find_objects_batch_size(&mut self) -> Option<NonZeroU16> {
+        self.config()
+            .and_then(|config| config.find_objects_batch_size)
+    }
 }
 
 struct ValidConfig {
@@ -194,6 +224,7 @@ struct ValidConfig {
     module_path: Utf8PathBuf,
     socket_path: Utf8PathBuf,
     uri: Option<String>,
+    find_objects_batch_size: NonZeroU16,
 }
 async fn try_read_tedge_toml(
     toml_path: &Utf8PathBuf,
@@ -240,6 +271,9 @@ async fn try_read_config(args: Args) -> anyhow::Result<ValidConfig> {
         module_path,
         socket_path,
         uri,
+        find_objects_batch_size: find_objects_batch_size_from_env()?
+            .or_else(|| toml_config.find_objects_batch_size())
+            .unwrap_or(DEFAULT_FIND_OBJECTS_BATCH_SIZE),
     })
 }
 
@@ -279,6 +313,7 @@ async fn main() -> anyhow::Result<()> {
             let v = s.into_boxed_str();
             Arc::<str>::from(v)
         }),
+        find_objects_batch_size: config.find_objects_batch_size,
     };
     let socket_path = config.socket_path;
 
@@ -437,6 +472,7 @@ module_path = """#;
                         pin: Some("123456".to_owned()),
                         socket_path: Some("/var/run/tedge-p11-server/tedge-p11-server.sock".into()),
                         uri: None,
+                        find_objects_batch_size: None,
                     }
                 }
             }

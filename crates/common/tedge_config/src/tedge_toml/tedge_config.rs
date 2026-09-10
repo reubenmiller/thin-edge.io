@@ -24,6 +24,7 @@ use super::models::ConnectUrl;
 use super::models::Cryptoki;
 use super::models::HostPort;
 use super::models::MqttPayloadLimit;
+use super::models::PositiveU16;
 use super::models::SecondsOrHumanTime;
 use super::models::SoftwareManagementApiFlag;
 use super::models::TemplatesSet;
@@ -555,6 +556,14 @@ define_tedge_config! {
             #[tedge_config(default(value = "/run/tedge-p11-server/tedge-p11-server.sock"), example = "/run/tedge-p11-server/tedge-p11-server.sock")]
             #[doku(as = "PathBuf")]
             socket_path: Utf8PathBuf,
+
+            /// Number of object handles to request per PKCS#11 `C_FindObjects` call.
+            ///
+            /// A batch size of 1 improves compatibility with PKCS#11 modules that
+            /// mishandle larger batches. Increase it only for a module known to benefit.
+            #[tedge_config(example = "1", example = "10", default(function = "default_find_objects_batch_size"), from = "PositiveU16")]
+            #[doku(as = "u16")]
+            find_objects_batch_size: NonZeroU16,
         },
 
         /// The default device type
@@ -1754,6 +1763,10 @@ fn default_mqtt_port() -> NonZeroU16 {
     NonZeroU16::try_from(1883).unwrap()
 }
 
+fn default_find_objects_batch_size() -> NonZeroU16 {
+    NonZeroU16::new(1).unwrap()
+}
+
 impl TEdgeConfigReaderMqttBridgeReconnectPolicy {
     /// Designed for injecting into tests without requiring a full [TEdgeConfig]
     pub fn test_value() -> Self {
@@ -1956,6 +1969,32 @@ mod tests {
     #[test_case::test_case("apt.maintainer")]
     fn all_0_10_keys_can_be_deserialised(key: &str) {
         key.parse::<ReadableKey>().unwrap();
+    }
+
+    #[test]
+    fn find_objects_batch_size_defaults_to_one() {
+        let dto = TEdgeConfigDto::default();
+        let reader = TEdgeConfigReader::from_dto(&dto, &TEdgeConfigLocation::default());
+
+        assert_eq!(
+            reader.device.cryptoki.find_objects_batch_size,
+            NonZeroU16::new(1).unwrap()
+        );
+    }
+
+    #[test]
+    fn find_objects_batch_size_rejects_invalid_values_with_a_clear_message() {
+        let mut dto = TEdgeConfigDto::default();
+
+        for value in ["0", "-1", "65536", "abc"] {
+            let err = dto
+                .try_update_str(&WritableKey::DeviceCryptokiFindObjectsBatchSize, value)
+                .unwrap_err();
+            assert_eq!(
+                anyhow::Error::from(err).root_cause().to_string(),
+                format!("Invalid value '{value}': must be a positive integer between 1 and 65535")
+            );
+        }
     }
 
     #[test]
