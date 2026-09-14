@@ -2,6 +2,8 @@ use crate::flow::Flow;
 use crate::flow::FlowInput;
 use crate::flow::FlowOutput;
 use crate::flow::ProcessOutput;
+use crate::flow::ProcessOutputFormat;
+use crate::flow::ProcessOutputMode;
 use crate::js_runtime::JsRuntime;
 use crate::js_script::JsScript;
 use crate::params::is_params_file;
@@ -137,6 +139,12 @@ pub enum OutputConfig {
         #[serde(default)]
         #[serde(deserialize_with = "parse_human_interval")]
         timeout: Option<IntervalConfig>,
+
+        #[serde(default)]
+        mode: ProcessOutputMode,
+
+        #[serde(default)]
+        format: ProcessOutputFormat,
     },
 }
 
@@ -641,11 +649,18 @@ impl OutputConfig {
             OutputConfig::File { path } => Ok(OutputConfig::File {
                 path: params.substitute_inner_paths(path.as_str()).into(),
             }),
-            OutputConfig::Process { command, timeout } => Ok(OutputConfig::Process {
+            OutputConfig::Process {
+                command,
+                timeout,
+                mode,
+                format,
+            } => Ok(OutputConfig::Process {
                 command: params.substitute_inner_paths(&command),
                 timeout: timeout
                     .map(|timeout| timeout.substitute_params(params))
                     .transpose()?,
+                mode,
+                format,
             }),
         }
     }
@@ -656,7 +671,12 @@ impl OutputConfig {
                 topic: topic.map(into_topic).transpose()?,
             },
             OutputConfig::File { path } => FlowOutput::File { path },
-            OutputConfig::Process { command, timeout } => {
+            OutputConfig::Process {
+                command,
+                timeout,
+                mode,
+                format,
+            } => {
                 let timeout = match timeout.map(|timeout| timeout.duration()) {
                     Some(Ok(timeout)) if !timeout.is_zero() => timeout,
                     Some(Err(e)) => return Err(e),
@@ -666,6 +686,8 @@ impl OutputConfig {
                     command: resolve_process_command(command, source_dir),
                     cwd: source_dir.to_path_buf(),
                     timeout,
+                    mode,
+                    format,
                 })
             }
         })
@@ -1047,8 +1069,46 @@ topic = "te/device/main///e/"
                 command: "/flows/sub/upload.sh --verbose".to_string(),
                 cwd: "/flows/sub".into(),
                 timeout: Duration::from_secs(5),
+                mode: ProcessOutputMode::Oneshot,
+                format: ProcessOutputFormat::Lines,
             }
         );
+    }
+
+    #[test]
+    fn process_output_can_stream_messages() {
+        let flow: FlowConfig = toml::from_str(
+            r#"
+            [output.process]
+            command = "zstd -o output.zst"
+            mode = "stream"
+            format = "raw"
+            "#,
+        )
+        .unwrap();
+
+        let output = flow
+            .output
+            .into_flow_output(Utf8Path::new("/flows"))
+            .unwrap();
+
+        let FlowOutput::Process(process) = output else {
+            panic!("expected a process output");
+        };
+        assert_eq!(process.mode, ProcessOutputMode::Stream);
+        assert_eq!(process.format, ProcessOutputFormat::Raw);
+    }
+
+    #[test]
+    fn process_output_rejects_unknown_modes() {
+        let result: Result<FlowConfig, _> = toml::from_str(
+            r#"
+            [output.process]
+            command = "cat"
+            mode = "batch"
+            "#,
+        );
+        assert!(result.is_err());
     }
 
     #[test]

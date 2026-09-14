@@ -833,6 +833,55 @@ async fn process_output_failures_are_published_on_the_errors_output() {
     let _ = actor_handle.await;
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn process_output_streams_messages_to_a_single_command() {
+    let config_dir = create_test_flow_dir();
+
+    write_file(
+        &config_dir,
+        "stream.toml",
+        r#"
+        input.mqtt.topics = ["test/input"]
+        steps = []
+
+        [output.process]
+        command = "sh -c 'echo started >> starts.txt; cat >> stream.txt'"
+        mode = "stream"
+        timeout = "5s"
+    "#,
+    );
+
+    let captured_messages = CapturedMessages::default();
+    let mut mqtt = MockMqtt::new(captured_messages.clone());
+    let actor_handle = spawn_flows_actor(&config_dir, &mut mqtt).await;
+
+    mqtt.publish("test/input", "one").await;
+    mqtt.publish("test/input", "two").await;
+    mqtt.publish("test/input", "three").await;
+
+    let output_file = config_dir.path().join("stream.txt");
+    let expected = "one\ntwo\nthree\n";
+    let mut content = String::new();
+    for _ in 0..100 {
+        content = std::fs::read_to_string(&output_file).unwrap_or_default();
+        if content == expected {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    assert_eq!(content, expected);
+    assert_eq!(
+        std::fs::read_to_string(config_dir.path().join("starts.txt")).unwrap(),
+        "started\n",
+        "A single process should receive all the messages"
+    );
+
+    actor_handle.abort();
+    let _ = actor_handle.await;
+}
+
 fn create_test_flow_dir() -> TempDir {
     tempfile::tempdir().unwrap()
 }

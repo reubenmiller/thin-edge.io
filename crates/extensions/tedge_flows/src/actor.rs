@@ -4,9 +4,13 @@ use crate::flow::FlowError;
 use crate::flow::FlowOutput;
 use crate::flow::FlowResult;
 use crate::flow::Message;
+use crate::flow::ProcessOutput;
+use crate::flow::ProcessOutputMode;
 use crate::flow::SourceTag;
 use crate::params::is_params_file;
 use crate::process_output::execute_process_output;
+use crate::process_output::ProcessOutputError;
+use crate::process_output::StreamingProcess;
 use crate::registry::FlowRegistryExt;
 use crate::registry::RegistrationStatus;
 use crate::runtime::MessageProcessor;
@@ -18,6 +22,7 @@ use camino::Utf8Path;
 use camino::Utf8PathBuf;
 use serde_json::json;
 use std::cmp::min;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::time::Duration;
 use std::time::SystemTime;
@@ -53,6 +58,8 @@ pub struct FlowsMapper {
     processor: MessageProcessor<ConnectedFlowRegistry>,
     next_dump: Instant,
     deferred_tick: bool,
+    /// The streaming output processes, per flow
+    streaming_processes: HashMap<Utf8PathBuf, StreamingProcess>,
 }
 
 impl FlowsMapper {
@@ -76,6 +83,7 @@ impl FlowsMapper {
             processor,
             next_dump,
             deferred_tick: false,
+            streaming_processes: HashMap::new(),
         }
     }
 }
@@ -110,11 +118,13 @@ impl Actor for FlowsMapper {
                 }
                 InputMessage::FsWatchEvent(event) => {
                     self.handle_fs_event(event).await?;
+                    self.close_stale_streaming_processes();
                     self.on_startup().await?;
                 }
             }
         }
 
+        self.close_streaming_processes().await;
         Ok(())
     }
 }
@@ -478,7 +488,15 @@ impl FlowsMapper {
             FlowOutput::Process(process) => {
                 // Messages are processed one after the other, the flows being blocked meanwhile
                 for message in messages {
-                    if let Err(err) = execute_process_output(process, &message).await {
+                    let result = match process.mode {
+                        ProcessOutputMode::Oneshot => {
+                            execute_process_output(process, &message).await
+                        }
+                        ProcessOutputMode::Stream => {
+                            self.stream_to_process(flow, process, &message).await
+                        }
+                    };
+                    if let Err(err) = result {
                         self.publish_error(flow, FlowError::Anyhow(err.into()), errors)
                             .await?;
                     }
@@ -497,6 +515,80 @@ impl FlowsMapper {
         let message = Message::new("", format!("Error in {flow}: {error}"));
         // Errors are never sent to a process output, so errors raised by the error output are not reported
         Box::pin(self.publish(flow, vec![message], output, output)).await
+    }
+
+    /// Write a message to the streaming process of a flow, starting the process if needed
+    async fn stream_to_process(
+        &mut self,
+        flow: &Utf8Path,
+        process: &ProcessOutput,
+        message: &Message,
+    ) -> Result<(), ProcessOutputError> {
+        // Restart the process if it has exited, or if the flow now streams to another command
+        let restart = match self.streaming_processes.get_mut(flow) {
+            Some(streaming) if streaming.process() != process => true,
+            Some(streaming) => match streaming.exit_status() {
+                Some(status) => {
+                    warn!(target: "flows", "{flow}: {:?} exited with {status}, restarting it", process.command);
+                    true
+                }
+                None => false,
+            },
+            None => false,
+        };
+        if restart {
+            self.close_streaming_process(flow);
+        }
+
+        if !self.streaming_processes.contains_key(flow) {
+            let streaming = StreamingProcess::spawn(flow, process)?;
+            self.streaming_processes
+                .insert(flow.to_path_buf(), streaming);
+        }
+        let Some(streaming) = self.streaming_processes.get_mut(flow) else {
+            unreachable!("the streaming process has just been started")
+        };
+
+        let result = streaming.write(message).await;
+        if matches!(&result, Err(err) if err.requires_restart()) {
+            self.close_streaming_process(flow);
+        }
+        result
+    }
+
+    /// Close the streaming process of a flow, without waiting for the process to complete
+    fn close_streaming_process(&mut self, flow: &Utf8Path) {
+        if let Some(streaming) = self.streaming_processes.remove(flow) {
+            let grace_period = streaming.process().timeout;
+            streaming.close(grace_period);
+        }
+    }
+
+    /// Close the streaming processes of the flows which have been removed,
+    /// or which no longer stream their output to the same command
+    fn close_stale_streaming_processes(&mut self) {
+        let stale: Vec<Utf8PathBuf> = self
+            .streaming_processes
+            .iter()
+            .filter(|(flow, streaming)| {
+                !self.processor.registry.flows().any(|f| {
+                    f.source_path() == flow.as_path()
+                        && matches!(&f.flow.output, FlowOutput::Process(process) if process == streaming.process())
+                })
+            })
+            .map(|(flow, _)| flow.clone())
+            .collect();
+        for flow in stale {
+            self.close_streaming_process(&flow);
+        }
+    }
+
+    /// Close all the streaming processes, waiting for them to complete
+    async fn close_streaming_processes(&mut self) {
+        for (_, streaming) in self.streaming_processes.drain() {
+            let grace_period = streaming.process().timeout;
+            let _ = streaming.close(grace_period).await;
+        }
     }
 
     async fn handle_fs_event(&mut self, event: FsWatchEvent) -> Result<(), RuntimeError> {

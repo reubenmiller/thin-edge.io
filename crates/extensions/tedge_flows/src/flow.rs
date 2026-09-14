@@ -111,8 +111,36 @@ pub struct ProcessOutput {
     /// Working directory of the command, i.e. the directory of the flow definition
     pub cwd: Utf8PathBuf,
 
-    /// Maximum duration of the command
+    /// Maximum duration of the command, or of writing a message to a streaming command
     pub timeout: Duration,
+
+    /// Whether a command is executed for each message, or messages are streamed to a single command
+    pub mode: ProcessOutputMode,
+
+    /// How messages are written to the standard input of a streaming command
+    pub format: ProcessOutputFormat,
+}
+
+#[derive(Clone, Copy, Debug, Default, serde::Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProcessOutputMode {
+    /// A command is executed for each message
+    #[default]
+    Oneshot,
+
+    /// A single long-running command receives all the messages on its standard input
+    Stream,
+}
+
+#[derive(Clone, Copy, Debug, Default, serde::Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProcessOutputFormat {
+    /// Each message payload is written followed by a newline
+    #[default]
+    Lines,
+
+    /// Message payloads are written as-is
+    Raw,
 }
 
 /// The final outcome of a sequence of transformations applied by a flow to a message

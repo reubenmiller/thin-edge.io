@@ -503,6 +503,26 @@ timeout = "60s"
   A slow command delays the processing of all the flows of the mapper.
 - Errors cannot be sent to a process.
 
+Instead of executing a command for each message, the messages can be streamed to a single long-running command,
+for example to insert data into a database or to compress the output of a flow.
+
+```toml
+[output.process]
+command = "sqlite3 /var/tedge/data.db"
+mode = "stream"
+format = "lines"
+timeout = "10s"
+```
+
+- The command is started when the first message is received, and each message payload is written to its standard input.
+- With the `lines` format (the default), each payload is followed by a newline, and payloads containing a newline are rejected.
+  With the `raw` format, payloads are written as-is.
+- The `timeout` applies to writing a message to the command. If the command doesn't read its input in time,
+  or if the command exits, the command is restarted for the next message and the error is reported on the errors output of the flow.
+- The standard output and error of the command are logged by the mapper.
+- When the flow is updated or removed, the standard input of the command is closed, letting the command complete its work,
+  and the command is killed if it doesn't exit within the `timeout`.
+
 ## %%te%% flow mapper
 
 The extensible mapper is launched as a regular mapper:
