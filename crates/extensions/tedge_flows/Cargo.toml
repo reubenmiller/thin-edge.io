@@ -32,7 +32,14 @@ tedge_utils = { workspace = true, features = ["timestamp"] }
 tedge_watch_ext = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }
-tokio = { workspace = true, features = ["fs", "macros", "time", "sync"] }
+tokio = { workspace = true, features = [
+    "fs",
+    "io-util",
+    "macros",
+    "process",
+    "time",
+    "sync",
+] }
 toml = { workspace = true, features = ["parse"] }
 tracing = { workspace = true }
 uuid = { workspace = true }

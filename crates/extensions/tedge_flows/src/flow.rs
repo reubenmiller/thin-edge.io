@@ -99,6 +99,20 @@ pub enum FlowInput {
 pub enum FlowOutput {
     Mqtt { topic: Option<Topic> },
     File { path: Utf8PathBuf },
+    Process(ProcessOutput),
+}
+
+/// A command executed to handle the output messages of a flow
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProcessOutput {
+    /// Command line, split into arguments without using a shell
+    pub command: String,
+
+    /// Working directory of the command, i.e. the directory of the flow definition
+    pub cwd: Utf8PathBuf,
+
+    /// Maximum duration of the command
+    pub timeout: Duration,
 }
 
 /// The final outcome of a sequence of transformations applied by a flow to a message
@@ -107,6 +121,8 @@ pub enum FlowResult {
         flow: Utf8PathBuf,
         messages: Vec<Message>,
         output: FlowOutput,
+        /// Where to report errors raised while producing the messages to the output
+        errors: FlowOutput,
     },
     Err {
         flow: Utf8PathBuf,
@@ -468,6 +484,7 @@ impl Flow {
                     flow: self.source.clone(),
                     messages,
                     output: self.output.clone(),
+                    errors: self.errors.clone(),
                 }
             }
             Err(error) => FlowResult::Err {

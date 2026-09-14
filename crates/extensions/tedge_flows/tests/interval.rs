@@ -740,6 +740,99 @@ async fn onstartup_before_onmessage_in_two_step_flow() {
     let _ = actor_handle.await;
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn process_output_executes_a_command_for_each_message() {
+    let config_dir = create_test_flow_dir();
+
+    write_file(
+        &config_dir,
+        "process.toml",
+        r#"
+        input.mqtt.topics = ["test/input"]
+        steps = []
+
+        [output.process]
+        command = "sh -c 'cat >> output.txt; echo >> output.txt'"
+        timeout = "5s"
+    "#,
+    );
+
+    let captured_messages = CapturedMessages::default();
+    let mut mqtt = MockMqtt::new(captured_messages.clone());
+    let actor_handle = spawn_flows_actor(&config_dir, &mut mqtt).await;
+
+    mqtt.publish("test/input", "one").await;
+    mqtt.publish("test/input", "two").await;
+
+    let output_file = config_dir.path().join("output.txt");
+    let expected = "one\ntwo\n";
+    let mut content = String::new();
+    for _ in 0..100 {
+        content = std::fs::read_to_string(&output_file).unwrap_or_default();
+        if content == expected {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    assert_eq!(content, expected);
+
+    actor_handle.abort();
+    let _ = actor_handle.await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn process_output_failures_are_published_on_the_errors_output() {
+    let config_dir = create_test_flow_dir();
+
+    write_file(
+        &config_dir,
+        "failing.toml",
+        r#"
+        input.mqtt.topics = ["test/input"]
+        steps = []
+        errors.mqtt.topic = "test/errors"
+
+        [output.process]
+        command = "sh -c 'echo something went wrong >&2; exit 1'"
+        timeout = "5s"
+    "#,
+    );
+
+    let captured_messages = CapturedMessages::default();
+    let mut mqtt = MockMqtt::new(captured_messages.clone());
+    let actor_handle = spawn_flows_actor(&config_dir, &mut mqtt).await;
+
+    mqtt.publish("test/input", "hello").await;
+
+    for _ in 0..100 {
+        if captured_messages.count_topic("test/errors") > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    let errors: Vec<String> = captured_messages
+        .messages
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|message| message.topic.name == "test/errors")
+        .map(|message| String::from_utf8_lossy(message.payload_bytes()).to_string())
+        .collect();
+    assert_eq!(errors.len(), 1, "Expected one error, got {errors:?}");
+    assert!(
+        errors[0].contains("something went wrong"),
+        "The error should include the stderr of the command: {}",
+        errors[0]
+    );
+
+    actor_handle.abort();
+    let _ = actor_handle.await;
+}
+
 fn create_test_flow_dir() -> TempDir {
     tempfile::tempdir().unwrap()
 }

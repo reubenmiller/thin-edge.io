@@ -299,6 +299,8 @@ Parameter values can be used to parameterize the following parts of a flow:
 - Flow output
   - `output.mqtt.topic` 
   - `output.file.path` 
+  - `output.process.command`
+  - `output.process.timeout`
 
 :::note
 Substitution rules differ slightly when applied to `config` objects compared to topics, commands, paths and intervals.
@@ -456,6 +458,7 @@ path = "/var/log/some-app.log"
 ### Output connectors
 
 Transformed messages and errors can be published over MQTT or appended to files.
+Transformed messages can also be passed to a command.
 
 The default is to publish the transformed messages over MQTT on the topics specified by each message.
 And to direct all the errors to a specific topic, the `te/error` topic.
@@ -479,6 +482,26 @@ accept_topics = "c8y/#"
 [errors.file]
 path = "/var/run/tedge/flows.log"
 ```
+
+A flow can also pass its output messages to a command, for example to upload files or to store data in a database.
+
+```toml
+[output.process]
+command = "./upload.sh --verbose"
+timeout = "60s"
+```
+
+- The command is executed for each message. The message payload is written to the standard input of the command,
+  and the message topic is available in the `TEDGE_FLOW_TOPIC` environment variable.
+- The command line is split into arguments without using a shell (use `sh -c '...'` when shell features are required).
+  A relative path to the command is resolved against the directory of the flow definition,
+  which is also the working directory of the command.
+- The command is killed if it doesn't complete within the `timeout` (60 seconds by default).
+  A failure or a timeout is reported on the errors output of the flow, including the standard error of the command.
+  The standard output of the command is ignored.
+- Messages are processed one after the other, and the mapper waits for each command to complete.
+  A slow command delays the processing of all the flows of the mapper.
+- Errors cannot be sent to a process.
 
 ## %%te%% flow mapper
 

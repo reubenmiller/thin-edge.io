@@ -6,6 +6,7 @@ use crate::flow::FlowResult;
 use crate::flow::Message;
 use crate::flow::SourceTag;
 use crate::params::is_params_file;
+use crate::process_output::execute_process_output;
 use crate::registry::FlowRegistryExt;
 use crate::registry::RegistrationStatus;
 use crate::runtime::MessageProcessor;
@@ -421,7 +422,8 @@ impl FlowsMapper {
                 flow,
                 messages,
                 output,
-            } => self.publish(&flow, messages, &output).await,
+                errors,
+            } => self.publish(&flow, messages, &output, &errors).await,
             FlowResult::Err {
                 flow,
                 error,
@@ -435,6 +437,7 @@ impl FlowsMapper {
         flow: &Utf8Path,
         messages: Vec<Message>,
         output: &FlowOutput,
+        errors: &FlowOutput,
     ) -> Result<(), RuntimeError> {
         match output {
             FlowOutput::Mqtt { topic } => {
@@ -472,6 +475,15 @@ impl FlowsMapper {
                     error!(target: "flows", "{flow}: cannot flush {path}: {err}");
                 }
             }
+            FlowOutput::Process(process) => {
+                // Messages are processed one after the other, the flows being blocked meanwhile
+                for message in messages {
+                    if let Err(err) = execute_process_output(process, &message).await {
+                        self.publish_error(flow, FlowError::Anyhow(err.into()), errors)
+                            .await?;
+                    }
+                }
+            }
         }
         Ok(())
     }
@@ -483,7 +495,8 @@ impl FlowsMapper {
         output: &FlowOutput,
     ) -> Result<(), RuntimeError> {
         let message = Message::new("", format!("Error in {flow}: {error}"));
-        self.publish(flow, vec![message], output).await
+        // Errors are never sent to a process output, so errors raised by the error output are not reported
+        Box::pin(self.publish(flow, vec![message], output, output)).await
     }
 
     async fn handle_fs_event(&mut self, event: FsWatchEvent) -> Result<(), RuntimeError> {

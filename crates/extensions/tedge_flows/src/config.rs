@@ -1,6 +1,7 @@
 use crate::flow::Flow;
 use crate::flow::FlowInput;
 use crate::flow::FlowOutput;
+use crate::flow::ProcessOutput;
 use crate::js_runtime::JsRuntime;
 use crate::js_script::JsScript;
 use crate::params::is_params_file;
@@ -128,7 +129,19 @@ pub enum OutputConfig {
 
     #[serde(rename = "file")]
     File { path: Utf8PathBuf },
+
+    #[serde(rename = "process")]
+    Process {
+        command: String,
+
+        #[serde(default)]
+        #[serde(deserialize_with = "parse_human_interval")]
+        timeout: Option<IntervalConfig>,
+    },
 }
+
+/// Default maximum duration of the command of a process output
+pub const DEFAULT_PROCESS_OUTPUT_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Clone)]
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
@@ -169,6 +182,9 @@ pub enum ConfigError {
 
     #[error("Flow '{name}' must define at least one input")]
     NoInput { name: String },
+
+    #[error("Not a valid output: {0}")]
+    IncorrectOutput(String),
 }
 
 /// ```
@@ -330,8 +346,13 @@ impl FlowConfig {
     ) -> Result<Flow, ConfigError> {
         let source_dir = source.parent().unwrap_or(flows_dir);
         let input = self.input.into_flow_inputs(source_dir)?;
-        let output = self.output.try_into()?;
-        let errors = self.errors.try_into()?;
+        let output = self.output.into_flow_output(source_dir)?;
+        let errors = self.errors.into_flow_output(source_dir)?;
+        if let FlowOutput::Process(_) = errors {
+            return Err(ConfigError::IncorrectOutput(
+                "errors cannot be sent to a process".to_string(),
+            ));
+        }
         let mut steps = vec![];
         for (i, step) in self.steps.into_iter().enumerate() {
             let step = step
@@ -612,7 +633,7 @@ impl InputConfig {
 }
 
 impl OutputConfig {
-    fn substitute_params(self, params: &Params<&dyn MapperParams>) -> Result<Self, LoadError> {
+    fn substitute_params(self, params: &Params<&dyn MapperParams>) -> Result<Self, ConfigError> {
         match self {
             OutputConfig::Mqtt { topic } => Ok(OutputConfig::Mqtt {
                 topic: topic.map(|t| params.substitute_inner_paths(&t)),
@@ -620,19 +641,33 @@ impl OutputConfig {
             OutputConfig::File { path } => Ok(OutputConfig::File {
                 path: params.substitute_inner_paths(path.as_str()).into(),
             }),
+            OutputConfig::Process { command, timeout } => Ok(OutputConfig::Process {
+                command: params.substitute_inner_paths(&command),
+                timeout: timeout
+                    .map(|timeout| timeout.substitute_params(params))
+                    .transpose()?,
+            }),
         }
     }
-}
 
-impl TryFrom<OutputConfig> for FlowOutput {
-    type Error = ConfigError;
-
-    fn try_from(input: OutputConfig) -> Result<Self, Self::Error> {
-        Ok(match input {
+    fn into_flow_output(self, source_dir: &Utf8Path) -> Result<FlowOutput, ConfigError> {
+        Ok(match self {
             OutputConfig::Mqtt { topic } => FlowOutput::Mqtt {
                 topic: topic.map(into_topic).transpose()?,
             },
             OutputConfig::File { path } => FlowOutput::File { path },
+            OutputConfig::Process { command, timeout } => {
+                let timeout = match timeout.map(|timeout| timeout.duration()) {
+                    Some(Ok(timeout)) if !timeout.is_zero() => timeout,
+                    Some(Err(e)) => return Err(e),
+                    _ => DEFAULT_PROCESS_OUTPUT_TIMEOUT,
+                };
+                FlowOutput::Process(ProcessOutput {
+                    command: resolve_process_command(command, source_dir),
+                    cwd: source_dir.to_path_buf(),
+                    timeout,
+                })
+            }
         })
     }
 }
@@ -985,6 +1020,80 @@ topic = "te/device/main///e/"
         let expected_flow: FlowConfig = toml::from_str(expected_flow_toml).unwrap();
 
         assert_eq!(expected_flow, flow.substitute_params(&params).unwrap());
+    }
+
+    #[test]
+    fn process_output_resolves_relative_commands() {
+        let flow: FlowConfig = toml::from_str(
+            r#"
+            [output.process]
+            command = "./upload.sh --verbose"
+            timeout = "5s"
+            "#,
+        )
+        .unwrap();
+
+        let output = flow
+            .output
+            .into_flow_output(Utf8Path::new("/flows/sub"))
+            .unwrap();
+
+        let FlowOutput::Process(process) = output else {
+            panic!("expected a process output");
+        };
+        assert_eq!(
+            process,
+            ProcessOutput {
+                command: "/flows/sub/upload.sh --verbose".to_string(),
+                cwd: "/flows/sub".into(),
+                timeout: Duration::from_secs(5),
+            }
+        );
+    }
+
+    #[test]
+    fn process_output_has_a_default_timeout() {
+        let flow: FlowConfig = toml::from_str(
+            r#"
+            output.process.command = "sqlite3 data.db"
+            "#,
+        )
+        .unwrap();
+
+        let output = flow
+            .output
+            .into_flow_output(Utf8Path::new("/flows"))
+            .unwrap();
+
+        let FlowOutput::Process(process) = output else {
+            panic!("expected a process output");
+        };
+        assert_eq!(process.command, "sqlite3 data.db");
+        assert_eq!(process.timeout, DEFAULT_PROCESS_OUTPUT_TIMEOUT);
+    }
+
+    #[tokio::test]
+    async fn errors_cannot_be_sent_to_a_process() {
+        let flow: FlowConfig = toml::from_str(
+            r#"
+            input.mqtt.topics = ["test/input"]
+            errors.process.command = "logger"
+            "#,
+        )
+        .unwrap();
+        let rs_transformers = BuiltinTransformers::default();
+        let mut js_runtime = JsRuntime::with_default().await.unwrap();
+
+        let result = flow
+            .compile(
+                &rs_transformers,
+                &mut js_runtime,
+                Utf8Path::new("/flows"),
+                Utf8PathBuf::from("/flows/my_flow.toml"),
+            )
+            .await;
+
+        assert!(matches!(result, Err(ConfigError::IncorrectOutput(_))));
     }
 
     #[test]

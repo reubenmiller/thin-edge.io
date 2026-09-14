@@ -8,6 +8,7 @@ mod js_runtime;
 mod js_script;
 mod js_value;
 mod params;
+mod process_output;
 mod registry;
 mod runtime;
 mod stats;
