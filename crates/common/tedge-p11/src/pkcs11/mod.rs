@@ -151,6 +151,18 @@ const SECP521R1_OID: &str = "1.3.132.0.35";
 /// larger batches.
 pub const DEFAULT_FIND_OBJECTS_BATCH_SIZE: NonZeroU16 = NonZeroU16::new(1).unwrap();
 
+/// How long a loaded PKCS #11 module is trusted to reflect the token's current keys when a new
+/// TLS handshake starts.
+///
+/// Some modules only read the token's objects when they are initialized, e.g. tpm2-pkcs11 loads
+/// its key store in `C_Initialize`. When another process replaces the key (same id/label) during
+/// certificate renewal, the running server keeps signing with the old key, and the cloud rejects
+/// every handshake until the server is restarted. Reloading the module at the start of a TLS
+/// handshake or a CSR creation, when it was loaded longer ago than this, picks up such changes.
+/// Clients do few of these (e.g. one handshake per connection), and back-to-back requests reuse
+/// the same load.
+const MODULE_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
+
 #[derive(Clone)]
 pub struct CryptokiConfigDirect {
     pub module_path: Utf8PathBuf,
@@ -179,11 +191,15 @@ pub struct Cryptoki {
     /// When the module was last reloaded from the signing path, used to rate-limit reloads so a
     /// burst of failed signings does not churn a physical reader (see [`Cryptoki::should_reinit`]).
     last_reinit: Arc<Mutex<Option<Instant>>>,
+    /// When the module was last (re)initialized, i.e. when it last read the token's objects.
+    loaded_at: Arc<Mutex<Instant>>,
 }
 
 impl TedgeP11Service for Cryptoki {
     #[instrument(skip_all)]
     fn choose_scheme(&self, request: ChooseSchemeRequest) -> anyhow::Result<ChooseSchemeResponse> {
+        // Choosing a scheme is the first request of a TLS handshake
+        self.refresh_if_stale();
         let signing_key = self.signing_key_retry(SessionParams {
             uri: request.uri,
             pin: request.pin,
@@ -215,6 +231,9 @@ impl TedgeP11Service for Cryptoki {
             // PIN is not required when reading public objects like public keys
             pin: None,
         };
+        // Reading the public key is the first request when creating a CSR, e.g. to renew the
+        // certificate after the key was replaced, so the CSR must be for the current key
+        self.refresh_if_stale();
         // No extra context: callers match on the error message, e.g. "Failed to find a key"
         self.retry_after_reinit(None, is_module_failure, || {
             self.open_session_ro(&params)?.get_public_key_pem()
@@ -708,7 +727,29 @@ impl Cryptoki {
             context: Arc::new(Mutex::new(pkcs11client)),
             config,
             last_reinit: Arc::new(Mutex::new(None)),
+            loaded_at: Arc::new(Mutex::new(Instant::now())),
         })
+    }
+
+    /// Reloads the module if it was loaded longer ago than [`MODULE_REFRESH_INTERVAL`], so that
+    /// keys changed by other processes since then are used (see [`MODULE_REFRESH_INTERVAL`]).
+    fn refresh_if_stale(&self) {
+        let loaded_at = *self.loaded_at.lock().unwrap_or_else(|e| e.into_inner());
+        if loaded_at.elapsed() < MODULE_REFRESH_INTERVAL {
+            return;
+        }
+
+        let started = Instant::now();
+        match self.reinit() {
+            Ok(()) => debug!(
+                elapsed = ?started.elapsed(),
+                "Reloaded the PKCS #11 module to pick up changes to the token's objects"
+            ),
+            Err(err) => warn!(
+                error = format!("{err:#}"),
+                "Failed to reload the PKCS #11 module, using the loaded one"
+            ),
+        }
     }
 
     /// Rate-limit module reloads driven by signing failures.
@@ -782,6 +823,7 @@ impl Cryptoki {
         {
             warn!(?err, "Initializing cryptoki library failed");
         }
+        *self.loaded_at.lock().unwrap_or_else(|e| e.into_inner()) = Instant::now();
 
         Ok(())
     }
