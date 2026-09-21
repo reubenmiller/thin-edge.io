@@ -1,0 +1,10 @@
+# Software TPM 2.0 used by the TPM tests. Not enabled by default, tests start it on demand.
+[Unit]
+Description=Software TPM 2.0 (swtpm)
+Before=tpm2-abrmd.service
+
+[Service]
+ExecStartPre=/bin/mkdir -p /var/lib/swtpm
+ExecStartPre=/bin/sh -c 'test -f /var/lib/swtpm/tpm2-00.permall || swtpm_setup --tpm2 --tpmstate /var/lib/swtpm --createek --overwrite'
+ExecStart=/usr/bin/swtpm socket --tpm2 --tpmstate dir=/var/lib/swtpm --server type=tcp,port=2321,bindaddr=127.0.0.1 --ctrl type=tcp,port=2322,bindaddr=127.0.0.1 --flags not-need-init,startup-clear
+Restart=always

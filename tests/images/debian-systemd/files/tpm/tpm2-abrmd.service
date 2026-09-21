@@ -1,0 +1,13 @@
+# TPM2 access broker in front of swtpm (the default TCTI of tpm2-pkcs11 when tpm2-abrmd is
+# installed). Not enabled by default, tests start it on demand.
+[Unit]
+Description=TPM2 Access Broker and Resource Management Daemon (swtpm)
+After=swtpm.service dbus.service
+Requires=swtpm.service
+
+[Service]
+Type=dbus
+BusName=com.intel.tss2.Tabrmd
+ExecStart=/usr/sbin/tpm2-abrmd --tcti=swtpm:host=127.0.0.1,port=2321
+User=tss
+Restart=on-failure

@@ -34,6 +34,16 @@ RUN apt-get -y update \
     softhsm2 \
     # provides p11-kit-trust.so, a token which does not require a login
     p11-kit-modules \
+    # TPM 2.0 support, using a software TPM (swtpm) behind tpm2-abrmd
+    swtpm \
+    swtpm-tools \
+    tpm2-abrmd \
+    libtss2-tcti-tabrmd0 \
+    libtss2-tcti-swtpm0 \
+    libtpm2-pkcs11-1 \
+    libtpm2-pkcs11-tools \
+    tpm2-tools \
+    opensc \
     # configure locales
     && echo "LANG=C.UTF-8" > /etc/default/locale
 
@@ -68,6 +78,9 @@ RUN case "$(uname -m)" in \
     && groupadd --system gost \
     && useradd --system --no-create-home --shell /sbin/nologin --gid gost gost
 COPY files/gost-http-proxy.service /etc/systemd/system/
+COPY files/tpm/swtpm.service files/tpm/tpm2-abrmd.service /etc/systemd/system/
+# Only start the (software) TPM stack in the tests which need it
+RUN systemctl disable tpm2-abrmd.service
 
 # Remove unnecessary systemd services
 RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
