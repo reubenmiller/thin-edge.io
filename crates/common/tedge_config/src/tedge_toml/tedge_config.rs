@@ -750,8 +750,7 @@ define_tedge_config! {
             #[tedge_config(exposable)]
             software_update: bool,
 
-            /// Enable shell_execute feature, which maps the Cumulocity
-            /// `c8y_Command` operation to the `shell_execute` command
+            /// Enable shell execute feature
             #[tedge_config(example = "true", default(value = true))]
             #[tedge_config(exposable)]
             shell_execute: bool,
@@ -1474,7 +1473,6 @@ define_tedge_config! {
 
     shell: {
         /// The shell used by the `shell_execute` operation to run the commands
-        /// received from the cloud
         #[tedge_config(example = "/bin/sh", example = "/bin/bash", default(from_str = "/bin/sh"))]
         #[tedge_config(exposable)]
         path: AbsolutePath,

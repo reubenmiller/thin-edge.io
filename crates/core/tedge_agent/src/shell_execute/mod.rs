@@ -41,14 +41,6 @@ mod tests {
 
     const BUILTIN: &str = include_str!("../resources/shell_execute.toml");
 
-    fn ops_dir(ttd: &TempTedgeDir) -> ManagedDir {
-        TedgePaths::from_root_with_defaults(ttd.path(), "", "").root_dir()
-    }
-
-    fn read(ttd: &TempTedgeDir, name: &str) -> String {
-        std::fs::read_to_string(ttd.path().join(name)).unwrap()
-    }
-
     #[tokio::test]
     async fn deploys_the_workflow() {
         let ttd = TempTedgeDir::new();
@@ -69,12 +61,10 @@ mod tests {
         assert_eq!(read(&ttd, "shell_execute.toml"), BUILTIN);
     }
 
-    /// While the tedge-command-plugin is installed, its own definition takes precedence.
-    /// Once removed, the built-in definition is deployed.
     #[tokio::test]
-    async fn adopts_the_workflow_of_the_community_package_once_removed() {
+    async fn deploys_the_workflow_only_once_the_community_package_is_removed() {
         let ttd = TempTedgeDir::new();
-        std::fs::write(ttd.path().join("shell_execute.toml"), "community").unwrap();
+        ttd.file("shell_execute.toml").with_raw_content("community");
 
         ShellExecuteBuilder::try_new(&ops_dir(&ttd)).await.unwrap();
         assert_eq!(read(&ttd, "shell_execute.toml"), "community");
@@ -88,7 +78,8 @@ mod tests {
     async fn preserves_a_customized_workflow() {
         let ttd = TempTedgeDir::new();
         ShellExecuteBuilder::try_new(&ops_dir(&ttd)).await.unwrap();
-        std::fs::write(ttd.path().join("shell_execute.toml"), "customized").unwrap();
+        ttd.file("shell_execute.toml")
+            .with_raw_content("customized");
 
         ShellExecuteBuilder::try_new(&ops_dir(&ttd)).await.unwrap();
 
@@ -106,5 +97,13 @@ mod tests {
         ShellExecuteBuilder::try_new(&ops_dir(&ttd)).await.unwrap();
 
         assert!(!ttd.path().join("shell_execute.toml").exists());
+    }
+
+    fn ops_dir(ttd: &TempTedgeDir) -> ManagedDir {
+        TedgePaths::from_root_with_defaults(ttd.path(), "", "").root_dir()
+    }
+
+    fn read(ttd: &TempTedgeDir, name: &str) -> String {
+        std::fs::read_to_string(ttd.path().join(name)).unwrap()
     }
 }

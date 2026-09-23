@@ -273,8 +273,8 @@ impl Agent {
         // Runtime
         let mut runtime = Runtime::new();
 
-        // Deploy the built-in workflows before the workflow actor,
-        // as the latter loads the workflow definitions found in the operations directory
+        // Deploy the built-in workflows before starting the workflow actor,
+        // which loads the definitions found in the operations directory
         DeviceProfileManagerBuilder::try_new(&self.config.operations_dir).await?;
         ShellExecuteBuilder::try_new(&self.config.operations_dir).await?;
 
