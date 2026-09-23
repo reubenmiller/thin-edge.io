@@ -1073,6 +1073,23 @@ action = "cleanup"
     Ok(())
 }
 
+#[test]
+fn builtin_workflows_are_valid_operation_workflows() {
+    for (name, definition) in [
+        (
+            "device_profile.toml",
+            include_str!("../resources/device_profile.toml"),
+        ),
+        (
+            "shell_execute.toml",
+            include_str!("../resources/shell_execute.toml"),
+        ),
+    ] {
+        toml::from_str::<OperationWorkflow>(definition)
+            .unwrap_or_else(|err| panic!("{name} is not a valid workflow definition: {err}"));
+    }
+}
+
 struct TestHandler {
     tmp_dir: Arc<TempTedgeDir>,
     actor_handle: JoinHandle<Result<(), RuntimeError>>,
@@ -1366,23 +1383,6 @@ impl MessageSink<RequestEnvelope<OperationStepRequest, OperationStepResponse>>
         &self,
     ) -> DynSender<RequestEnvelope<OperationStepRequest, OperationStepResponse>> {
         self.0.get_sender()
-    }
-}
-
-#[test]
-fn builtin_workflows_are_valid_operation_workflows() {
-    for (name, definition) in [
-        (
-            "device_profile.toml",
-            include_str!("../resources/device_profile.toml"),
-        ),
-        (
-            "shell_execute.toml",
-            include_str!("../resources/shell_execute.toml"),
-        ),
-    ] {
-        toml::from_str::<OperationWorkflow>(definition)
-            .unwrap_or_else(|err| panic!("{name} is not a valid workflow definition: {err}"));
     }
 }
 
