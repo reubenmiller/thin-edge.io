@@ -21,7 +21,7 @@ and the combined standard output and standard error of the command is reported b
 The operation transitions to `SUCCESSFUL` when the command returns a zero exit code,
 and to `FAILED` otherwise.
 
-The same operation can also be created using the Cumulocity REST API or the [go-c8y-cli)](https://c8y.app/) cli tool.
+The same operation can also be created using the Cumulocity REST API or the [go-c8y-cli](https://c8y.app/) cli tool.
 
 ```sh
 c8y operations create --device "$DEVICE_ID" --template "{c8y_Command:{text:'uptime'}}"
@@ -62,6 +62,7 @@ to get the definition shipped by the installed version back.
 |`shell.path`|The shell used to run the commands. Defaults to `/bin/sh`|
 |`shell.max_output_size`|The maximum number of bytes of command output reported back. Any output beyond that limit is truncated. Defaults to `15000`, just under what fits in a Cumulocity message|
 |`shell.timeout`|The maximum duration of a command. Defaults to `10m`|
+|`agent.enable.shell_execute`|Whether the **tedge-agent** deploys and executes the `shell_execute` command. Defaults to `true`|
 |`c8y.enable.shell_execute`|Whether the `shell_execute` command is mapped to the Cumulocity `c8y_Command` operation. Defaults to `true`|
 
 A command which has not completed within `shell.timeout` is terminated and the operation fails,
@@ -194,9 +195,20 @@ If this is not acceptable for your deployment, either disable the feature,
 or replace `/etc/tedge/operations/shell_execute.toml` with a workflow which only accepts
 a restricted set of commands.
 
-To turn the command off on the device altogether, disable the workflow.
+To turn the command off on the device altogether, disable it in the **tedge-agent** configuration.
+The agent then neither deploys the workflow nor executes any `shell_execute` command.
+Remove the workflow definition too, so the operation is no longer advertised.
+
+```sh
+sudo tedge config set agent.enable.shell_execute false
+sudo rm -f /etc/tedge/operations/shell_execute.toml
+sudo systemctl restart tedge-agent
+```
+
+Alternatively, disable the workflow with a marker file.
 Note that removing `/etc/tedge/operations/shell_execute.toml` on its own is not enough:
-the **tedge-agent** deploys it again on its next start unless the marker file is present.
+the **tedge-agent** deploys it again on its next start
+unless the marker file is present or `agent.enable.shell_execute` is `false`.
 
 ```sh
 sudo touch /etc/tedge/operations/shell_execute.toml.disabled
@@ -205,7 +217,7 @@ sudo systemctl restart tedge-agent
 ```
 
 `c8y.enable.shell_execute` only controls the Cumulocity mapping:
-with the workflow still in place, the command can be triggered locally over MQTT.
+with the command still enabled on the agent, it can be triggered locally over MQTT.
 
 ## Migrating from the tedge-command-plugin
 
