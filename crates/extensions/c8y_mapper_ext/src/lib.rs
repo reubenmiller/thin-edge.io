@@ -16,6 +16,7 @@ mod mea;
 mod operations;
 mod serializer;
 pub mod service_monitor;
+mod shell_execute;
 mod signals;
 mod supported_operations;
 

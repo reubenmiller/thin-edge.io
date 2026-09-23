@@ -2,8 +2,7 @@ use super::config::C8yMapperConfig;
 use super::converter::CumulocityConverter;
 use super::dynamic_discovery::process_inotify_events;
 use crate::entity_cache::UpdateOutcome;
-use crate::supported_operations::SHELL_EXECUTE_TEMPLATE;
-use crate::supported_operations::SHELL_EXECUTE_TEMPLATE_NAME;
+use crate::shell_execute;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use c8y_http_proxy::handle::C8YHttpProxy;
@@ -385,14 +384,8 @@ impl C8yMapperBuilder {
         // Create c8y operations directory
         config.ops_dir.ensure().await?;
 
-        // Deploy the operation template mapping c8y_Command to the shell_execute command.
-        // An existing template is never overwritten, as the user might have customized it.
         if config.capabilities.shell_execute {
-            config
-                .ops_dir
-                .file(SHELL_EXECUTE_TEMPLATE_NAME)?
-                .create_if_missing(SHELL_EXECUTE_TEMPLATE)
-                .await?;
+            shell_execute::deploy_operation_template(&config.ops_dir).await?;
         }
 
         Ok(())

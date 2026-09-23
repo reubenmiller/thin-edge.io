@@ -2195,11 +2195,11 @@ async fn c8y_command_is_ignored_when_shell_execute_is_disabled() {
     ttd.dir("operations")
         .dir("c8y")
         .file("c8y_Command.template")
-        .with_raw_content(crate::supported_operations::SHELL_EXECUTE_TEMPLATE);
+        .with_raw_content(crate::shell_execute::SHELL_EXECUTE_TEMPLATE);
     ttd.dir("operations")
         .dir("c8y")
         .file("c8y_Command")
-        .with_raw_content(crate::supported_operations::SHELL_EXECUTE_TEMPLATE);
+        .with_raw_content(crate::shell_execute::SHELL_EXECUTE_TEMPLATE);
 
     let mut config = test_mapper_config(&ttd);
     config.capabilities.shell_execute = false;
