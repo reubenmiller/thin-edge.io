@@ -12,13 +12,14 @@
 //! which is a failure, unless the command declared the result to be reported in that case,
 //! using [`Job::set_result`], e.g. before restarting the agent or the device.
 //!
-//! The output of the command is written to a file of the job as it is produced,
+//! The output of the command is relayed to a file of the job as it is produced,
 //! so the output of an interrupted command is reported, up to the interruption.
 //!
 //! The job files are stored in a directory expected to survive a device reboot.
 //! Nothing is assumed though on the content of a file which might have been written
 //! just before an abrupt reboot: an empty or truncated file is taken as a missing one.
 
+use crate::OutputFile;
 use crate::ShellOutcome;
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
@@ -31,6 +32,7 @@ use std::fs::OpenOptions;
 use std::io::ErrorKind;
 use std::io::Write;
 use std::time::Duration;
+use std::time::Instant;
 
 /// The reason reported for a command interrupted before it completed
 pub const INTERRUPTED_REASON: &str =
@@ -44,6 +46,17 @@ pub const INTERRUPTED_OUTPUT_NOTICE: &str =
 /// The reason reported for an interrupted command which declared a failure without giving a reason
 pub const DECLARED_FAILURE_REASON: &str =
     "The command set its result as failed before being interrupted";
+
+/// How long `set-result` waits for the output printed so far to be persisted
+///
+/// The job serves such a request within a fraction of a second,
+/// so this is only reached when the job is gone.
+#[cfg(not(test))]
+const FLUSH_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Shortened, so that the tests of a job run with no relay do not wait for nothing
+#[cfg(test)]
+const FLUSH_TIMEOUT: Duration = Duration::from_millis(100);
 
 /// The result declared by a command, to be reported should it be interrupted
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -155,7 +168,7 @@ impl Job {
     /// The lock is held until this process exits, whatever the reason.
     pub fn run(
         &self,
-        execute: impl FnOnce(File) -> Result<ShellOutcome, String>,
+        execute: impl FnOnce(OutputFile) -> Result<ShellOutcome, String>,
     ) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.dir)?;
         let lock = self.open_lock_file()?;
@@ -166,13 +179,18 @@ impl Job {
         // A stale outcome would be taken as the outcome of this run, were it interrupted
         remove_if_exists(&self.outcome_path())?;
         remove_if_exists(&self.declared_result_path())?;
+        remove_if_exists(&self.flush_request_path())?;
         // Read back once the command has completed
-        let output = OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(true)
             .open(self.output_path())?;
+        let output = OutputFile {
+            file,
+            flush_request: Some(self.flush_request_path()),
+        };
 
         let outcome = match execute(output) {
             Ok(outcome) => JobOutcome::from(outcome),
@@ -230,12 +248,32 @@ impl Job {
 
         // Persisted before returning, as the device might be rebooted right after,
         // along with the output printed so far
+        self.flush_output()?;
         match File::open(self.output_path()) {
             Ok(output) => output.sync_all()?,
             Err(err) if err.kind() == ErrorKind::NotFound => (),
             Err(err) => return Err(err),
         }
         self.write_json(&self.declared_result_path(), declared)
+    }
+
+    /// Ask the job to persist the output relayed so far, and wait for it to be done
+    ///
+    /// The output printed by the command might still be in the pipe read by the job,
+    /// which is drained before the output file is synced.
+    /// Giving up after a while, e.g. if the job is gone, the output being then persisted as is.
+    fn flush_output(&self) -> std::io::Result<()> {
+        let request = self.flush_request_path();
+        File::create(&request)?;
+        let deadline = Instant::now() + FLUSH_TIMEOUT;
+        while request.exists() {
+            if Instant::now() >= deadline {
+                tracing::warn!("The output printed so far might not be persisted, the command output not being relayed");
+                return remove_if_exists(&request);
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        Ok(())
     }
 
     /// The outcome of an interrupted job, which declared its result
@@ -295,6 +333,10 @@ impl Job {
 
     fn output_path(&self) -> Utf8PathBuf {
         self.dir.join("output")
+    }
+
+    fn flush_request_path(&self) -> Utf8PathBuf {
+        self.dir.join("flush-request")
     }
 
     fn outcome_path(&self) -> Utf8PathBuf {
@@ -585,7 +627,7 @@ mod tests {
         let job = Job::new(data_dir(&ttd), "c8y-mapper-1234").unwrap();
 
         job.run(|mut output| {
-            output.write_all(b"hello\n").unwrap();
+            output.file.write_all(b"hello\n").unwrap();
             Ok(completed("hello\n"))
         })
         .unwrap();

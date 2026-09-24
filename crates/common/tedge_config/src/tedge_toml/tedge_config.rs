@@ -1482,8 +1482,8 @@ define_tedge_config! {
         #[tedge_config(exposable)]
         path: AbsolutePath,
 
-        /// The maximum number of bytes of command output reported by the `shell_execute`
-        /// operation. Any output beyond that limit is truncated
+        /// The maximum number of bytes of command output stored and reported by the `shell_execute`
+        /// operation. Any output beyond that limit is discarded, the command still running to completion
         #[tedge_config(example = "15000", default(value = 15000u32))]
         #[tedge_config(exposable)]
         max_output_size: u32,

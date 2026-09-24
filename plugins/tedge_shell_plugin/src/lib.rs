@@ -6,8 +6,11 @@
 
 pub mod bin;
 pub mod job;
+mod relay;
 
+use crate::relay::OutputRelay;
 use camino::Utf8Path;
+use camino::Utf8PathBuf;
 use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
@@ -59,22 +62,32 @@ const TERMINATION_GRACE_PERIOD: Duration = Duration::from_secs(60);
 #[cfg(test)]
 const TERMINATION_GRACE_PERIOD: Duration = Duration::from_secs(1);
 
+/// The file the output of a command is stored into
+pub struct OutputFile {
+    pub file: File,
+
+    /// A file created by a process asking for the output relayed so far to be persisted,
+    /// and removed once done
+    pub flush_request: Option<Utf8PathBuf>,
+}
+
 /// Run `<shell> -c <command>`, capturing the combined stdout and stderr of the command,
 /// and adding the given environment variables to the environment of the command.
 ///
-/// The output is collected into the given file,
-/// which is shared by stdout and stderr, so that both streams are interleaved
+/// The output is relayed through a pipe to the given file.
+/// The pipe is shared by stdout and stderr, so that both streams are interleaved
 /// the same way a user would see them on a terminal.
 ///
-/// Using a file rather than a pipe matters: a command which starts a background process
-/// completes as soon as the command itself exits, even if the background process
-/// still holds the inherited file descriptors.
-///
-/// At most `max_output_size` bytes are read back, so that a chatty command cannot exhaust
-/// the memory of a constrained device, nor produce an operation status message
-/// too large to be published. Note that this caps the bytes read, not the length of the
-/// reported string: invalid UTF-8 is replaced with the unicode replacement character,
+/// Only the first `max_output_size` bytes are stored, so that a chatty command cannot fill up
+/// the disk, exhaust the memory of a constrained device, nor produce an operation status message
+/// too large to be published. The rest of the output is read and discarded,
+/// so the command still runs to completion. Note that this caps the bytes stored, not the length
+/// of the reported string: invalid UTF-8 is replaced with the unicode replacement character,
 /// which is longer than the byte it replaces.
+///
+/// The command completes as soon as the shell exits, even if a background process
+/// started by the command still holds the pipe. Such a process gets `SIGPIPE`
+/// if it writes to its output after the command completed.
 ///
 /// A command which has not completed after `timeout` is terminated,
 /// along with the processes it started, and the output collected so far is reported.
@@ -84,32 +97,39 @@ const TERMINATION_GRACE_PERIOD: Duration = Duration::from_secs(1);
 ///
 /// The output being written as it is produced, a named file keeps
 /// what the command printed, even if this process is killed before the command completes.
+/// A process can ask for the output relayed so far to be persisted, e.g. before a reboot,
+/// by creating the `flush_request` file, which is removed once done.
 pub fn execute_to_file(
     shell: &Utf8Path,
     command: &str,
-    mut output_file: File,
+    output: OutputFile,
     max_output_size: u32,
     timeout: Duration,
     envs: &[(&str, &str)],
 ) -> std::io::Result<ShellOutcome> {
+    let (pipe, pipe_writer) = std::io::pipe()?;
+    // The command is dropped once spawned, so this process does not hold the write end of the pipe
     let mut child = Command::new(shell)
         // "--" ends the shell options, so a command starting with a hyphen is run as a command
         .args(["-c", "--", command])
         .envs(envs.iter().copied())
         .stdin(Stdio::null())
-        .stdout(Stdio::from(output_file.try_clone()?))
-        .stderr(Stdio::from(output_file.try_clone()?))
+        .stdout(pipe_writer.try_clone()?)
+        .stderr(pipe_writer)
         .process_group(0)
         .spawn()?;
+    let mut relay = OutputRelay::new(pipe, output, max_output_size);
 
-    let (exit_code, timed_out) = match wait_until(&mut child, Instant::now() + timeout)? {
+    let deadline = Instant::now() + timeout;
+    let (exit_code, timed_out) = match wait_until(&mut child, &mut relay, deadline)? {
         Some(status) => (exit_code(status), None),
         None => {
-            terminate(&mut child)?;
+            terminate(&mut child, &mut relay)?;
             (TIMEOUT_EXIT_CODE, Some(timeout))
         }
     };
 
+    let mut output_file = relay.finish()?;
     let result = read_output(&mut output_file, max_output_size)?;
 
     Ok(ShellOutcome {
@@ -152,12 +172,17 @@ pub fn read_output(output_file: &mut File, max_output_size: u32) -> std::io::Res
     Ok(result)
 }
 
-/// Wait for the child to exit, giving up at the deadline
+/// Wait for the child to exit, relaying its output, and giving up at the deadline
 ///
 /// The child is polled, backing off up to a short interval,
 /// so a quick command is reported without delay,
-/// while a long running one wakes up this process only a few times per second.
-fn wait_until(child: &mut Child, deadline: Instant) -> std::io::Result<Option<ExitStatus>> {
+/// while a long running and silent one wakes up this process only a few times per second.
+/// The output is relayed as soon as it is written, so a chatty command is not slowed down.
+fn wait_until(
+    child: &mut Child,
+    relay: &mut OutputRelay,
+    deadline: Instant,
+) -> std::io::Result<Option<ExitStatus>> {
     const MAX_POLL_INTERVAL: Duration = Duration::from_millis(100);
     let mut poll_interval = Duration::from_millis(1);
     loop {
@@ -168,13 +193,15 @@ fn wait_until(child: &mut Child, deadline: Instant) -> std::io::Result<Option<Ex
         if now >= deadline {
             return Ok(None);
         }
-        std::thread::sleep(poll_interval.min(deadline - now));
+        relay.relay(poll_interval.min(deadline - now))?;
         poll_interval = (poll_interval * 2).min(MAX_POLL_INTERVAL);
     }
 }
 
 /// Terminate the process group led by the child, and reap the child
-fn terminate(child: &mut Child) -> std::io::Result<()> {
+///
+/// The output is relayed during the grace period, e.g. what a `SIGTERM` handler prints.
+fn terminate(child: &mut Child, relay: &mut OutputRelay) -> std::io::Result<()> {
     use nix::sys::signal::killpg;
     use nix::sys::signal::Signal;
     use nix::unistd::Pid;
@@ -183,7 +210,7 @@ fn terminate(child: &mut Child) -> std::io::Result<()> {
     let process_group = Pid::from_raw(child.id() as nix::libc::pid_t);
 
     let _ = killpg(process_group, Signal::SIGTERM);
-    if wait_until(child, Instant::now() + TERMINATION_GRACE_PERIOD)?.is_none() {
+    if wait_until(child, relay, Instant::now() + TERMINATION_GRACE_PERIOD)?.is_none() {
         let _ = killpg(process_group, Signal::SIGKILL);
         child.wait()?;
     }
@@ -285,28 +312,6 @@ mod tests {
     const NO_LIMIT: u32 = u32::MAX;
     const NO_TIMEOUT: Duration = Duration::from_secs(3600);
 
-    fn sh() -> &'static Utf8Path {
-        Utf8Path::new("/bin/sh")
-    }
-
-    fn tmp() -> &'static Utf8Path {
-        Utf8Path::new("/tmp")
-    }
-
-    fn execute(
-        shell: &Utf8Path,
-        command: &str,
-        max_output_size: u32,
-        timeout: Duration,
-    ) -> std::io::Result<ShellOutcome> {
-        let output_file = tempfile::tempfile_in(tmp())?;
-        execute_to_file(shell, command, output_file, max_output_size, timeout, &[])
-    }
-
-    fn execute_with_defaults(command: &str) -> std::io::Result<ShellOutcome> {
-        execute(sh(), command, NO_LIMIT, NO_TIMEOUT)
-    }
-
     #[test]
     fn captures_stdout() {
         let outcome = execute_with_defaults("echo hello world").unwrap();
@@ -330,7 +335,10 @@ mod tests {
 
     #[test]
     fn a_background_process_does_not_delay_the_command() {
+        let started = Instant::now();
         let outcome = execute_with_defaults("sleep 30 & echo started").unwrap();
+        // The background process holds the pipe, which is not read to its end
+        assert!(started.elapsed() < Duration::from_secs(10));
         assert_eq!(outcome.exit_code, 0);
         // Some shells report the termination of the command, e.g. bash
         assert!(
@@ -380,6 +388,62 @@ mod tests {
         let outcome = execute(sh(), "printf '0123'", 4, NO_TIMEOUT).unwrap();
         assert_eq!(outcome.exit_code, 0);
         assert_eq!(outcome.result, "0123");
+    }
+
+    #[test]
+    fn only_the_head_of_a_large_output_is_stored() {
+        let stored = tempfile::NamedTempFile::new_in(tmp()).unwrap();
+        let output = OutputFile {
+            file: stored.reopen().unwrap(),
+            flush_request: None,
+        };
+
+        // 10 MB of output, followed by an exit code telling the command ran to completion
+        let command = "head -c 10000000 /dev/zero | tr '\\0' x; exit 7";
+        let outcome = execute_to_file(sh(), command, output, 4, NO_TIMEOUT, &[]).unwrap();
+
+        assert_eq!(outcome.exit_code, 7);
+        assert_eq!(
+            outcome.result,
+            "xxxx\n<the output has been truncated after 4 bytes>\n"
+        );
+        // One byte more than reported, telling the output has been truncated
+        assert_eq!(stored.as_file().metadata().unwrap().len(), 5);
+    }
+
+    #[test]
+    fn the_output_relayed_so_far_is_persisted_on_request() {
+        let dir = tempfile::tempdir_in(tmp()).unwrap();
+        let dir = Utf8Path::from_path(dir.path()).unwrap();
+        let stored = dir.join("output");
+        let request = dir.join("flush-request");
+        let output = OutputFile {
+            file: std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create_new(true)
+                .open(&stored)
+                .unwrap(),
+            flush_request: Some(request.clone()),
+        };
+
+        // The command asks for its output to be persisted, as `set-result` does,
+        // then prints what has been stored
+        let command = format!(
+            "echo before; touch '{request}'; while [ -e '{request}' ]; do sleep 0.01; done; cat '{stored}'"
+        );
+        let outcome = execute_to_file(
+            sh(),
+            &command,
+            output,
+            NO_LIMIT,
+            Duration::from_secs(10),
+            &[],
+        )
+        .unwrap();
+
+        assert_eq!(outcome.timed_out, None);
+        assert_eq!(outcome.result, "before\nbefore\n");
     }
 
     #[test]
@@ -507,5 +571,30 @@ mod tests {
             String::from_utf8(out).unwrap(),
             ":::begin-tedge:::\n{\"result\":\"a \\\"quoted\\\"\\nvalue\\t!\"}\n:::end-tedge:::\n"
         );
+    }
+
+    fn sh() -> &'static Utf8Path {
+        Utf8Path::new("/bin/sh")
+    }
+
+    fn tmp() -> &'static Utf8Path {
+        Utf8Path::new("/tmp")
+    }
+
+    fn execute(
+        shell: &Utf8Path,
+        command: &str,
+        max_output_size: u32,
+        timeout: Duration,
+    ) -> std::io::Result<ShellOutcome> {
+        let output = OutputFile {
+            file: tempfile::tempfile_in(tmp())?,
+            flush_request: None,
+        };
+        execute_to_file(shell, command, output, max_output_size, timeout, &[])
+    }
+
+    fn execute_with_defaults(command: &str) -> std::io::Result<ShellOutcome> {
+        execute(sh(), command, NO_LIMIT, NO_TIMEOUT)
     }
 }

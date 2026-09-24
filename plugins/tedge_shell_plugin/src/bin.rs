@@ -4,9 +4,9 @@ use crate::job::Job;
 use crate::job::JobOutcome;
 use crate::write_launch_error;
 use crate::write_script_output;
+use crate::OutputFile;
 use crate::ShellOutcome;
 use camino::Utf8PathBuf;
-use std::fs::File;
 use std::io::Write;
 use std::time::Duration;
 use tedge_config::cli::CommonArgs;
@@ -182,7 +182,7 @@ fn check_data_dir(dir: &Utf8PathBuf) -> Result<(), String> {
 fn run_command(
     args: RunArgs,
     config: &TEdgeConfigView,
-    output: File,
+    output: OutputFile,
     envs: &[(&str, &str)],
 ) -> Result<ShellOutcome, String> {
     let command = args.command.unwrap_or_default();

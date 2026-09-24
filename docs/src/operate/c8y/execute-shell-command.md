@@ -60,7 +60,7 @@ to get the definition shipped by the installed version back.
 |Property|Description|
 |--|--|
 |`shell.path`|The shell used to run the commands. Defaults to `/bin/sh`|
-|`shell.max_output_size`|The maximum number of bytes of command output reported back. Any output beyond that limit is truncated. Defaults to `15000`, just under what fits in a Cumulocity message|
+|`shell.max_output_size`|The maximum number of bytes of command output stored and reported back. Any output beyond that limit is discarded. Defaults to `15000`, just under what fits in a Cumulocity message|
 |`shell.timeout`|The maximum duration of a command. Defaults to `10m`|
 |`agent.enable.shell_execute`|Whether the **tedge-agent** deploys and executes the `shell_execute` command. Defaults to `true`|
 |`c8y.enable.shell_execute`|Whether the `shell_execute` command is mapped to the Cumulocity `c8y_Command` operation. Defaults to `true`|
@@ -75,12 +75,21 @@ The command is first sent `SIGTERM`, then `SIGKILL` if it is still running 60 se
 tedge config set shell.timeout 30m
 ```
 
-:::caution
 The output is collected on disk, under `data.path` (`/var/tedge` by default),
-for the whole duration of the command,
-and that is not bounded by `shell.max_output_size`, which only caps what is reported back.
+for the whole duration of the command.
+Only the first `shell.max_output_size` bytes are stored,
+the rest of the output being discarded,
+so a command printing a lot cannot fill up the disk.
+The command itself is not affected by the truncation and runs to completion.
 The files of a command are kept under `data.path`, rather than `tmp.path`,
 so the outcome of a command survives a reboot of the device triggered by the command itself.
+
+:::caution
+The operation completes as soon as the command exits,
+even if the command started a background process.
+Such a process should redirect its output, e.g. `my-daemon >/dev/null 2>&1 &`,
+as it is sent `SIGPIPE`, which terminates it by default,
+if it writes to the output it inherited from the command after the command completed.
 :::
 
 :::note
