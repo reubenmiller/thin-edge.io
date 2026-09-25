@@ -389,20 +389,6 @@ mod tests {
 
     const NO_LIMIT: u32 = u32::MAX;
 
-    fn data_dir(ttd: &TempTedgeDir) -> &Utf8Path {
-        ttd.path()
-    }
-
-    fn completed(result: &str) -> ShellOutcome {
-        ShellOutcome {
-            result: result.to_string(),
-            exit_code: 0,
-            timed_out: None,
-            result_set: false,
-            reason: None,
-        }
-    }
-
     #[test]
     fn the_outcome_of_a_job_is_collected() {
         let ttd = TempTedgeDir::new();
@@ -486,7 +472,7 @@ mod tests {
         let ttd = TempTedgeDir::new();
         let job = Job::new(data_dir(&ttd), "c8y-mapper-1234").unwrap();
         // A job killed while running leaves its lock file, but no outcome
-        std::fs::create_dir_all(ttd.path().join("tedge-shell-plugin/c8y-mapper-1234")).unwrap();
+        ttd.dir("tedge-shell-plugin").dir("c8y-mapper-1234");
         job.open_lock_file().unwrap();
 
         assert_eq!(job.collect(NO_LIMIT).unwrap(), JobOutcome::Interrupted);
@@ -524,14 +510,6 @@ mod tests {
             .path()
             .join("tedge-shell-plugin/c8y-mapper-1234")
             .exists());
-    }
-
-    /// A job killed while running, as by a restart of the agent
-    fn killed_job(ttd: &TempTedgeDir) -> Job {
-        let job = Job::new(data_dir(ttd), "c8y-mapper-1234").unwrap();
-        std::fs::create_dir_all(ttd.path().join("tedge-shell-plugin/c8y-mapper-1234")).unwrap();
-        job.open_lock_file().unwrap();
-        job
     }
 
     #[test]
@@ -777,6 +755,28 @@ mod tests {
                 Job::new(data_dir(&ttd), cmd_id).is_ok(),
                 "{cmd_id:?} should be accepted"
             );
+        }
+    }
+
+    /// A job killed while running, as by a restart of the agent
+    fn killed_job(ttd: &TempTedgeDir) -> Job {
+        let job = Job::new(data_dir(ttd), "c8y-mapper-1234").unwrap();
+        ttd.dir("tedge-shell-plugin").dir("c8y-mapper-1234");
+        job.open_lock_file().unwrap();
+        job
+    }
+
+    fn data_dir(ttd: &TempTedgeDir) -> &Utf8Path {
+        ttd.path()
+    }
+
+    fn completed(result: &str) -> ShellOutcome {
+        ShellOutcome {
+            result: result.to_string(),
+            exit_code: 0,
+            timed_out: None,
+            result_set: false,
+            reason: None,
         }
     }
 }

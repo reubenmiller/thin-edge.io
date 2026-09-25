@@ -4,42 +4,10 @@ use tedge_test_utils::fs::TempTedgeDir;
 
 const BINARY_NAME: &str = "tedge-shell-plugin";
 
-fn plugin(config_dir: &TempTedgeDir) -> Command {
-    let mut cmd = Command::cargo_bin(BINARY_NAME).unwrap();
-    cmd.arg("--config-dir").arg(config_dir.path());
-    cmd
-}
-
-fn with_data_dir(config_dir: &TempTedgeDir) {
-    with_config(config_dir, "");
-}
-
-/// Use the config dir as data dir, along with the given tedge config settings
-fn with_config(config_dir: &TempTedgeDir, settings: &str) {
-    config_dir.file("tedge.toml").with_raw_content(&format!(
-        "[data]\npath = \"{}\"\n{settings}",
-        config_dir.path()
-    ));
-}
-
-/// Execute the command in the background, then collect its outcome
-fn execute_and_collect(config_dir: &TempTedgeDir, command: &str) -> assert_cmd::assert::Assert {
-    plugin(config_dir)
-        .args(["execute", "--cmd-id", "c8y-mapper-1234"])
-        .args(["--command", command])
-        .timeout(std::time::Duration::from_secs(20))
-        .assert()
-        .success();
-
-    plugin(config_dir)
-        .args(["collect", "--cmd-id", "c8y-mapper-1234"])
-        .assert()
-}
-
 #[test]
 fn a_subcommand_is_required() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
 
     plugin(&config_dir)
         .args(["--command", "echo hello"])
@@ -50,7 +18,7 @@ fn a_subcommand_is_required() {
 #[test]
 fn reports_the_command_output_as_a_workflow_script_output() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
 
     execute_and_collect(&config_dir, "echo hello world")
         .success()
@@ -60,7 +28,7 @@ fn reports_the_command_output_as_a_workflow_script_output() {
 #[test]
 fn accepts_a_command_starting_with_a_hyphen() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
 
     execute_and_collect(&config_dir, "-no-such-command 2>/dev/null; echo ran")
         .success()
@@ -92,7 +60,7 @@ fn the_timeout_is_read_from_the_tedge_config() {
 #[test]
 fn the_outcome_of_a_background_command_is_collected() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
 
     plugin(&config_dir)
         .args(["execute", "--cmd-id", "c8y-mapper-1234"])
@@ -112,7 +80,7 @@ fn the_outcome_of_a_background_command_is_collected() {
 #[test]
 fn a_launch_error_of_a_background_command_is_collected() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
 
     plugin(&config_dir)
         .args(["execute", "--cmd-id", "c8y-mapper-1234"])
@@ -132,7 +100,7 @@ fn a_launch_error_of_a_background_command_is_collected() {
 #[test]
 fn an_interrupted_command_is_failed() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
 
     plugin(&config_dir)
         .args(["collect", "--cmd-id", "c8y-mapper-1234"])
@@ -146,7 +114,7 @@ fn an_interrupted_command_is_failed() {
 #[test]
 fn an_invalid_command_id_is_rejected() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
 
     plugin(&config_dir)
         .args([
@@ -189,7 +157,7 @@ fn a_missing_data_dir_is_reported_with_its_path() {
 #[test]
 fn a_command_killed_after_setting_a_successful_result_is_successful() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
     // The command kills the plugin running it, as a restart of the agent would,
     // finding its command id and the tedge config dir in its environment
     let command = format!(
@@ -215,7 +183,7 @@ fn a_command_killed_after_setting_a_successful_result_is_successful() {
 #[test]
 fn a_command_killed_after_setting_a_failed_result_is_failed_with_its_reason() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
     let command = format!(
         "{} set-result --outcome failed --reason 'Failed to do something' && kill -9 $PPID",
         env!("CARGO_BIN_EXE_tedge-shell-plugin")
@@ -239,7 +207,7 @@ fn a_command_killed_after_setting_a_failed_result_is_failed_with_its_reason() {
 #[test]
 fn an_inconsistent_result_is_rejected() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
 
     for args in [
         &["--outcome", "successful", "--reason", "all good"][..],
@@ -256,7 +224,7 @@ fn an_inconsistent_result_is_rejected() {
 #[test]
 fn a_command_killed_without_expecting_its_interruption_is_failed() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
 
     plugin(&config_dir)
         .args(["execute", "--cmd-id", "c8y-mapper-1234"])
@@ -274,7 +242,7 @@ fn a_command_killed_without_expecting_its_interruption_is_failed() {
 #[test]
 fn a_background_command_is_given_its_id_without_tedge_config_warnings() {
     let config_dir = TempTedgeDir::new();
-    with_data_dir(&config_dir);
+    with_config(&config_dir, "");
     // Nothing is interrupted, the command completing with its output reported
     let command = format!(
         "echo id=$SHELL_EXECUTE_CMD_ID; {} set-result --outcome successful 2>&1",
@@ -292,4 +260,32 @@ fn a_background_command_is_given_its_id_without_tedge_config_warnings() {
         .assert()
         .success()
         .stdout(contains(r#"{"result":"id=c8y-mapper-1234\n"}"#));
+}
+
+fn plugin(config_dir: &TempTedgeDir) -> Command {
+    let mut cmd = Command::cargo_bin(BINARY_NAME).unwrap();
+    cmd.arg("--config-dir").arg(config_dir.path());
+    cmd
+}
+
+/// Use the config dir as data dir, along with the given tedge config settings
+fn with_config(config_dir: &TempTedgeDir, settings: &str) {
+    config_dir.file("tedge.toml").with_raw_content(&format!(
+        "[data]\npath = \"{}\"\n{settings}",
+        config_dir.path()
+    ));
+}
+
+/// Execute the command in the background, then collect its outcome
+fn execute_and_collect(config_dir: &TempTedgeDir, command: &str) -> assert_cmd::assert::Assert {
+    plugin(config_dir)
+        .args(["execute", "--cmd-id", "c8y-mapper-1234"])
+        .args(["--command", command])
+        .timeout(std::time::Duration::from_secs(20))
+        .assert()
+        .success();
+
+    plugin(config_dir)
+        .args(["collect", "--cmd-id", "c8y-mapper-1234"])
+        .assert()
 }
