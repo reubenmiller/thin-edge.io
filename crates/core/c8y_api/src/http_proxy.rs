@@ -2,6 +2,7 @@ use crate::proxy_url::Protocol;
 use crate::proxy_url::ProxyUrlGenerator;
 use crate::smartrest::error::SmartRestDeserializerError;
 use crate::smartrest::smartrest_deserializer::SmartRestJwtResponse;
+use crate::tenant_aliases::TenantAliases;
 use base64::prelude::*;
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
@@ -39,6 +40,7 @@ pub struct C8yEndPoint {
     c8y_host: String,
     c8y_mqtt_host: String,
     proxy: ProxyUrlGenerator,
+    tenant_aliases: TenantAliases,
 }
 
 impl C8yEndPoint {
@@ -59,6 +61,7 @@ impl C8yEndPoint {
             c8y_host,
             c8y_mqtt_host,
             proxy,
+            tenant_aliases: TenantAliases::default(),
         })
     }
 
@@ -81,6 +84,7 @@ impl C8yEndPoint {
             c8y_host,
             c8y_mqtt_host,
             proxy,
+            tenant_aliases: TenantAliases::default(),
         })
     }
 
@@ -89,7 +93,20 @@ impl C8yEndPoint {
             c8y_host: c8y_host.into(),
             c8y_mqtt_host: c8y_mqtt_host.into(),
             proxy,
+            tenant_aliases: TenantAliases::default(),
         }
+    }
+
+    /// Also considers as related to the current tenant the URLs using one of these aliases
+    pub fn with_tenant_aliases(self, tenant_aliases: TenantAliases) -> Self {
+        C8yEndPoint {
+            tenant_aliases,
+            ..self
+        }
+    }
+
+    pub fn tenant_aliases(&self) -> &TenantAliases {
+        &self.tenant_aliases
     }
 
     pub fn get_base_url(&self) -> String {
@@ -254,7 +271,10 @@ impl C8yEndPoint {
         // The configured `c8y.http` setting may have a port value specified,
         // but the incoming URL is less likely to have any port specified.
         // Hence just matching the host prefix.
-        (host == c8y_http_host || host == c8y_mqtt_host).then_some(url)
+        //
+        // The tenant might also be reachable under other domain names, e.g. during a domain rename.
+        (host == c8y_http_host || host == c8y_mqtt_host || self.tenant_aliases.matches(url_host))
+            .then_some(url)
     }
 }
 
@@ -591,6 +611,42 @@ mod tests {
         );
         let url = "http://unrelated-domain/path";
         assert!(c8y.maybe_tenant_url(url).is_none());
+    }
+
+    #[test_case("https://iot.new-domain.com/inventory/binaries/1234", "https://127.0.0.1:1234/c8y/inventory/binaries/1234"; "new domain")]
+    #[test_case("https://t1124124.new-domain.com/path", "https://127.0.0.1:1234/c8y/path"; "new domain wildcard")]
+    #[test_case("https://iot.old-domain.com/path", "https://127.0.0.1:1234/c8y/path"; "configured domain")]
+    #[test_case("https://iot.unrelated.com/path", "https://iot.unrelated.com/path"; "unrelated domain")]
+    fn local_proxy_url_with_tenant_aliases(url: &str, proxy_url: &str) {
+        let aliases = TenantAliases::default();
+        let c8y = C8yEndPoint::new(
+            "iot.old-domain.com",
+            "iot.old-domain.com",
+            ProxyUrlGenerator::new("127.0.0.1".into(), 1234, Protocol::Https),
+        )
+        .with_tenant_aliases(aliases.clone());
+        aliases.set(vec![
+            "iot.old-domain.com".to_string(),
+            "iot.new-domain.com".to_string(),
+            "*.new-domain.com".to_string(),
+        ]);
+
+        assert_eq!(c8y.local_proxy_url(url).unwrap().as_ref(), proxy_url);
+    }
+
+    #[test]
+    fn url_of_a_renamed_domain_is_not_my_tenant_until_aliases_detected() {
+        let c8y = C8yEndPoint::new(
+            "iot.old-domain.com",
+            "iot.old-domain.com",
+            ProxyUrlGenerator::default(),
+        );
+        let url = "https://iot.new-domain.com/inventory/binaries/1234";
+        assert!(c8y.maybe_tenant_url(url).is_none());
+
+        c8y.tenant_aliases()
+            .set(vec!["iot.new-domain.com".to_string()]);
+        assert_eq!(c8y.maybe_tenant_url(url), Some(url.parse().unwrap()));
     }
 
     #[ignore = "Until #2804 is fixed"]

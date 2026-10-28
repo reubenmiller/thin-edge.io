@@ -61,6 +61,14 @@ impl HttpClientBuilder {
         }
     }
 
+    /// Exposes the TLS info, notably the server certificate, as a response extension
+    pub fn tls_info(self, tls_info: bool) -> Self {
+        Self {
+            builder: self.builder.tls_info(tls_info),
+            ..self
+        }
+    }
+
     pub fn set_user_agent(mut self, should_set: bool) -> Self {
         if should_set {
             self.user_agent = Some(USER_AGENT);

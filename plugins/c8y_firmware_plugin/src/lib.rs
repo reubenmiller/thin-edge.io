@@ -77,7 +77,7 @@ async fn run_with(
     let mqtt_config = tedge_config.mqtt_config()?;
     let identity = tedge_config.http.client.auth.identity()?;
     let cloud_root_certs = tedge_config.cloud_root_certs().await?;
-    let mut downloader_actor = DownloaderActor::new(identity, cloud_root_certs).builder();
+    let mut downloader_actor = DownloaderActor::new(identity, cloud_root_certs.clone()).builder();
     let mut mqtt_actor = MqttActorBuilder::new(mqtt_config.clone().with_session_name(PLUGIN_NAME));
 
     //Instantiate health monitor actor
@@ -107,6 +107,14 @@ async fn run_with(
     let firmware_manager_config =
         FirmwareManagerConfig::from_tedge_config(tedge_config, c8y_config)?;
     FirmwareManagerBuilder::init(&firmware_manager_config.data_dir).await?;
+    c8y_api::tenant_aliases::spawn_detection(
+        &c8y_config.http().or_config_not_set()?.to_string(),
+        &cloud_root_certs,
+        firmware_manager_config
+            .c8y_end_point
+            .tenant_aliases()
+            .clone(),
+    );
     let firmware_actor = FirmwareManagerBuilder::try_new(
         firmware_manager_config,
         &mut mqtt_actor,

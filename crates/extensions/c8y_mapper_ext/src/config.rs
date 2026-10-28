@@ -7,6 +7,7 @@ use c8y_api::json_c8y_deserializer::C8yDeviceControlTopic;
 use c8y_api::proxy_url::Protocol;
 use c8y_api::proxy_url::ProxyUrlGenerator;
 use c8y_api::smartrest::topic::C8yTopic;
+use c8y_api::tenant_aliases::TenantAliases;
 use c8y_http_proxy::C8YHttpConfig;
 use camino::Utf8Path;
 use serde_json::Value;
@@ -53,6 +54,8 @@ pub struct C8yMapperConfig {
     pub service: TEdgeConfigReaderService,
     pub c8y_host: String,
     pub c8y_mqtt: String,
+    /// Other domain names of the tenant, detected at runtime
+    pub tenant_aliases: TenantAliases,
     pub file_transfer_urls: FileTransferUrls,
     pub topics: TopicFilter,
     pub capabilities: Capabilities,
@@ -133,6 +136,7 @@ impl C8yMapperConfig {
             service,
             c8y_host,
             c8y_mqtt,
+            tenant_aliases: TenantAliases::default(),
             file_transfer_urls,
             topics,
             capabilities,
@@ -349,6 +353,7 @@ impl From<&C8yMapperConfig> for C8YHttpConfig {
                 config.auth_proxy_protocol,
             ),
         )
+        .with_tenant_aliases(config.tenant_aliases.clone())
     }
 }
 

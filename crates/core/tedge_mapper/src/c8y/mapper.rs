@@ -145,6 +145,11 @@ impl TEdgeComponent for CumulocityMapper {
         let cloud_root_certs = tedge_config.cloud_root_certs().await?;
         let mut uploader_actor =
             UploaderActor::new(identity.clone(), cloud_root_certs.clone()).builder();
+        c8y_api::tenant_aliases::spawn_detection(
+            &c8y_mapper_config.c8y_host,
+            &cloud_root_certs,
+            c8y_mapper_config.tenant_aliases.clone(),
+        );
         let mut downloader_actor = DownloaderActor::new(identity, cloud_root_certs).builder();
 
         // MQTT client dedicated to monitor the c8y-bridge client status and also

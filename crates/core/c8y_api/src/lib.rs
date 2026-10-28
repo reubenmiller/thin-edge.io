@@ -3,6 +3,7 @@ pub mod json_c8y;
 pub mod json_c8y_deserializer;
 pub mod proxy_url;
 pub mod smartrest;
+pub mod tenant_aliases;
 pub mod utils;
 
 pub use time::OffsetDateTime;
