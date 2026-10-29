@@ -1,3 +1,4 @@
+use crate::access::ContextAccess;
 use crate::ConfigError;
 use crate::FlowContextHandle;
 use crate::FlowError;
@@ -12,6 +13,10 @@ pub struct SkipMosquittoHealthStatus;
 impl Transformer for SkipMosquittoHealthStatus {
     fn name(&self) -> &str {
         "skip-mosquitto-health-status"
+    }
+
+    fn context_access(&self) -> ContextAccess {
+        ContextAccess::Independent
     }
 
     fn set_config(&mut self, _config: JsonValue) -> Result<(), ConfigError> {

@@ -1,6 +1,7 @@
 use crate::flow::Flow;
 use crate::flow::FlowInput;
 use crate::flow::FlowOutput;
+use crate::flow::Partition;
 use crate::js_runtime::JsRuntime;
 use crate::js_script::JsScript;
 use crate::params::is_params_file;
@@ -24,6 +25,7 @@ use tedge_mqtt_ext::TopicFilter;
 use tokio::fs::read_to_string;
 use tracing::error;
 use tracing::info;
+use tracing::warn;
 
 #[derive(Deserialize)]
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
@@ -49,6 +51,12 @@ pub struct FlowConfig {
     /// If true, output messages that match the input filter are not dropped
     #[serde(default)]
     expect_loop: bool,
+
+    /// Number of copies of this flow processing messages concurrently, capped by `flows.workers`
+    workers: Option<usize>,
+
+    /// How messages are distributed among the copies of this flow: `topic` or unset
+    partition: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -169,6 +177,15 @@ pub enum ConfigError {
 
     #[error("Flow '{name}' must define at least one input")]
     NoInput { name: String },
+
+    #[error("Flow '{name}' sets 'workers' to 0: it must be a positive integer")]
+    ZeroWorkers { name: String },
+
+    #[error("Flow '{name}' sets 'partition' to '{value}': the only supported value is 'topic'")]
+    UnknownPartition { name: String, value: String },
+
+    #[error("Flow '{name}' cannot set 'workers' above 1, as its step '{step}' has an 'onInterval' function")]
+    PeriodicFlowWithCopies { name: String, step: String },
 }
 
 /// ```
@@ -318,6 +335,8 @@ impl FlowConfig {
             steps: vec![step],
             output: default_output(),
             errors: default_errors(),
+            workers: None,
+            partition: None,
         }
     }
 
@@ -332,15 +351,6 @@ impl FlowConfig {
         let input = self.input.into_flow_inputs(source_dir)?;
         let output = self.output.try_into()?;
         let errors = self.errors.try_into()?;
-        let mut steps = vec![];
-        for (i, step) in self.steps.into_iter().enumerate() {
-            let step = step
-                .with_shared_config(&self.config)
-                .with_interval_as_config()
-                .compile(rs_transformers, js_runtime, i, &source)
-                .await?;
-            steps.push(step);
-        }
 
         let Some(name) = derive_flow_name(flows_dir, &source) else {
             return Err(ConfigError::FlowNameCannotBeDerived {
@@ -348,6 +358,32 @@ impl FlowConfig {
                 path: source.to_owned(),
             });
         };
+        let workers = match self.workers {
+            None => 1,
+            Some(0) => return Err(ConfigError::ZeroWorkers { name }),
+            Some(workers) => workers,
+        };
+        let partition = match self.partition.as_deref() {
+            None => Partition::None,
+            Some("topic") => Partition::Topic,
+            Some(value) => {
+                return Err(ConfigError::UnknownPartition {
+                    name,
+                    value: value.to_owned(),
+                })
+            }
+        };
+
+        let step_configs: Vec<StepConfig> = self
+            .steps
+            .into_iter()
+            .map(|step| {
+                step.with_shared_config(&self.config)
+                    .with_interval_as_config()
+            })
+            .collect();
+        let steps =
+            StepConfig::compile_all(&step_configs, rs_transformers, js_runtime, &source, 0).await?;
 
         if input.is_empty() {
             return Err(ConfigError::NoInput { name });
@@ -355,7 +391,16 @@ impl FlowConfig {
 
         detect_loop(&name, &input, &output, self.expect_loop)?;
 
-        Ok(Flow {
+        if workers > 1 {
+            if let Some(step) = steps.iter().find(|step| step.is_periodic()) {
+                return Err(ConfigError::PeriodicFlowWithCopies {
+                    name,
+                    step: step.source().to_owned(),
+                });
+            }
+        }
+
+        let mut flow = Flow {
             name,
             version: self.version,
             description: self.description,
@@ -366,7 +411,44 @@ impl FlowConfig {
             errors,
             source,
             expect_loop: self.expect_loop,
-        })
+            copies: vec![],
+            partition,
+        };
+
+        let copy_count = workers.min(js_runtime.worker_count());
+        if copy_count > 1 && flow.shares_globals() {
+            warn!(target: "flows", "Flow {} uses globalThis to share state: it runs as a single copy", flow.source);
+        } else {
+            for copy in 1..copy_count {
+                let steps = StepConfig::compile_all(
+                    &step_configs,
+                    rs_transformers,
+                    js_runtime,
+                    &flow.source,
+                    copy,
+                )
+                .await?;
+                flow.copies.push(Flow {
+                    name: flow.name.clone(),
+                    version: flow.version.clone(),
+                    description: flow.description.clone(),
+                    tags: flow.tags.clone(),
+                    input: flow.input.clone(),
+                    steps,
+                    output: flow.output.clone(),
+                    errors: flow.errors.clone(),
+                    source: flow.source.clone(),
+                    expect_loop: flow.expect_loop,
+                    copies: vec![],
+                    partition,
+                });
+            }
+        }
+
+        js_runtime
+            .context_handle()
+            .declare_access(flow.source.as_str(), flow.context_access());
+        Ok(flow)
     }
 }
 
@@ -409,16 +491,35 @@ impl StepConfig {
         self
     }
 
+    /// Compile the steps of one copy of a flow
+    async fn compile_all(
+        steps: &[StepConfig],
+        rs_transformers: &BuiltinTransformers,
+        js_runtime: &mut JsRuntime,
+        flow: &Utf8Path,
+        copy: usize,
+    ) -> Result<Vec<FlowStep>, ConfigError> {
+        let mut compiled = vec![];
+        for (i, step) in steps.iter().enumerate() {
+            compiled.push(
+                step.compile(rs_transformers, js_runtime, i, flow, copy)
+                    .await?,
+            );
+        }
+        Ok(compiled)
+    }
+
     pub async fn compile(
         &self,
         rs_transformers: &BuiltinTransformers,
         js_runtime: &mut JsRuntime,
         index: usize,
         flow: &Utf8Path,
+        copy: usize,
     ) -> Result<FlowStep, ConfigError> {
         let step = match &self.step {
             StepSpec::JavaScript(path) => {
-                Self::compile_script(js_runtime, flow, path, index).await?
+                Self::compile_script(js_runtime, flow, path, index, copy).await?
             }
             StepSpec::Transformer(name) => {
                 Self::instantiate_builtin(rs_transformers, flow, name, index)?
@@ -440,6 +541,7 @@ impl StepConfig {
         flow: &Utf8Path,
         path: &Utf8Path,
         index: usize,
+        copy: usize,
     ) -> Result<FlowStep, ConfigError> {
         let path = if path.is_absolute() {
             path.to_owned()
@@ -453,7 +555,7 @@ impl StepConfig {
             .canonicalize_utf8()
             .unwrap_or_else(|_| path.to_path_buf());
         let module_name = FlowStep::instance_name(flow, &path, index);
-        let mut script = JsScript::new(module_name, flow.to_owned(), path);
+        let mut script = JsScript::new(module_name, flow.to_owned(), path).with_copy(copy);
         js_runtime.load_script(&mut script).await?;
         Ok(FlowStep::new_script(script))
     }

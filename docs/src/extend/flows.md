@@ -630,6 +630,110 @@ sudo -u tedge /etc/tedge/sm-plugins/flow install c8y/myflow --module-version 1.2
 
 ---
 
+## Running flows in parallel {#parallel}
+
+By default, a mapper runs all its JavaScript on one runtime,
+so its flows use at most one CPU core.
+On a multi-core device, set `flows.workers` to run flows on several runtimes:
+
+```sh
+sudo tedge config set flows.workers auto
+sudo systemctl restart tedge-mapper-c8y
+```
+
+With `auto`, the mapper uses one runtime per CPU core available to it,
+taking into account CPU affinity and container CPU limits.
+To use a fixed number of runtimes instead, set a positive integer, for example `4`.
+
+Each flow is assigned to one runtime,
+and different flows then process messages at the same time.
+Each flow still processes its own messages one at a time, in arrival order,
+and its `onMessage`, `onInterval` and `onStartup` functions never run at the same time.
+Output messages are published, and written to output files,
+in the same order as with one runtime.
+
+Keep `flows.workers` at or below the number of CPU cores:
+a long-running script blocks one thread of the mapper.
+On a device where the mapper shares the cores with other busy services,
+a number lower than the core count leaves them some CPU time.
+Each runtime has its own `flows.memory.heap_size` budget,
+so the JavaScript heap can grow to `flows.workers × flows.memory.heap_size`.
+
+### Flows sharing context.mapper
+
+Flows that share `context.mapper` keep working unchanged:
+the mapper reads each script and orders the flows so that every read and write of `context.mapper`
+happens in the same order as with one runtime.
+
+| How the script uses `context.mapper` | How the flow runs |
+|--------------------------------------|-------------------|
+| Never mentions `mapper` | Fully in parallel |
+| Only calls `context.mapper.get(...)` and `context.mapper.keys(...)` | In parallel with other readers, after every earlier write |
+| Anything else: `set`, `remove`, `const { mapper } = context`, or the word `mapper` in a comment | After every earlier read and write |
+
+A flow that only looks up values written by others, such as entity metadata, therefore runs in parallel.
+A flow that writes `context.mapper` limits the parallelism of the flows that read it.
+
+If a script reaches `context.mapper` in a way its source doesn't show,
+for example `context["map" + "per"]`,
+the mapper logs a warning naming the flow, and orders the flow strictly from then on.
+
+Writes made by the mapper itself, such as entity registrations, are not ordered against flows,
+just as with one runtime.
+
+### Flows sharing globalThis
+
+Runtimes don't share `globalThis`.
+A flow whose scripts use `globalThis` for anything other than a standard built-in,
+such as `globalThis.TextDecoder`, is run on the first runtime and ordered strictly,
+so flows that share state through `globalThis` keep working.
+Use `context.mapper` instead to share state between flows.
+
+### Running copies of a busy flow
+
+A single flow is limited to one core, even with several runtimes.
+If one flow does most of the work, it can run as several copies,
+each on its own runtime, processing messages at the same time:
+
+```toml title="flow.toml"
+workers = 4          # up to 4 copies, capped by flows.workers
+partition = "topic"  # messages with the same topic always go to the same copy
+
+[input.mqtt]
+topics = ["te/+/+/+/+/m/+"]
+
+[[steps]]
+script = "measurements.js"
+```
+
+- `workers` sets the number of copies. It must be a positive integer, and defaults to 1.
+- Without `partition`, each message goes to the first copy that is free,
+  so messages can be processed out of order. Output is still published in order.
+- With `partition = "topic"`, all the messages with the same topic go to the same copy, in arrival order.
+
+Only use `workers` for a flow that keeps no state across messages, or only per-topic state with `partition = "topic"`.
+Each copy has its own variables, so state kept across topics is split between copies:
+
+```js title="Breaks with copies"
+let count = 0;
+
+export function onMessage(message) {
+  // With 4 copies, each copy counts about a quarter of the messages
+  count++;
+  return [{ topic: "stats/count", payload: `${count}` }];
+}
+```
+
+The copies share `context.flow` and `context.script`,
+but a `get` followed by a `set` from two copies can lose an update.
+Copies of a flow that writes `context.mapper` are ordered like separate flows,
+so they don't run faster.
+
+A flow with an `onInterval` function, or a built-in step that runs periodically,
+cannot set `workers` above 1:
+its interval handler would only see the state of one copy.
+The mapper refuses to load such a flow and logs an error.
+
 ## Tips {#tips}
 
 ### Packaging on macOS

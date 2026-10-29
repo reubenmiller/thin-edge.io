@@ -412,7 +412,8 @@ pub(crate) fn flows_config(
     .with_js_config(
         mem_config.heap_size as usize,
         mem_config.stack_size as usize,
-    );
+    )
+    .with_js_workers(tedge_config.flows.workers.count().get());
     Ok(flows_config)
 }
 

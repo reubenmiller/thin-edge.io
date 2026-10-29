@@ -16,6 +16,7 @@ use super::models::auth_method::AuthMethod;
 use super::models::count_per_group::CountPerGroup;
 use super::models::proxy_url::ProxyUrl;
 use super::models::timestamp::TimeFormat;
+use super::models::worker_count::WorkerCount;
 use super::models::AptConfig;
 use super::models::AutoFlag;
 use super::models::AutoLogUpload;
@@ -1503,6 +1504,17 @@ define_tedge_config! {
     },
 
     flows: {
+        /// The number of JavaScript runtimes used by the flows of a mapper, or `auto` for one per CPU core.
+        ///
+        /// With more than one runtime, flows process messages concurrently.
+        /// Flows sharing `context.mapper` are ordered so that they see the same values as with one runtime.
+        /// Each runtime has its own `flows.memory.heap_size` budget.
+        /// `auto` uses the number of CPU cores available to the mapper,
+        /// taking into account CPU affinity and container CPU limits.
+        #[tedge_config(example = "1", example = "4", example = "auto", default(function = "default_flows_workers"))]
+        #[tedge_config(note = "Keep it at or below the number of CPU cores: a long-running script blocks a thread of the mapper.")]
+        workers: WorkerCount,
+
         memory: {
             /// The maximum number of bytes allocated to the JS runtime
             #[tedge_config(example = "16777216", default(value = 16777216u32))]
@@ -1803,6 +1815,10 @@ fn default_credentials_path(location: &TEdgeConfigLocation) -> AbsolutePath {
 
 fn default_mqtt_port() -> NonZeroU16 {
     NonZeroU16::try_from(1883).unwrap()
+}
+
+fn default_flows_workers() -> WorkerCount {
+    WorkerCount::Count(NonZeroU16::MIN)
 }
 
 fn default_find_objects_batch_size() -> NonZeroU16 {

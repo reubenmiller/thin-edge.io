@@ -1,15 +1,20 @@
+use crate::access::SourceAnalysis;
 use crate::js_lib;
+use crate::js_lib::kv_store::CallingFlow;
 use crate::js_lib::kv_store::FlowContextHandle;
 use crate::js_script::JsScript;
 use crate::js_value::JsonValue;
 use crate::LoadError;
 use camino::Utf8Path;
+use camino::Utf8PathBuf;
 use rquickjs::module::Evaluated;
 use rquickjs::Ctx;
 use rquickjs::Error;
 use rquickjs::Module;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -17,11 +22,19 @@ use tracing::debug;
 use tracing::Instrument;
 
 pub struct JsRuntime {
-    runtime: rquickjs::AsyncRuntime,
+    workers: Vec<JsWorkerHandle>,
     store: FlowContextHandle,
-    worker: mpsc::Sender<JsRequest>,
-    module_sources: HashMap<String, Vec<u8>>,
+    /// The worker assigned to each copy of a flow: all the steps of a copy are run by the same worker
+    flow_workers: HashMap<(Utf8PathBuf, usize), usize>,
+    /// The worker running each module, along with the module flow and source
+    module_sources: HashMap<String, ModuleSource>,
     config: JsRuntimeConfig,
+}
+
+struct ModuleSource {
+    worker: usize,
+    flow: String,
+    source: Vec<u8>,
 }
 
 #[derive(Clone)]
@@ -29,6 +42,12 @@ pub struct JsRuntimeConfig {
     pub heap_size: usize,
     pub stack_size: usize,
     pub execution_timeout: Duration,
+    /// Number of independent JS runtimes
+    ///
+    /// With a single worker, flows are processed one message at a time, in order.
+    /// With more workers, flows with JS steps are processed concurrently,
+    /// each JS runtime blocking a thread of the actor runtime while executing a script.
+    pub workers: usize,
 }
 
 impl Default for JsRuntimeConfig {
@@ -37,11 +56,47 @@ impl Default for JsRuntimeConfig {
             heap_size: 16 * 1024 * 1024,
             stack_size: 256 * 1024,
             execution_timeout: Duration::from_secs(5),
+            workers: 1,
         }
     }
 }
 
-static TIME_CREDITS: AtomicUsize = AtomicUsize::new(1000);
+/// Time credits granted to a module evaluation and to a function call
+const LOAD_CREDITS: usize = 100000;
+const CALL_CREDITS: usize = 1000;
+
+struct JsWorkerHandle {
+    runtime: rquickjs::AsyncRuntime,
+    requests: mpsc::Sender<JsRequest>,
+}
+
+impl JsWorkerHandle {
+    async fn try_new(
+        config: &JsRuntimeConfig,
+        store: FlowContextHandle,
+    ) -> Result<Self, LoadError> {
+        let credits = Arc::new(AtomicUsize::new(LOAD_CREDITS));
+        let runtime = Self::new_runtime(config, credits.clone()).await?;
+        let context = rquickjs::AsyncContext::full(&runtime).await?;
+        let requests = JsWorker::spawn(context, store, credits);
+        Ok(JsWorkerHandle { runtime, requests })
+    }
+
+    async fn new_runtime(
+        config: &JsRuntimeConfig,
+        credits: Arc<AtomicUsize>,
+    ) -> Result<rquickjs::AsyncRuntime, LoadError> {
+        let runtime = rquickjs::AsyncRuntime::new()?;
+        runtime.set_memory_limit(config.heap_size).await;
+        runtime.set_max_stack_size(config.stack_size).await;
+        runtime
+            .set_interrupt_handler(Some(Box::new(move || {
+                credits.fetch_sub(1, Ordering::Relaxed) == 0
+            })))
+            .await;
+        Ok(runtime)
+    }
+}
 
 impl JsRuntime {
     pub async fn with_default() -> Result<Self, LoadError> {
@@ -56,30 +111,32 @@ impl JsRuntime {
         config: JsRuntimeConfig,
         store: FlowContextHandle,
     ) -> Result<Self, LoadError> {
-        let runtime = Self::new_runtime(&config).await?;
-        let context = rquickjs::AsyncContext::full(&runtime).await?;
-        let worker = JsWorker::spawn(context, store.clone()).await;
-        let module_sources = HashMap::new();
+        let mut workers = Vec::new();
+        for _ in 0..config.workers.max(1) {
+            workers.push(JsWorkerHandle::try_new(&config, store.clone()).await?);
+        }
         Ok(JsRuntime {
-            runtime,
+            workers,
             store,
-            worker,
-            module_sources,
+            flow_workers: HashMap::new(),
+            module_sources: HashMap::new(),
             config,
         })
     }
 
-    async fn new_runtime(config: &JsRuntimeConfig) -> Result<rquickjs::AsyncRuntime, LoadError> {
-        let runtime = rquickjs::AsyncRuntime::new()?;
-        runtime.set_memory_limit(config.heap_size).await;
-        runtime.set_max_stack_size(config.stack_size).await;
-        runtime
-            .set_interrupt_handler(Some(Box::new(|| {
-                let credits = TIME_CREDITS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
-                credits == 0
-            })))
-            .await;
-        Ok(runtime)
+    /// Return true if flows can be processed concurrently
+    pub fn is_parallel(&self) -> bool {
+        self.workers.len() > 1
+    }
+
+    /// Return the number of independent JS runtimes
+    pub fn worker_count(&self) -> usize {
+        self.workers.len()
+    }
+
+    /// Release the runtimes assigned to a flow that has been removed
+    pub fn release_flow(&mut self, flow: &Utf8Path) {
+        self.flow_workers.retain(|(f, _), _| f != flow);
     }
 
     pub fn context_handle(&self) -> FlowContextHandle {
@@ -87,11 +144,11 @@ impl JsRuntime {
     }
 
     pub async fn load_script(&mut self, script: &mut JsScript) -> Result<(), LoadError> {
-        let exports = self
-            .load_file(script.module_name.to_owned(), script.path())
-            .await?;
-        Self::set_exports(script, &exports);
-        Ok(())
+        let path = script.path();
+        let source = tokio::fs::read_to_string(path)
+            .await
+            .map_err(|err| LoadError::from_io(err, path))?;
+        self.load_script_literal(script, source).await
     }
 
     pub async fn load_script_literal(
@@ -99,7 +156,19 @@ impl JsRuntime {
         script: &mut JsScript,
         source: impl Into<Vec<u8>>,
     ) -> Result<(), LoadError> {
-        let exports = self.load_js(script.module_name.to_owned(), source).await?;
+        let source = source.into();
+        let analysis = SourceAnalysis::of(&String::from_utf8_lossy(&source));
+        script.access = analysis.access;
+        script.shares_globals = analysis.shares_globals;
+        let exports = self
+            .load_js(
+                &script.flow,
+                script.copy,
+                analysis.shares_globals,
+                script.module_name.to_owned(),
+                source,
+            )
+            .await?;
         Self::set_exports(script, &exports);
         Ok(())
     }
@@ -118,50 +187,89 @@ impl JsRuntime {
         }
     }
 
-    async fn load_file(
-        &mut self,
-        module_name: String,
-        path: impl AsRef<Utf8Path>,
-    ) -> Result<Vec<&'static str>, LoadError> {
-        let path = path.as_ref();
-        let source = tokio::fs::read_to_string(path)
-            .await
-            .map_err(|err| LoadError::from_io(err, path))?;
-        self.load_js(module_name, source).await
-    }
-
     async fn load_js(
         &mut self,
+        flow: &Utf8Path,
+        copy: usize,
+        on_first_worker: bool,
         name: String,
-        source: impl Into<Vec<u8>>,
+        source: Vec<u8>,
     ) -> Result<Vec<&'static str>, LoadError> {
-        if self.module_sources.remove(&name).is_some() {
+        if let Some(module) = self.module_sources.remove(&name) {
             // As rquickjs fails to drop old module versions,
-            // a new worker has to be created with fresh new Async Runtime & Context
-            self.runtime = Self::new_runtime(&self.config).await?;
-            let context = rquickjs::AsyncContext::full(&self.runtime).await?;
-            self.worker = JsWorker::spawn(context, self.store.clone()).await;
-            for (n, s) in &self.module_sources {
-                self.load_new_js(n.to_owned(), s.clone()).await?;
+            // the worker has to be re-created with fresh new Async Runtime & Context
+            let worker = module.worker;
+            self.workers[worker] =
+                JsWorkerHandle::try_new(&self.config, self.store.clone()).await?;
+            let modules: Vec<_> = self
+                .module_sources
+                .iter()
+                .filter(|(_, m)| m.worker == worker)
+                .map(|(n, m)| (n.to_owned(), m.source.clone()))
+                .collect();
+            for (n, s) in modules {
+                self.load_new_js(worker, n, s).await?;
             }
         }
 
-        let source = source.into();
-        let exports = self.load_new_js(name.clone(), source.clone()).await?;
-        self.module_sources.insert(name, source);
+        let worker = self.flow_worker(flow, copy, on_first_worker);
+        let exports = self
+            .load_new_js(worker, name.clone(), source.clone())
+            .await?;
+        let flow = flow.to_string();
+        self.module_sources.insert(
+            name,
+            ModuleSource {
+                worker,
+                flow,
+                source,
+            },
+        );
         Ok(exports)
+    }
+
+    /// Return the worker assigned to a copy of a flow
+    ///
+    /// A new flow copy is assigned the least busy worker not already running another copy of the flow,
+    /// unless it has to share `globalThis` with other flows, in which case it is assigned the first worker.
+    fn flow_worker(&mut self, flow: &Utf8Path, copy: usize, on_first_worker: bool) -> usize {
+        let key = (flow.to_owned(), copy);
+        if let Some(worker) = self.flow_workers.get(&key) {
+            if on_first_worker && *worker != 0 {
+                tracing::warn!(target: "flows", "Flow {flow} now uses globalThis: it will only share globalThis with other flows once reloaded");
+            }
+            return *worker;
+        }
+        let worker = if on_first_worker {
+            0
+        } else {
+            let mut flow_count = vec![0; self.workers.len()];
+            let mut used_by_flow = vec![false; self.workers.len()];
+            for ((f, _), worker) in self.flow_workers.iter() {
+                flow_count[*worker] += 1;
+                if f == flow {
+                    used_by_flow[*worker] = true;
+                }
+            }
+            (0..flow_count.len())
+                .min_by_key(|w| (used_by_flow[*w], flow_count[*w]))
+                .unwrap_or_default()
+        };
+        self.flow_workers.insert(key, worker);
+        worker
     }
 
     async fn load_new_js(
         &self,
+        worker: usize,
         name: String,
         source: impl Into<Vec<u8>>,
     ) -> Result<Vec<&'static str>, LoadError> {
         let (sender, receiver) = oneshot::channel();
         let source = source.into();
         let imports = vec!["onMessage", "onInterval", "onStartup"];
-        TIME_CREDITS.store(100000, std::sync::atomic::Ordering::Relaxed);
         self.send(
+            worker,
             receiver,
             JsRequest::LoadModule {
                 name,
@@ -179,11 +287,17 @@ impl JsRuntime {
         function: &str,
         args: Vec<JsonValue>,
     ) -> Result<JsonValue, LoadError> {
+        let Some(source) = self.module_sources.get(module) else {
+            return Err(LoadError::UnknownModule {
+                module_name: module.to_string(),
+            });
+        };
         let (sender, receiver) = oneshot::channel();
-        TIME_CREDITS.store(1000, std::sync::atomic::Ordering::Relaxed);
         self.send(
+            source.worker,
             receiver,
             JsRequest::CallFunction {
+                flow: source.flow.clone(),
                 module: module.to_string(),
                 function: function.to_string(),
                 args,
@@ -194,21 +308,32 @@ impl JsRuntime {
     }
 
     pub async fn dump_memory_stats(&self) -> serde_json::Value {
-        let usage = self.runtime.memory_usage().await;
+        let mut malloc_bytes = 0;
+        let mut memory_used_bytes = 0;
+        let mut function_count = 0;
+        let mut object_count = 0;
+        for worker in &self.workers {
+            let usage = worker.runtime.memory_usage().await;
+            malloc_bytes += usage.malloc_size;
+            memory_used_bytes += usage.memory_used_size;
+            function_count += usage.js_func_count;
+            object_count += usage.obj_count;
+        }
         serde_json::json!({
-            "malloc_bytes": usage.malloc_size,
-            "memory_used_bytes": usage.memory_used_size,
-            "function_count": usage.js_func_count,
-            "object_count": usage.obj_count,
+            "malloc_bytes": malloc_bytes,
+            "memory_used_bytes": memory_used_bytes,
+            "function_count": function_count,
+            "object_count": object_count,
         })
     }
 
     async fn send<Response>(
         &self,
+        worker: usize,
         mut receiver: oneshot::Receiver<Response>,
         request: JsRequest,
     ) -> Result<Response, LoadError> {
-        if self.worker.send(request).await.is_err() {
+        if self.workers[worker].requests.send(request).await.is_err() {
             panic!("No JS runtime");
         }
 
@@ -234,6 +359,7 @@ enum JsRequest {
         sender: oneshot::Sender<Result<Vec<&'static str>, LoadError>>,
     },
     CallFunction {
+        flow: String,
         module: String,
         function: String,
         args: Vec<JsonValue>,
@@ -244,17 +370,23 @@ enum JsRequest {
 struct JsWorker {
     context: rquickjs::AsyncContext,
     requests: mpsc::Receiver<JsRequest>,
+    credits: Arc<AtomicUsize>,
 }
 
 impl JsWorker {
-    pub async fn spawn(
+    pub fn spawn(
         context: rquickjs::AsyncContext,
         store: FlowContextHandle,
+        credits: Arc<AtomicUsize>,
     ) -> mpsc::Sender<JsRequest> {
         let (sender, requests) = mpsc::channel(100);
         tokio::spawn(
             async move {
-                let worker = JsWorker { context, requests };
+                let worker = JsWorker {
+                    context,
+                    requests,
+                    credits,
+                };
                 worker.run(store).await
             }
             .instrument(tracing::Span::current()),
@@ -269,15 +401,21 @@ impl JsWorker {
             js_lib::text_decoder::init(&ctx);
             js_lib::text_encoder::init(&ctx);
             store.init(&ctx);
+            let calling_flow = CallingFlow::default();
+            calling_flow.store_as_userdata(&ctx);
             let mut modules = JsModules::new();
             while let Some(request) = self.requests.recv().await {
                 match request {
                     JsRequest::LoadModule{name, source, sender, imports} => {
+                        self.credits.store(LOAD_CREDITS, Ordering::Relaxed);
                         let result = modules.load_module(ctx.clone(), name, source, imports).await;
                         let _ = sender.send(result);
                     }
-                    JsRequest::CallFunction{module, function, args, sender} => {
+                    JsRequest::CallFunction{flow, module, function, args, sender} => {
+                        calling_flow.set(Some(flow));
+                        self.credits.store(CALL_CREDITS, Ordering::Relaxed);
                         let result = modules.call_function(ctx.clone(), module, function, args).await;
+                        calling_flow.set(None);
                         let _ = sender.send(result);
                     }
                 }
