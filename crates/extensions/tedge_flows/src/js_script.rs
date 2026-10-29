@@ -1,3 +1,4 @@
+use crate::access::ContextAccess;
 use crate::flow;
 use crate::flow::FlowError;
 use crate::flow::Message;
@@ -10,30 +11,52 @@ use tracing::debug;
 
 #[derive(Clone, Debug)]
 pub struct JsScript {
+    /// The name of the JS module, unique to this copy of the flow
     pub module_name: String,
+    /// The name of the `context.script` scope, shared by all the copies of the flow
+    pub scope_name: String,
     pub flow: Utf8PathBuf,
+    /// The copy of the flow this script belongs to, 0 for the main copy
+    pub copy: usize,
     pub path: Utf8PathBuf,
     pub is_defined: bool,
     pub is_periodic: bool,
     pub has_startup: bool,
+    /// How the script uses the mapper context, as inferred from its source
+    pub access: ContextAccess,
+    /// True if the script uses `globalThis` to share state
+    pub shares_globals: bool,
 }
 
 impl JsScript {
     pub fn new(module_name: String, flow: Utf8PathBuf, path: Utf8PathBuf) -> Self {
         JsScript {
+            scope_name: module_name.clone(),
             module_name,
             flow,
+            copy: 0,
             path,
             is_defined: false,
             is_periodic: false,
             has_startup: false,
+            access: ContextAccess::Write,
+            shares_globals: false,
         }
+    }
+
+    /// Make this script part of a copy of its flow
+    pub fn with_copy(mut self, copy: usize) -> Self {
+        if copy > 0 {
+            self.module_name = format!("{}#{copy}", self.scope_name);
+        }
+        self.copy = copy;
+        self
     }
 
     pub fn context(&self, config: &JsonValue) -> JsonValue {
         JsonValue::Context {
             flow: self.flow.to_string(),
-            step: self.module_name.to_owned(),
+            step: self.scope_name.to_owned(),
             config: Box::new(config.clone()),
         }
     }

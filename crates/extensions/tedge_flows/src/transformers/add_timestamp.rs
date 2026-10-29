@@ -1,3 +1,4 @@
+use crate::access::ContextAccess;
 use crate::config::ConfigError;
 use crate::js_value::JsonValue;
 use crate::transformers::Transformer;
@@ -28,6 +29,10 @@ impl Default for AddTimestamp {
 impl Transformer for AddTimestamp {
     fn name(&self) -> &str {
         "add-timestamp"
+    }
+
+    fn context_access(&self) -> ContextAccess {
+        ContextAccess::Independent
     }
 
     fn set_config(&mut self, config: JsonValue) -> Result<(), ConfigError> {

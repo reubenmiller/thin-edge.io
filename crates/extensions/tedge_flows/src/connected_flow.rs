@@ -310,6 +310,8 @@ mod tests {
             errors: FlowOutput::Mqtt { topic: None },
             source: Utf8PathBuf::from("/flows/test.toml"),
             expect_loop: false,
+            copies: vec![],
+            partition: crate::flow::Partition::None,
         };
 
         let connected = ConnectedFlow::new(flow);
@@ -358,6 +360,8 @@ mod tests {
             errors: FlowOutput::Mqtt { topic: None },
             source: Utf8PathBuf::from("/flows/test.toml"),
             expect_loop: false,
+            copies: vec![],
+            partition: crate::flow::Partition::None,
         };
 
         let connected = ConnectedFlow::new(flow);
@@ -392,6 +396,8 @@ mod tests {
             errors: FlowOutput::Mqtt { topic: None },
             source: Utf8PathBuf::from("/flows/test.toml"),
             expect_loop: false,
+            copies: vec![],
+            partition: crate::flow::Partition::None,
         };
 
         let connected = ConnectedFlow::new(flow);

@@ -1,3 +1,4 @@
+use crate::access::ContextAccess;
 use crate::config::ConfigError;
 use crate::js_value::JsonValue;
 use crate::transformers::Transformer;
@@ -14,6 +15,10 @@ pub struct SetTopic {
 impl Transformer for SetTopic {
     fn name(&self) -> &str {
         "set-topic"
+    }
+
+    fn context_access(&self) -> ContextAccess {
+        ContextAccess::Independent
     }
 
     fn set_config(&mut self, config: JsonValue) -> Result<(), ConfigError> {
