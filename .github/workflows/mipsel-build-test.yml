@@ -117,9 +117,12 @@ jobs:
           GNU_SYSROOT="/usr/${{ matrix.arch }}-linux-gnu"
           ATOMIC_DIR="$RUNNER_TEMP/atomic"
           # Ubuntu's libatomic.a is not PIC, so it can't be linked into the PIE binaries
-          sh ci/build_scripts/mips/build-libatomic.sh "${{ matrix.arch }}-linux-gnu" "$ATOMIC_DIR" --sysroot="$GNU_SYSROOT"
-
-          CLANG_ARGS="--target=${{ matrix.arch }}-linux-gnu --sysroot=$GNU_SYSROOT"
+          # --gcc-toolchain=/nonexistent: don't use the gcc cross toolchain's headers.
+          # Otherwise clang's <stdatomic.h> includes gcc's, which clang can't compile
+          # (breaks aws-lc-sys on big-endian mips). gcc is still used for linking.
+          CLANG_ARGS="--target=${{ matrix.arch }}-linux-gnu --sysroot=$GNU_SYSROOT --gcc-toolchain=/nonexistent"
+          sh ci/build_scripts/mips/build-libatomic.sh "${{ matrix.arch }}-linux-gnu" "$ATOMIC_DIR" \
+            --sysroot="$GNU_SYSROOT" --gcc-toolchain=/nonexistent
           {
             echo "CC_$TARGET_ENV=clang"
             echo "CFLAGS_$TARGET_ENV=$CLANG_ARGS"
