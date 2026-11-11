@@ -28,7 +28,7 @@ on:
 
 env:
   NIGHTLY: nightly-2026-10-11
-  ZIG_VERSION: "0.15.2"
+  ZIG_VERSION: "0.17.0"
   CARGO_TERM_COLOR: always
 
 jobs:
