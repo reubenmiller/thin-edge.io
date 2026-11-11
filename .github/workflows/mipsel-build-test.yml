@@ -27,32 +27,43 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Known good locally: static (non-PIE) musl binary built with zig 0.15.2
-          - name: musl / zig 0.15.2 / static
+          - id: musl-zig0.15.2-static
+            name: musl / zig 0.15.2 / static
             target: mipsel-unknown-linux-musl
             builder: zig
             zig: "0.15.2"
             rustflags: "-C relocation-model=static"
             expect_failure: false
 
-          # Known bad locally: static-pie musl binaries segfault at startup (SEGV_ACCERR)
-          - name: musl / zig 0.15.2 / static-pie
+          # Known bad: static-pie musl binaries segfault at startup (SEGV_ACCERR at load base)
+          - id: musl-zig0.15.2-static-pie
+            name: musl / zig 0.15.2 / static-pie
             target: mipsel-unknown-linux-musl
             builder: zig
             zig: "0.15.2"
             rustflags: ""
             expect_failure: true
 
-          # Known bad locally: zig 0.17 libc fails to link in release
-          # (undefined heap.PageAllocator.map / heap.SmpAllocator.alloc)
-          - name: musl / zig 0.17.0 / static
+          - id: musl-zig0.17.0-static
+            name: musl / zig 0.17.0 / static
             target: mipsel-unknown-linux-musl
             builder: zig
             zig: "0.17.0"
             rustflags: "-C relocation-model=static"
+            expect_failure: false
+
+          # Known bad: zig 0.17 release static-pie link fails
+          # (undefined heap.PageAllocator.map / heap.SmpAllocator.alloc from zig's libc)
+          - id: musl-zig0.17.0-static-pie
+            name: musl / zig 0.17.0 / static-pie
+            target: mipsel-unknown-linux-musl
+            builder: zig
+            zig: "0.17.0"
+            rustflags: ""
             expect_failure: true
 
-          - name: gnu / zig 0.15.2
+          - id: gnu-zig0.15.2
+            name: gnu / zig 0.15.2
             target: mipsel-unknown-linux-gnu
             zig_target_suffix: ".2.28"
             builder: zig
@@ -60,8 +71,18 @@ jobs:
             rustflags: ""
             expect_failure: false
 
-          # clang for C code (ring, rquickjs), Ubuntu's gcc cross toolchain for sysroot and linking
-          - name: gnu / clang
+          - id: gnu-zig0.17.0
+            name: gnu / zig 0.17.0
+            target: mipsel-unknown-linux-gnu
+            zig_target_suffix: ".2.28"
+            builder: zig
+            zig: "0.17.0"
+            rustflags: ""
+            expect_failure: false
+
+          # clang for C code (ring, aws-lc, rquickjs), Ubuntu's gcc cross toolchain for sysroot and linking
+          - id: gnu-clang
+            name: gnu / clang
             target: mipsel-unknown-linux-gnu
             builder: clang
             rustflags: ""
@@ -112,7 +133,7 @@ jobs:
           RUSTFLAGS: ${{ matrix.rustflags }}
           CC_mipsel_unknown_linux_gnu: clang
           CFLAGS_mipsel_unknown_linux_gnu: --target=mipsel-linux-gnu --sysroot=/usr/mipsel-linux-gnu
-          AR_mipsel_unknown_linux_gnu: llvm-ar
+          AR_mipsel_unknown_linux_gnu: mipsel-linux-gnu-ar
           BINDGEN_EXTRA_CLANG_ARGS_mipsel_unknown_linux_gnu: --target=mipsel-linux-gnu --sysroot=/usr/mipsel-linux-gnu
           CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_GNU_LINKER: mipsel-linux-gnu-gcc
         run: |
@@ -122,11 +143,28 @@ jobs:
             --target "${{ matrix.target }}" \
             --workspace --bins
 
-      - name: Show binaries
+      - name: Collect binaries and build info
         run: |
-          cd "target/${{ matrix.target }}/release"
-          ls -la tedge tedge-*[!.d] || true
-          file tedge tedge-write tedge-shell-plugin
+          OUT="$RUNNER_TEMP/dist/${{ matrix.id }}"
+          mkdir -p "$OUT"
+          for b in tedge tedge-write tedge-shell-plugin tedge-file-log-plugin tedge-file-config-plugin tedge-p11-server; do
+            cp "target/${{ matrix.target }}/release/$b" "$OUT/"
+          done
+          {
+            echo "id:        ${{ matrix.id }}"
+            echo "target:    ${{ matrix.target }}${{ matrix.zig_target_suffix }}"
+            echo "builder:   ${{ matrix.builder }}"
+            [ "${{ matrix.builder }}" = zig ] && echo "zig:       $(python3 -m ziglang version)"
+            [ "${{ matrix.builder }}" = clang ] && echo "clang:     $(clang --version | head -1)"
+            echo "rustc:     $(rustc +"$NIGHTLY" --version)"
+            echo "rustflags: ${{ matrix.rustflags }}"
+            echo "commit:    $GITHUB_SHA"
+            echo "run:       $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo
+            (cd "$OUT" && file tedge*)
+            echo
+            (cd "$OUT" && sha256sum tedge*)
+          } | tee "$OUT/BUILD-INFO.txt"
 
       - name: Smoke test under qemu-mipsel
         run: |
@@ -159,15 +197,9 @@ jobs:
           echo "$OUTPUT" | grep -q "Hello World!"
 
       - name: Upload binaries
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mipsel-${{ matrix.builder }}-${{ strategy.job-index }}
-          path: |
-            target/${{ matrix.target }}/release/tedge
-            target/${{ matrix.target }}/release/tedge-write
-            target/${{ matrix.target }}/release/tedge-shell-plugin
-            target/${{ matrix.target }}/release/tedge-file-log-plugin
-            target/${{ matrix.target }}/release/tedge-file-config-plugin
-            target/${{ matrix.target }}/release/tedge-p11-server
-          if-no-files-found: warn
+          name: tedge-mipsel-${{ matrix.id }}
+          path: ${{ runner.temp }}/dist/${{ matrix.id }}
+          if-no-files-found: ignore
