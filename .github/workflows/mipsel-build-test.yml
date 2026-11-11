@@ -1,10 +1,23 @@
-# Experimental: check whether thin-edge.io can be built for 32-bit little-endian MIPS.
+# Experimental: check whether thin-edge.io can be built for 32-bit MIPS
+# (mips = big-endian, mipsel = little-endian), with both musl and glibc.
 #
-# mipsel-unknown-linux-{musl,gnu} are tier 3 targets since Rust 1.72,
-# so there is no prebuilt std: nightly + -Zbuild-std is required.
+# These are tier 3 targets since Rust 1.72, so there is no prebuilt std:
+# nightly + -Zbuild-std is required.
 #
-# Each job builds the release binaries and smoke tests them under qemu-mipsel
-# (tedge --version, cert create (ring), flows test (QuickJS)).
+# Two C toolchains are tested:
+#   zig:   cargo-zigbuild (zig provides libc, libunwind and 64-bit atomics)
+#   clang: clang + lld; musl, libunwind and libatomic are built from source for musl,
+#          Ubuntu's gcc cross toolchain provides the glibc sysroot and linker for gnu
+#
+# Notes:
+#   * musl binaries are built non-PIE (-C relocation-model=static): static-pie musl
+#     binaries crash at startup, and zig 0.17 can't link them in release mode.
+#   * rustc's musl targets are soft-float, the gnu targets are hard-float (fpxx),
+#     so C code for musl must be built with -msoft-float.
+#   * 32-bit MIPS has no 64-bit atomics; QuickJS needs __atomic_*_8 from a libatomic.
+#
+# Each job builds the release binaries and smoke tests them under qemu-user
+# (--version, tedge config, tedge cert create (ring), tedge flows test (QuickJS)).
 name: mipsel-build-test
 
 on:
@@ -15,78 +28,25 @@ on:
 
 env:
   NIGHTLY: nightly-2026-10-11
+  ZIG_VERSION: "0.15.2"
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.arch }} / ${{ matrix.libc }} / ${{ matrix.builder }}
     runs-on: ubuntu-24.04
-    # Some matrix entries document known failures, so they must not fail the run
-    continue-on-error: ${{ matrix.expect_failure }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - id: musl-zig0.15.2-static
-            name: musl / zig 0.15.2 / static
-            target: mipsel-unknown-linux-musl
-            builder: zig
-            zig: "0.15.2"
-            rustflags: "-C relocation-model=static"
-            expect_failure: false
-
-          # Known bad: static-pie musl binaries segfault at startup (SEGV_ACCERR at load base)
-          - id: musl-zig0.15.2-static-pie
-            name: musl / zig 0.15.2 / static-pie
-            target: mipsel-unknown-linux-musl
-            builder: zig
-            zig: "0.15.2"
-            rustflags: ""
-            expect_failure: true
-
-          - id: musl-zig0.17.0-static
-            name: musl / zig 0.17.0 / static
-            target: mipsel-unknown-linux-musl
-            builder: zig
-            zig: "0.17.0"
-            rustflags: "-C relocation-model=static"
-            expect_failure: false
-
-          # Known bad: zig 0.17 release static-pie link fails
-          # (undefined heap.PageAllocator.map / heap.SmpAllocator.alloc from zig's libc)
-          - id: musl-zig0.17.0-static-pie
-            name: musl / zig 0.17.0 / static-pie
-            target: mipsel-unknown-linux-musl
-            builder: zig
-            zig: "0.17.0"
-            rustflags: ""
-            expect_failure: true
-
-          - id: gnu-zig0.15.2
-            name: gnu / zig 0.15.2
-            target: mipsel-unknown-linux-gnu
-            zig_target_suffix: ".2.28"
-            builder: zig
-            zig: "0.15.2"
-            rustflags: ""
-            expect_failure: false
-
-          - id: gnu-zig0.17.0
-            name: gnu / zig 0.17.0
-            target: mipsel-unknown-linux-gnu
-            zig_target_suffix: ".2.28"
-            builder: zig
-            zig: "0.17.0"
-            rustflags: ""
-            expect_failure: false
-
-          # clang for C code (ring, aws-lc, rquickjs), Ubuntu's gcc cross toolchain for sysroot and linking
-          - id: gnu-clang
-            name: gnu / clang
-            target: mipsel-unknown-linux-gnu
-            builder: clang
-            rustflags: ""
-            expect_failure: false
+        arch: [mipsel, mips]
+        libc: [musl, gnu]
+        builder: [zig, clang]
+    env:
+      ID: ${{ matrix.arch }}-${{ matrix.libc }}-${{ matrix.builder }}
+      TARGET: ${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}
+      # Name of the target with "-" replaced by "_" (for cc-rs / bindgen env vars)
+      TARGET_ENV: ${{ matrix.arch }}_unknown_linux_${{ matrix.libc }}
+      QEMU: qemu-${{ matrix.arch }}
 
     steps:
       - uses: actions/checkout@v4
@@ -96,68 +56,106 @@ jobs:
           rustup toolchain install "$NIGHTLY" --profile minimal --component rust-src
           rustc +"$NIGHTLY" --version
 
+      - name: Install qemu-user and the glibc runtime for qemu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user "libc6-${{ matrix.arch }}-cross"
+
       - name: Install zig and cargo-zigbuild
         if: matrix.builder == 'zig'
         run: |
-          pip3 install --break-system-packages "ziglang==${{ matrix.zig }}"
+          pip3 install --break-system-packages "ziglang==$ZIG_VERSION"
           python3 -m ziglang version
           cargo install --locked cargo-zigbuild
 
-      - name: Install clang and the mipsel gcc cross toolchain
+      - name: Install clang toolchain
         if: matrix.builder == 'clang'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang lld gcc-mipsel-linux-gnu libc6-dev-mipsel-cross
+          sudo apt-get install -y clang lld llvm
           clang --version
-          mipsel-linux-gnu-gcc --version
 
-      - name: Install qemu-user
+      - name: Install gcc cross toolchain (gnu sysroot and linker)
+        if: matrix.builder == 'clang' && matrix.libc == 'gnu'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-user libc6-mipsel-cross
+          sudo apt-get install -y "gcc-${{ matrix.arch }}-linux-gnu" "libc6-dev-${{ matrix.arch }}-cross"
+          "${{ matrix.arch }}-linux-gnu-gcc" --version
 
       - name: Build (zig)
         if: matrix.builder == 'zig'
         env:
-          RUSTFLAGS: ${{ matrix.rustflags }}
+          RUSTFLAGS: ${{ matrix.libc == 'musl' && '-C relocation-model=static' || '' }}
         run: |
+          ZIG_TARGET="$TARGET"
+          # Pin the minimum glibc version
+          [ "${{ matrix.libc }}" = gnu ] && ZIG_TARGET="$TARGET.2.28"
           cargo +"$NIGHTLY" zigbuild \
             -Zbuild-std=std,panic_abort \
             --release \
-            --target "${{ matrix.target }}${{ matrix.zig_target_suffix }}" \
+            --target "$ZIG_TARGET" \
             --workspace --bins
+
+      - name: Set up clang build (musl)
+        if: matrix.builder == 'clang' && matrix.libc == 'musl'
+        run: |
+          SYSROOT="$RUNNER_TEMP/${{ matrix.arch }}-musl"
+          LIBUNWIND_SRC="$(rustc +"$NIGHTLY" --print sysroot)/lib/rustlib/src/rust/src/llvm-project/libunwind"
+          sh ci/build_scripts/mips/setup-musl-clang.sh "${{ matrix.arch }}" "$SYSROOT" "$LIBUNWIND_SRC"
+
+          CLANG_ARGS="--target=${{ matrix.arch }}-linux-musl -march=mips32r2 -msoft-float --sysroot=$SYSROOT"
+          {
+            echo "CC_$TARGET_ENV=clang"
+            echo "CFLAGS_$TARGET_ENV=$CLANG_ARGS"
+            echo "AR_$TARGET_ENV=llvm-ar"
+            echo "BINDGEN_EXTRA_CLANG_ARGS_$TARGET_ENV=$CLANG_ARGS"
+            echo "CARGO_TARGET_${TARGET_ENV^^}_LINKER=$SYSROOT/bin/${{ matrix.arch }}-linux-musl-clang"
+            echo "RUSTFLAGS=-C target-feature=+crt-static -C link-self-contained=no -C relocation-model=static"
+          } | tee -a "$GITHUB_ENV"
+
+      - name: Set up clang build (gnu)
+        if: matrix.builder == 'clang' && matrix.libc == 'gnu'
+        run: |
+          GNU_SYSROOT="/usr/${{ matrix.arch }}-linux-gnu"
+          ATOMIC_DIR="$RUNNER_TEMP/atomic"
+          # Ubuntu's libatomic.a is not PIC, so it can't be linked into the PIE binaries
+          sh ci/build_scripts/mips/build-libatomic.sh "${{ matrix.arch }}-linux-gnu" "$ATOMIC_DIR" --sysroot="$GNU_SYSROOT"
+
+          CLANG_ARGS="--target=${{ matrix.arch }}-linux-gnu --sysroot=$GNU_SYSROOT"
+          {
+            echo "CC_$TARGET_ENV=clang"
+            echo "CFLAGS_$TARGET_ENV=$CLANG_ARGS"
+            echo "AR_$TARGET_ENV=${{ matrix.arch }}-linux-gnu-ar"
+            echo "BINDGEN_EXTRA_CLANG_ARGS_$TARGET_ENV=$CLANG_ARGS"
+            echo "CARGO_TARGET_${TARGET_ENV^^}_LINKER=${{ matrix.arch }}-linux-gnu-gcc"
+            echo "RUSTFLAGS=-C link-arg=$ATOMIC_DIR/libatomic.a"
+          } | tee -a "$GITHUB_ENV"
 
       - name: Build (clang)
         if: matrix.builder == 'clang'
-        env:
-          RUSTFLAGS: ${{ matrix.rustflags }}
-          CC_mipsel_unknown_linux_gnu: clang
-          CFLAGS_mipsel_unknown_linux_gnu: --target=mipsel-linux-gnu --sysroot=/usr/mipsel-linux-gnu
-          AR_mipsel_unknown_linux_gnu: mipsel-linux-gnu-ar
-          BINDGEN_EXTRA_CLANG_ARGS_mipsel_unknown_linux_gnu: --target=mipsel-linux-gnu --sysroot=/usr/mipsel-linux-gnu
-          CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_GNU_LINKER: mipsel-linux-gnu-gcc
         run: |
           cargo +"$NIGHTLY" build \
             -Zbuild-std=std,panic_abort \
             --release \
-            --target "${{ matrix.target }}" \
+            --target "$TARGET" \
             --workspace --bins
 
       - name: Collect binaries and build info
         run: |
-          OUT="$RUNNER_TEMP/dist/${{ matrix.id }}"
+          OUT="$RUNNER_TEMP/dist/$ID"
           mkdir -p "$OUT"
           for b in tedge tedge-write tedge-shell-plugin tedge-file-log-plugin tedge-file-config-plugin tedge-p11-server; do
-            cp "target/${{ matrix.target }}/release/$b" "$OUT/"
+            cp "target/$TARGET/release/$b" "$OUT/"
           done
           {
-            echo "id:        ${{ matrix.id }}"
-            echo "target:    ${{ matrix.target }}${{ matrix.zig_target_suffix }}"
+            echo "id:        $ID"
+            echo "target:    $TARGET"
             echo "builder:   ${{ matrix.builder }}"
-            [ "${{ matrix.builder }}" = zig ] && echo "zig:       $(python3 -m ziglang version)"
-            [ "${{ matrix.builder }}" = clang ] && echo "clang:     $(clang --version | head -1)"
+            if [ "${{ matrix.builder }}" = zig ]; then
+              echo "zig:       $(python3 -m ziglang version)"
+            else
+              echo "clang:     $(clang --version | head -1)"
+            fi
             echo "rustc:     $(rustc +"$NIGHTLY" --version)"
-            echo "rustflags: ${{ matrix.rustflags }}"
+            echo "rustflags: ${RUSTFLAGS:-}"
             echo "commit:    $GITHUB_SHA"
             echo "run:       $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             echo
@@ -166,28 +164,27 @@ jobs:
             (cd "$OUT" && sha256sum tedge*)
           } | tee "$OUT/BUILD-INFO.txt"
 
-      - name: Smoke test under qemu-mipsel
+      - name: Smoke test under qemu-user
         run: |
           set -x
-          BIN_DIR="$PWD/target/${{ matrix.target }}/release"
-          QEMU="qemu-mipsel -L /usr/mipsel-linux-gnu"
+          BIN_DIR="$PWD/target/$TARGET/release"
+          RUN="$QEMU -L /usr/${{ matrix.arch }}-linux-gnu"
 
-          # Binaries other than tedge
           for b in tedge-write tedge-shell-plugin tedge-file-log-plugin tedge-file-config-plugin tedge-p11-server; do
-            $QEMU "$BIN_DIR/$b" --version
+            $RUN "$BIN_DIR/$b" --version
           done
 
           # tedge is a multicall binary dispatched on its own file name
           CFG="$RUNNER_TEMP/tedge-config"
           mkdir -p "$CFG/device-certs" "$CFG/mappers/local/flows"
-          T="$QEMU $BIN_DIR/tedge --config-dir $CFG"
+          T="$RUN $BIN_DIR/tedge --config-dir $CFG"
 
           $T --version
-          $T config set device.type mipsel-test
-          test "$($T config get device.type)" = "mipsel-test"
+          $T config set device.type mips-test
+          test "$($T config get device.type)" = "mips-test"
 
           # ring / rcgen
-          $T cert create --device-id mipsel-test01
+          $T cert create --device-id "$ID"
           $T cert show
 
           # QuickJS
@@ -200,6 +197,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tedge-mipsel-${{ matrix.id }}
-          path: ${{ runner.temp }}/dist/${{ matrix.id }}
+          name: tedge-${{ env.ID }}
+          path: ${{ runner.temp }}/dist/${{ env.ID }}
           if-no-files-found: ignore
