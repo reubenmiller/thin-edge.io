@@ -1,0 +1,173 @@
+# Experimental: check whether thin-edge.io can be built for 32-bit little-endian MIPS.
+#
+# mipsel-unknown-linux-{musl,gnu} are tier 3 targets since Rust 1.72,
+# so there is no prebuilt std: nightly + -Zbuild-std is required.
+#
+# Each job builds the release binaries and smoke tests them under qemu-mipsel
+# (tedge --version, cert create (ring), flows test (QuickJS)).
+name: mipsel-build-test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ci/mipsel-build-test
+
+env:
+  NIGHTLY: nightly-2026-10-11
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    # Some matrix entries document known failures, so they must not fail the run
+    continue-on-error: ${{ matrix.expect_failure }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Known good locally: static (non-PIE) musl binary built with zig 0.15.2
+          - name: musl / zig 0.15.2 / static
+            target: mipsel-unknown-linux-musl
+            builder: zig
+            zig: "0.15.2"
+            rustflags: "-C relocation-model=static"
+            expect_failure: false
+
+          # Known bad locally: static-pie musl binaries segfault at startup (SEGV_ACCERR)
+          - name: musl / zig 0.15.2 / static-pie
+            target: mipsel-unknown-linux-musl
+            builder: zig
+            zig: "0.15.2"
+            rustflags: ""
+            expect_failure: true
+
+          # Known bad locally: zig 0.17 libc fails to link in release
+          # (undefined heap.PageAllocator.map / heap.SmpAllocator.alloc)
+          - name: musl / zig 0.17.0 / static
+            target: mipsel-unknown-linux-musl
+            builder: zig
+            zig: "0.17.0"
+            rustflags: "-C relocation-model=static"
+            expect_failure: true
+
+          - name: gnu / zig 0.15.2
+            target: mipsel-unknown-linux-gnu
+            zig_target_suffix: ".2.28"
+            builder: zig
+            zig: "0.15.2"
+            rustflags: ""
+            expect_failure: false
+
+          # clang for C code (ring, rquickjs), Ubuntu's gcc cross toolchain for sysroot and linking
+          - name: gnu / clang
+            target: mipsel-unknown-linux-gnu
+            builder: clang
+            rustflags: ""
+            expect_failure: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly with rust-src
+        run: |
+          rustup toolchain install "$NIGHTLY" --profile minimal --component rust-src
+          rustc +"$NIGHTLY" --version
+
+      - name: Install zig and cargo-zigbuild
+        if: matrix.builder == 'zig'
+        run: |
+          pip3 install --break-system-packages "ziglang==${{ matrix.zig }}"
+          python3 -m ziglang version
+          cargo install --locked cargo-zigbuild
+
+      - name: Install clang and the mipsel gcc cross toolchain
+        if: matrix.builder == 'clang'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld gcc-mipsel-linux-gnu libc6-dev-mipsel-cross
+          clang --version
+          mipsel-linux-gnu-gcc --version
+
+      - name: Install qemu-user
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user libc6-mipsel-cross
+
+      - name: Build (zig)
+        if: matrix.builder == 'zig'
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
+        run: |
+          cargo +"$NIGHTLY" zigbuild \
+            -Zbuild-std=std,panic_abort \
+            --release \
+            --target "${{ matrix.target }}${{ matrix.zig_target_suffix }}" \
+            --workspace --bins
+
+      - name: Build (clang)
+        if: matrix.builder == 'clang'
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
+          CC_mipsel_unknown_linux_gnu: clang
+          CFLAGS_mipsel_unknown_linux_gnu: --target=mipsel-linux-gnu --sysroot=/usr/mipsel-linux-gnu
+          AR_mipsel_unknown_linux_gnu: llvm-ar
+          BINDGEN_EXTRA_CLANG_ARGS_mipsel_unknown_linux_gnu: --target=mipsel-linux-gnu --sysroot=/usr/mipsel-linux-gnu
+          CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_GNU_LINKER: mipsel-linux-gnu-gcc
+        run: |
+          cargo +"$NIGHTLY" build \
+            -Zbuild-std=std,panic_abort \
+            --release \
+            --target "${{ matrix.target }}" \
+            --workspace --bins
+
+      - name: Show binaries
+        run: |
+          cd "target/${{ matrix.target }}/release"
+          ls -la tedge tedge-*[!.d] || true
+          file tedge tedge-write tedge-shell-plugin
+
+      - name: Smoke test under qemu-mipsel
+        run: |
+          set -x
+          BIN_DIR="$PWD/target/${{ matrix.target }}/release"
+          QEMU="qemu-mipsel -L /usr/mipsel-linux-gnu"
+
+          # Binaries other than tedge
+          for b in tedge-write tedge-shell-plugin tedge-file-log-plugin tedge-file-config-plugin tedge-p11-server; do
+            $QEMU "$BIN_DIR/$b" --version
+          done
+
+          # tedge is a multicall binary dispatched on its own file name
+          CFG="$RUNNER_TEMP/tedge-config"
+          mkdir -p "$CFG/device-certs" "$CFG/mappers/local/flows"
+          T="$QEMU $BIN_DIR/tedge --config-dir $CFG"
+
+          $T --version
+          $T config set device.type mipsel-test
+          test "$($T config get device.type)" = "mipsel-test"
+
+          # ring / rcgen
+          $T cert create --device-id mipsel-test01
+          $T cert show
+
+          # QuickJS
+          cp tests/RobotFramework/tests/tedge_flows/greeting-flows/hello.js "$CFG/mappers/local/flows/"
+          OUTPUT=$(echo '[te/device/main///m/env] {"temperature":23}' | $T flows test --flow "$CFG/mappers/local/flows/hello.js")
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "Hello World!"
+
+      - name: Upload binaries
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mipsel-${{ matrix.builder }}-${{ strategy.job-index }}
+          path: |
+            target/${{ matrix.target }}/release/tedge
+            target/${{ matrix.target }}/release/tedge-write
+            target/${{ matrix.target }}/release/tedge-shell-plugin
+            target/${{ matrix.target }}/release/tedge-file-log-plugin
+            target/${{ matrix.target }}/release/tedge-file-config-plugin
+            target/${{ matrix.target }}/release/tedge-p11-server
+          if-no-files-found: warn
