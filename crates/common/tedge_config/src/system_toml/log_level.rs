@@ -95,9 +95,16 @@ pub fn log_init_reloadable_for_services(
 ) -> Result<Option<LogLevelReloadHandle>, SystemTomlError> {
     let default_level = DEFAULT_LEVEL;
     let is_running_as_systemd_unit = std::env::var("INVOCATION_ID").is_ok();
+    let log_file = service_log_file(service_names, config_dir);
 
     // Explicit flags / RUST_LOG take priority and opt out of runtime reload.
-    if let Some(subscriber) = override_subscriber(flags, is_running_as_systemd_unit) {
+    // A Windows Service is configured with its command line flags and system.toml only.
+    if log_file.is_some() {
+        if flags.debug || flags.log_level.is_some() {
+            logger_for_services(service_names, flags, Some(config_dir), default_level)?.init();
+            return Ok(None);
+        }
+    } else if let Some(subscriber) = override_subscriber(flags, is_running_as_systemd_unit) {
         subscriber.init();
         return Ok(None);
     }
@@ -117,10 +124,13 @@ pub fn log_init_reloadable_for_services(
             ),
         };
     let (filter, handle) = reload::Layer::new(filter);
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(stderr_fmt_layer(is_running_as_systemd_unit))
-        .init();
+    let registry = tracing_subscriber::registry().with(filter);
+    match log_file {
+        Some(writer) => registry.with(file_fmt_layer(writer)).init(),
+        None => registry
+            .with(stderr_fmt_layer(is_running_as_systemd_unit))
+            .init(),
+    }
 
     if let Some(err) = parse_error {
         tracing::warn!("could not read log levels from system.toml; using defaults: {err}");
@@ -193,17 +203,22 @@ fn logger_for_services(
     config_dir: Option<&Utf8Path>,
     default_level: tracing::Level,
 ) -> Result<Arc<dyn tracing::Subscriber + Send + Sync>, SystemTomlError> {
-    // On Windows, when stderr is not a terminal (i.e. running as a Windows
-    // Service), redirect all output to a log file so failures are observable.
-    #[cfg(windows)]
-    if let (Some(config_dir), [sname]) = (config_dir, service_names) {
-        if !std::io::stderr().is_terminal() {
+    // A Windows Service has no console: its logs are written to a file
+    if let Some(config_dir) = config_dir {
+        if let Some(writer) = service_log_file(service_names, config_dir) {
             let level = flags
                 .log_level
                 .or(flags.debug.then_some(tracing::Level::DEBUG))
-                .or_else(|| log_level_for_service(sname, config_dir))
+                .or_else(|| match service_names {
+                    [sname] => log_level_for_service(sname, config_dir),
+                    _ => None,
+                })
                 .unwrap_or(default_level);
-            return Ok(windows_service_file_logger(sname, config_dir, level));
+            return Ok(Arc::new(
+                tracing_subscriber::registry()
+                    .with(LevelFilter::from_level(level))
+                    .with(file_fmt_layer(writer)),
+            ));
         }
     }
 
@@ -236,31 +251,61 @@ fn logger_for_services(
     ))
 }
 
-/// A subscriber writing to `<config_dir>/log/<sname>.log`.
-///
-/// Used when a process runs as a Windows Service, where stderr is not captured.
-/// The writer guard is intentionally leaked: services are long-running and the
-/// process is stopped rather than gracefully exited, so flushing on drop is not required.
 #[cfg(windows)]
-fn windows_service_file_logger(
-    sname: &str,
+static RUNNING_AS_WINDOWS_SERVICE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Writes the logs of this process to `<config_dir>/log/<service>.log` instead of stderr.
+///
+/// To be called by the Windows Service entry point, before the components initialize their logging:
+/// a Windows Service has no console, so what it writes to stderr is lost.
+#[cfg(windows)]
+pub fn log_to_file_as_windows_service() {
+    RUNNING_AS_WINDOWS_SERVICE.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// The log file of a process running as a Windows Service, `None` otherwise.
+///
+/// The file is `<config_dir>/log/<service>.log`, or `<config_dir>/log/tedge.log` for several services
+/// (`tedge run all`).
+#[cfg(windows)]
+fn service_log_file(
+    service_names: &[&str],
     config_dir: &Utf8Path,
-    level: tracing::Level,
-) -> Arc<dyn tracing::Subscriber + Send + Sync> {
+) -> Option<tracing_appender::non_blocking::NonBlocking> {
+    if !RUNNING_AS_WINDOWS_SERVICE.load(std::sync::atomic::Ordering::SeqCst) {
+        return None;
+    }
+    let file_name = match service_names {
+        [sname] => format!("{sname}.log"),
+        _ => "tedge.log".to_string(),
+    };
     let log_dir = config_dir.join("log");
     let _ = std::fs::create_dir_all(&log_dir);
-    let file_appender = tracing_appender::rolling::never(log_dir, format!("{sname}.log"));
+    let file_appender = tracing_appender::rolling::never(log_dir, file_name);
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+    // Services are long-running and the process is stopped rather than gracefully exited,
+    // so the guard flushing the remaining logs on drop is intentionally leaked.
     std::mem::forget(guard);
+    Some(non_blocking)
+}
 
-    Arc::new(
-        tracing_subscriber::fmt()
-            .with_writer(non_blocking)
-            .with_ansi(false)
-            .with_timer(utc_timer())
-            .with_max_level(level)
-            .finish(),
-    )
+#[cfg(not(windows))]
+fn service_log_file(
+    _service_names: &[&str],
+    _config_dir: &Utf8Path,
+) -> Option<tracing_appender::non_blocking::NonBlocking> {
+    None
+}
+
+fn file_fmt_layer<S>(writer: tracing_appender::non_blocking::NonBlocking) -> impl Layer<S>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+{
+    tracing_subscriber::fmt::layer()
+        .with_writer(writer)
+        .with_ansi(false)
+        .with_timer(utc_timer())
 }
 
 /// `TimeFormat::Disabled` under systemd (journald already timestamps records),

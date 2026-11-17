@@ -60,6 +60,8 @@ fn windows_service_name(opt: &TEdgeOptMulticall) -> Option<String> {
 /// SCM connection context it requires.
 #[cfg(windows)]
 fn service_main_win(_args: Vec<OsString>) {
+    tedge_config::log_to_file_as_windows_service();
+
     // Parse the process command line — same as main() does.
     let exec_name = executable_name();
     let opt = tracing::subscriber::with_default(unconfigured_logger(), || {
