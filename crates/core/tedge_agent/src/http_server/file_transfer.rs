@@ -222,6 +222,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn file_names_can_contain_characters_invalid_on_windows() {
+        // e.g. the log type of a log_upload command
+        let path = "device/log_upload/robot_log::robotlog-1234";
+        let (_ttd, mut app) = app();
+
+        let response = upload_file(&mut app, path, "some content").await;
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let response = download_file(&mut app, path).await;
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(std::str::from_utf8(&body).unwrap(), "some content");
+    }
+
+    #[tokio::test]
     async fn uploaded_file_cannot_be_downloaded_after_deletion() {
         let path = "some/dir/file";
         let (_ttd, mut app) = app();
