@@ -182,3 +182,58 @@ pub fn terminate_process_group(pgid: u32, signal_type: Signal) {
         let _ = (pgid, signal_type);
     }
 }
+
+/// The exit code reported on Windows for a process terminated by thin-edge on timeout.
+///
+/// A process killed with `taskkill /F` exits with code 1, which cannot be told apart from a failure.
+/// thin-edge reports such a process with this code instead: `STATUS_CONTROL_C_EXIT`,
+/// the status of a process stopped by a termination request.
+pub const WINDOWS_TERMINATED_EXIT_CODE: u32 = 0xC000_013A;
+
+/// Returns the signal that terminated a process, if it has been killed.
+///
+/// On Unix, this is the POSIX signal.
+/// On Windows, a process terminated by thin-edge on timeout (see [`WINDOWS_TERMINATED_EXIT_CODE`])
+/// is reported as killed by `SIGKILL` (9).
+pub fn killed_by_signal(status: &std::process::ExitStatus) -> Option<i32> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        status.signal()
+    }
+    #[cfg(not(unix))]
+    {
+        (status.code() == Some(WINDOWS_TERMINATED_EXIT_CODE as i32)).then_some(9)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(windows)]
+    fn a_process_terminated_on_timeout_is_reported_as_killed() {
+        use std::os::windows::process::ExitStatusExt;
+        let terminated = std::process::ExitStatus::from_raw(WINDOWS_TERMINATED_EXIT_CODE);
+        assert_eq!(killed_by_signal(&terminated), Some(9));
+        assert_eq!(
+            killed_by_signal(&std::process::ExitStatus::from_raw(1)),
+            None
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_process_killed_by_a_signal_is_reported_as_killed() {
+        use std::os::unix::process::ExitStatusExt;
+        assert_eq!(
+            killed_by_signal(&std::process::ExitStatus::from_raw(15)),
+            Some(15)
+        );
+        assert_eq!(
+            killed_by_signal(&std::process::ExitStatus::from_raw(1 << 8)),
+            None
+        );
+    }
+}

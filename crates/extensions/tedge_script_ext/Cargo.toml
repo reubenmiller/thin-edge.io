@@ -13,6 +13,7 @@ repository = { workspace = true }
 async-trait = { workspace = true }
 shell-words = { workspace = true }
 tedge_actors = { workspace = true }
+tedge_utils = { workspace = true }
 tokio = { workspace = true, default_features = false, features = ["process"] }
 
 [target.'cfg(unix)'.dependencies]

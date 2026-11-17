@@ -1,6 +1,8 @@
 pub use shell_words::ParseError;
 use std::process::Output;
 use std::process::Stdio;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tedge_actors::Concurrent;
 use tedge_actors::Server;
@@ -88,12 +90,38 @@ impl Server for ScriptActor {
         match (child.id(), message.timeouts) {
             (_, None) | (None, _) => child.wait_with_output().await,
             (Some(pid), Some((graceful_timeout, forceful_timeout))) => {
+                let killed = AtomicBool::new(false);
                 tokio::select! {
-                    response = child.wait_with_output() => response,
-                    not_killed = kill_on_timeout(pid, graceful_timeout, forceful_timeout) => Err(not_killed),
+                    response = child.wait_with_output() => response.map(|output| {
+                        if killed.load(Ordering::SeqCst) {
+                            mark_as_killed(output)
+                        } else {
+                            output
+                        }
+                    }),
+                    not_killed = kill_on_timeout(pid, graceful_timeout, forceful_timeout, &killed) => Err(not_killed),
                 }
             }
         }
+    }
+}
+
+/// On Unix, a process killed by a signal is reported with this signal: nothing to change
+#[cfg(unix)]
+fn mark_as_killed(output: Output) -> Output {
+    output
+}
+
+/// On Windows, a process killed with `taskkill /F` exits with code 1, as for a failure.
+/// It is reported with [`tedge_utils::signals::WINDOWS_TERMINATED_EXIT_CODE`] instead.
+#[cfg(windows)]
+fn mark_as_killed(output: Output) -> Output {
+    use std::os::windows::process::ExitStatusExt;
+    Output {
+        status: std::process::ExitStatus::from_raw(
+            tedge_utils::signals::WINDOWS_TERMINATED_EXIT_CODE,
+        ),
+        ..output
     }
 }
 
@@ -102,10 +130,12 @@ async fn kill_on_timeout(
     pid: u32,
     graceful_timeout: Duration,
     forceful_timeout: Duration,
+    killed: &AtomicBool,
 ) -> std::io::Error {
     let process_group = nix::unistd::Pid::from_raw(pid as nix::libc::pid_t);
 
     tokio::time::sleep(graceful_timeout).await;
+    killed.store(true, Ordering::SeqCst);
     let _ = nix::sys::signal::killpg(process_group, nix::sys::signal::SIGTERM);
 
     tokio::time::sleep(forceful_timeout).await;
@@ -125,8 +155,10 @@ async fn kill_on_timeout(
     pid: u32,
     graceful_timeout: Duration,
     forceful_timeout: Duration,
+    killed: &AtomicBool,
 ) -> std::io::Error {
     tokio::time::sleep(graceful_timeout).await;
+    killed.store(true, Ordering::SeqCst);
     if !taskkill(pid, false).await {
         taskkill(pid, true).await;
     }
@@ -347,6 +379,11 @@ mod tests {
             .expect("execution error");
 
         assert!(!output.status.success());
+        assert_eq!(
+            tedge_utils::signals::killed_by_signal(&output.status),
+            Some(9),
+            "a script killed on timeout is reported as killed"
+        );
     }
 
     #[tokio::test]

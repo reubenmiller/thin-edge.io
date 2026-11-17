@@ -91,7 +91,12 @@ impl ExitHandlers {
             Ok(output) => {
                 let json_stdout = json_stdout_excerpt(output.stdout)
                     .context(format!("Program `{program}` stdout"));
-                match output.status.code() {
+                // A process killed on timeout has no exit code, whatever the platform
+                let code = match tedge_utils::signals::killed_by_signal(&output.status) {
+                    Some(_) => None,
+                    None => output.status.code(),
+                };
+                match code {
                     None => self
                         .state_update_on_kill(program, exit_signal(&output.status) as u8)
                         .into_json(),
@@ -221,7 +226,11 @@ pub fn extract_json_output(
 
 fn json_output(outcome: std::io::Result<std::process::Output>) -> Result<Value, String> {
     let output = outcome.map_err(|err| format!("cannot be launched: {err}"))?;
-    let code = output.status.code().ok_or_else(|| {
+    let code = match tedge_utils::signals::killed_by_signal(&output.status) {
+        Some(_) => None,
+        None => output.status.code(),
+    };
+    let code = code.ok_or_else(|| {
         format!(
             "has been killed by SIG{}",
             exit_signal(&output.status) as u8
@@ -368,19 +377,9 @@ impl Default for DefaultHandlers {
     }
 }
 
-/// Returns the Unix signal number that terminated the process, or 0.
-/// Always returns 0 on non-unix platforms (no POSIX signals).
+/// Returns the signal number that terminated the process, or 0.
 fn exit_signal(status: &std::process::ExitStatus) -> i32 {
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::ExitStatusExt;
-        status.signal().unwrap_or(0)
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = status;
-        0
-    }
+    tedge_utils::signals::killed_by_signal(status).unwrap_or(0)
 }
 
 #[cfg(test)]

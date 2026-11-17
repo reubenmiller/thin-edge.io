@@ -76,7 +76,12 @@ use tedge_utils::paths::TedgePaths;
 use test_case::test_case;
 use tokio::task::JoinHandle;
 
-const TEST_TIMEOUT_MS: Duration = Duration::from_millis(3000);
+// The Windows CI runners are slower to start processes and access files
+const TEST_TIMEOUT_MS: Duration = if cfg!(windows) {
+    Duration::from_millis(10000)
+} else {
+    Duration::from_millis(3000)
+};
 
 #[tokio::test]
 async fn convert_incoming_software_list_request() -> Result<(), DynError> {

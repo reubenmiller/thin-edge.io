@@ -70,6 +70,10 @@ and in `tedge_script_ext` (which does not depend on `tedge_utils`).
 Alternative rejected: Job objects. They give stronger guarantees (no escape by re-parenting)
 but need `unsafe` Win32 calls or a new dependency, and the gain does not justify either for timeouts.
 
+A process killed with `taskkill /F` exits with code 1, like a failure.
+The script runner records that it killed the process and reports exit code `0xC000013A` (`STATUS_CONTROL_C_EXIT`) instead;
+`tedge_utils::signals::killed_by_signal` maps this code to SIGKILL, so workflows take their `on_kill` transition on both platforms.
+
 Consequence: a console script cannot react to the graceful step: on Windows it is killed when the graceful timeout expires,
 without the forceful timeout extension a Unix script gets to clean up after SIGTERM. This is documented as a difference.
 Waiting for the forceful timeout instead would let a 3 s workflow timeout run for more than a minute,

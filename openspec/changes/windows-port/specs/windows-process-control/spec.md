@@ -67,7 +67,7 @@ No process started by the command SHALL remain running after the forceful timeou
 #### Scenario: Console script exceeding its timeout
 - **WHEN** a workflow script runs in a console process, starts a child process, and runs longer than its timeout
 - **THEN** the script and its child process are terminated when the timeout expires, without waiting for the forceful timeout extension
-- **AND** the operation step is reported as failed on timeout
+- **AND** the operation step follows its `on_kill` transition, as for a script killed by a signal on Unix
 
 ### Requirement: Scripts launched through their interpreter
 

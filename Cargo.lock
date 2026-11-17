@@ -6146,6 +6146,7 @@ dependencies = [
  "nix",
  "shell-words",
  "tedge_actors",
+ "tedge_utils",
  "tokio",
 ]
 
