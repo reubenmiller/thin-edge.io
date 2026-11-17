@@ -56,5 +56,5 @@
 - [ ] 7.1 Replace hard-coded `/etc/tedge` fixtures in tests ignored on Windows with `TempTedgeDir` paths
 - [ ] 7.2 Match the Windows connection-abort error (`WSAECONNABORTED`) in the TLS rejection tests
 - [ ] 7.3 Add a timeout to `assert_rx_stream` and align the `notify` tests with `ReadDirectoryChangesW` events
-- [ ] 7.5 Run the Windows workflow on GitHub Actions and fix the failures it reports
+- [x] 7.5 Run the Windows workflow on GitHub Actions and fix the failures it reports
 - [ ] 7.4 Audit every remaining `cfg_attr(windows, ignore)` and record the reason category in the support matrix
