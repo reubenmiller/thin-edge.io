@@ -1,5 +1,4 @@
 use assert_matches::assert_matches;
-use camino::Utf8Path;
 use serde_json::json;
 use serde_json::Value;
 use std::fs::read_to_string;
@@ -114,11 +113,11 @@ async fn new_config_manager_builder(
     UploaderMessageBox,
 ) {
     let config_root = TedgePaths::from_root_with_defaults(temp_dir.path(), "", "");
-    let tmp_root = TedgePaths::from_root_with_defaults(
-        Utf8Path::from_path(&std::env::temp_dir()).unwrap(),
-        "",
-        "",
-    );
+    // A temporary directory per test: the tests use the same command ids and config types,
+    // hence the same snapshot file names
+    let tmp_dir = temp_dir.path().join("tmp");
+    std::fs::create_dir_all(&tmp_dir).unwrap();
+    let tmp_root = TedgePaths::from_root_with_defaults(&tmp_dir, "", "");
     let config = ConfigManagerConfig {
         config_dir: config_root.clone(),
         plugin_dirs: vec![temp_dir.path().join("config-plugins")],
@@ -926,11 +925,11 @@ async fn execute_config_set_operation_step_file_not_found() -> Result<(), anyhow
 
 fn test_config(tempdir: &TempTedgeDir) -> ConfigManagerConfig {
     let config_root = TedgePaths::from_root_with_defaults(tempdir.path(), "", "");
-    let tmp_root = TedgePaths::from_root_with_defaults(
-        Utf8Path::from_path(&std::env::temp_dir()).unwrap(),
-        "",
-        "",
-    );
+    // A temporary directory per test: the tests use the same command ids and config types,
+    // hence the same snapshot file names
+    let tmp_dir = tempdir.path().join("tmp");
+    std::fs::create_dir_all(&tmp_dir).unwrap();
+    let tmp_root = TedgePaths::from_root_with_defaults(&tmp_dir, "", "");
     tempdir.dir("operations");
     ConfigManagerConfig {
         config_dir: config_root.clone(),
