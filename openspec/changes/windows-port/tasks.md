@@ -54,6 +54,8 @@
 - [x] 6.10 `tedge connect`/`tedge disconnect` do not restart Mosquitto on Windows, which does not read the thin-edge.io broker configuration and drops the retained capabilities on restart
 - [x] 6.11 `tedge connect` starts the agent and mapper services on Windows, where they are `tedge.exe` subcommands rather than executables on the `PATH`
 - [x] 6.12 Service logs of the agent and mappers in `C:\ProgramData\tedge\log\<service>.log`
+- [x] 6.13 Encode Windows-invalid characters of the file transfer service paths and of the c8y mapper download files (log types such as `robot_log::robotlog`), with `tedge_utils::file_name`
+- [ ] 6.14 Default `c8y.root_cert_path` to a Windows location: `/etc/ssl/certs` is logged as unreadable on each configuration load
 - [ ] 6.7 Upstream the Windows local adapter to `device-test-core` and remove the local copy
 
 ## 7. Remaining Windows test gaps
