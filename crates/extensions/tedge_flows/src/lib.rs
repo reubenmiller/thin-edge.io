@@ -1,3 +1,4 @@
+mod access;
 mod actor;
 mod config;
 mod connected_flow;
@@ -120,8 +121,14 @@ impl FlowsMapperConfig {
             heap_size,
             stack_size,
             execution_timeout: Duration::from_secs(5),
+            ..self.js_config
         };
         FlowsMapperConfig { js_config, ..self }
+    }
+
+    pub fn with_js_workers(mut self, workers: usize) -> Self {
+        self.js_config.workers = workers;
+        self
     }
 }
 

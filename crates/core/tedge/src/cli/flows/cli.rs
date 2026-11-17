@@ -192,6 +192,7 @@ impl TEdgeFlowsCli {
         JsRuntimeConfig {
             heap_size: mem.heap_size as usize,
             stack_size: mem.stack_size as usize,
+            workers: config.flows.workers.count().get(),
             ..JsRuntimeConfig::default()
         }
     }

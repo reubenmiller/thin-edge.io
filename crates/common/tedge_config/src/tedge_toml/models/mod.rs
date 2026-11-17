@@ -17,6 +17,7 @@ pub mod proxy_url;
 pub mod seconds;
 pub mod templates_set;
 pub mod topic_prefix;
+pub mod worker_count;
 
 use doku::Document;
 use serde::Deserialize;

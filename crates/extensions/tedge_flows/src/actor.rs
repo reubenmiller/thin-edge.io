@@ -23,6 +23,7 @@ use std::time::SystemTime;
 use tedge_actors::Actor;
 use tedge_actors::DynSender;
 use tedge_actors::MessageReceiver;
+use tedge_actors::MessageReceiverNoblock;
 use tedge_actors::RuntimeError;
 use tedge_actors::Sender;
 use tedge_actors::SimpleMessageBox;
@@ -41,6 +42,9 @@ use tracing::error;
 use tracing::info;
 use tracing::warn;
 use tracing::Instrument;
+
+/// Maximum number of MQTT messages processed before handling other inputs
+const MAX_PIPELINED_MESSAGES: usize = 1024;
 
 pub struct FlowsMapper {
     config: FlowsMapperConfig,
@@ -90,10 +94,15 @@ impl Actor for FlowsMapper {
         self.notify_flows_status().await?;
         self.on_startup().await?;
 
+        let mut pending = None;
         loop {
             self.on_context_update().await?;
-            let Some(message) = self.next_message().await else {
-                break;
+            let message = match pending.take() {
+                Some(message) => message,
+                None => match self.next_message().await {
+                    Some(message) => message,
+                    None => break,
+                },
             };
             match message {
                 InputMessage::Tick(_) => {
@@ -101,8 +110,7 @@ impl Actor for FlowsMapper {
                     self.on_interval().await?;
                 }
                 InputMessage::MqttMessage(message) => {
-                    let source = SourceTag::Mqtt;
-                    self.on_message(source, Message::from(message)).await?
+                    pending = self.on_mqtt_messages(message).await?;
                 }
                 InputMessage::WatchEvent(event) => {
                     self.on_input_event(event).await?;
@@ -252,21 +260,55 @@ impl FlowsMapper {
         Ok(())
     }
 
-    async fn on_message(
+    /// Process an MQTT message, along with the next queued MQTT messages if flows can be processed concurrently
+    ///
+    /// Return the first queued message that is not an MQTT message, if any.
+    async fn on_mqtt_messages(
         &mut self,
-        source: SourceTag,
-        message: Message,
-    ) -> Result<(), RuntimeError> {
+        message: MqttMessage,
+    ) -> Result<Option<InputMessage>, RuntimeError> {
         let timestamp = SystemTime::now();
-        for messages in self
-            .processor
-            .on_message(timestamp, &source, &message)
-            .await
-        {
-            self.publish_result(messages).await?;
+        if !self.processor.js_runtime.is_parallel() {
+            for result in self
+                .processor
+                .on_message(timestamp, &SourceTag::Mqtt, &Message::from(message))
+                .await
+            {
+                self.publish_result(result).await?;
+            }
+            return Ok(None);
         }
 
-        Ok(())
+        let messages = &mut self.messages;
+        let mut pending = None;
+        let next_message = || {
+            if pending.is_some() {
+                return None;
+            }
+            match messages.recv_noblock() {
+                Ok(InputMessage::MqttMessage(message)) => Some(Message::from(message)),
+                Ok(message) => {
+                    pending = Some(message);
+                    None
+                }
+                Err(_) => None,
+            }
+        };
+        let results = self
+            .processor
+            .on_messages(
+                timestamp,
+                &SourceTag::Mqtt,
+                Message::from(message),
+                next_message,
+                MAX_PIPELINED_MESSAGES,
+            )
+            .await;
+        for result in results {
+            self.publish_result(result).await?;
+        }
+
+        Ok(pending)
     }
 
     async fn on_interval(&mut self) -> Result<(), RuntimeError> {

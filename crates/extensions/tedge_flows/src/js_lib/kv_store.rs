@@ -1,3 +1,4 @@
+use crate::access::ContextAccess;
 use crate::js_value::JsonValue;
 use rquickjs::class::Trace;
 use rquickjs::Ctx;
@@ -9,12 +10,49 @@ use rquickjs::Value;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::ops::Deref;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
+use tracing::warn;
 
 #[derive(Clone, Debug, Default, JsLifetime)]
 pub struct FlowContextHandle {
     handle: Arc<Mutex<LayeredKVStore>>,
+    access: Arc<AccessMonitor>,
+}
+
+/// Tracks how each flow is allowed to access the mapper context
+///
+/// The class declared for a flow when loaded is raised
+/// when the flow is caught accessing the mapper context in a way its source doesn't show.
+#[derive(Debug, Default)]
+struct AccessMonitor {
+    /// The class of each flow, as declared or raised
+    flows: Mutex<HashMap<String, ContextAccess>>,
+    /// Incremented each time the class of a flow is raised
+    generation: AtomicUsize,
+}
+
+/// The flow whose function is being executed by a JS runtime
+#[derive(Clone, Debug, Default, JsLifetime)]
+pub(crate) struct CallingFlow {
+    flow: Arc<Mutex<Option<String>>>,
+}
+
+impl CallingFlow {
+    pub(crate) fn set(&self, flow: Option<String>) {
+        *self.flow.lock().unwrap() = flow;
+    }
+
+    pub(crate) fn store_as_userdata(&self, ctx: &Ctx<'_>) {
+        let _ = ctx.store_userdata(self.clone());
+    }
+
+    fn get_from_userdata(ctx: &Ctx<'_>) -> Option<String> {
+        ctx.userdata::<Self>()
+            .and_then(|calling| calling.flow.lock().unwrap().clone())
+    }
 }
 
 #[derive(Default, Debug)]
@@ -51,6 +89,49 @@ impl FlowContextHandle {
 
     pub(crate) fn init(&self, ctx: &Ctx<'_>) {
         self.store_as_userdata(ctx)
+    }
+
+    /// Declare how a flow accesses the mapper context, resetting any class raised previously
+    pub(crate) fn declare_access(&self, flow: &str, access: ContextAccess) {
+        self.access
+            .flows
+            .lock()
+            .unwrap()
+            .insert(flow.to_owned(), access);
+    }
+
+    /// Return the class of a flow, as declared or raised after a misclassified access
+    pub(crate) fn flow_access(&self, flow: &str, declared: ContextAccess) -> ContextAccess {
+        match self.access.flows.lock().unwrap().get(flow) {
+            Some(access) => declared.max(*access),
+            None => declared,
+        }
+    }
+
+    /// A number that changes each time the class of a flow is raised
+    pub(crate) fn access_generation(&self) -> usize {
+        self.access.generation.load(Ordering::Acquire)
+    }
+
+    /// Check an access to the mapper context by a flow, raising the class of the flow if needed
+    fn check_access(&self, flow: &str, access: ContextAccess) {
+        let mut flows = self.access.flows.lock().unwrap();
+        let Some(flow_access) = flows.get_mut(flow) else {
+            return;
+        };
+        if access > *flow_access {
+            warn!(target: "flows", "Flow {flow} accesses context.mapper in a way its source doesn't show: it is now ordered as a {access} of context.mapper");
+            *flow_access = access;
+            self.access.generation.fetch_add(1, Ordering::Release);
+        }
+    }
+
+    fn check_js_access(&self, ctx: &Ctx<'_>, context: &FlowContext, access: ContextAccess) {
+        if context.is_global() {
+            if let Some(flow) = CallingFlow::get_from_userdata(ctx) {
+                self.check_access(&flow, access)
+            }
+        }
     }
 
     pub(crate) fn js_context<'js>(
@@ -197,21 +278,25 @@ impl FlowContext {
 impl<'js> FlowContext {
     fn get(&self, ctx: Ctx<'js>, key: String) -> Result<JsonValue> {
         let data = FlowContextHandle::get_from_userdata(&ctx);
+        data.check_js_access(&ctx, self, ContextAccess::Read);
         Ok(data.get(self, &key))
     }
 
     fn set(&self, ctx: Ctx<'js>, key: String, value: JsonValue) {
         let data = FlowContextHandle::get_from_userdata(&ctx);
+        data.check_js_access(&ctx, self, ContextAccess::Write);
         data.insert(self, &key, value)
     }
 
     fn remove(&self, ctx: Ctx<'js>, key: String) {
         let data = FlowContextHandle::get_from_userdata(&ctx);
+        data.check_js_access(&ctx, self, ContextAccess::Write);
         data.remove(self, &key)
     }
 
     fn keys(&self, ctx: Ctx<'js>) -> Vec<String> {
         let data = FlowContextHandle::get_from_userdata(&ctx);
+        data.check_js_access(&ctx, self, ContextAccess::Read);
         data.keys(self)
     }
 }

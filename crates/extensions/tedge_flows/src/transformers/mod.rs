@@ -1,3 +1,4 @@
+use crate::access::ContextAccess;
 use crate::config::ConfigError;
 use crate::js_value::JsonValue;
 use crate::FlowContextHandle;
@@ -18,6 +19,15 @@ mod update_context;
 
 pub trait Transformer: Send + Sync + 'static {
     fn name(&self) -> &str;
+
+    /// How this transformer uses the mapper context
+    ///
+    /// Used to order the flows processed concurrently,
+    /// so that every access to the mapper context happens in message arrival order.
+    /// The default is the strictest: a transformer is assumed to update the context.
+    fn context_access(&self) -> ContextAccess {
+        ContextAccess::Write
+    }
 
     fn set_config(&mut self, config: JsonValue) -> Result<(), ConfigError>;
 
@@ -338,7 +348,7 @@ builtin = "onstartup-builtin"
         let mut runtime = JsRuntime::with_default().await.unwrap();
         let step = toml::from_str::<StepConfig>(config)
             .unwrap()
-            .compile(transformers, &mut runtime, 0, "test-flow".into())
+            .compile(transformers, &mut runtime, 0, "test-flow".into(), 0)
             .await
             .unwrap();
         (runtime, step)

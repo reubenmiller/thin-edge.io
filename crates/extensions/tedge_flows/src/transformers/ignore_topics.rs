@@ -1,3 +1,4 @@
+use crate::access::ContextAccess;
 use crate::ConfigError;
 use crate::FlowContextHandle;
 use crate::FlowError;
@@ -15,6 +16,10 @@ pub struct IgnoreTopics {
 impl Transformer for IgnoreTopics {
     fn name(&self) -> &str {
         "ignore-topics"
+    }
+
+    fn context_access(&self) -> ContextAccess {
+        ContextAccess::Independent
     }
 
     fn set_config(&mut self, config: JsonValue) -> Result<(), ConfigError> {

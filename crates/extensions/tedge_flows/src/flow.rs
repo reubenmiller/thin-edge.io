@@ -1,3 +1,4 @@
+use crate::access::ContextAccess;
 use crate::input_source::PollingSourceError;
 use crate::js_runtime::JsRuntime;
 use crate::stats::Counter;
@@ -54,6 +55,25 @@ pub struct Flow {
 
     /// Whether to allow output messages to loop back to the input
     pub expect_loop: bool,
+
+    /// Additional copies of this flow, processing messages concurrently with this one
+    ///
+    /// Each copy is loaded on its own JS runtime, with its own module state.
+    pub copies: Vec<Flow>,
+
+    /// How messages are distributed among the copies of this flow
+    pub partition: Partition,
+}
+
+/// How messages are distributed among the copies of a flow
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Partition {
+    /// A message is given to the first copy that is free
+    #[default]
+    None,
+
+    /// All the messages with the same topic are given to the same copy
+    Topic,
 }
 
 pub enum SourceTag {
@@ -196,6 +216,20 @@ impl Flow {
 
     pub fn accept_message(&self, _source: &SourceTag, message: &Message) -> bool {
         self.input.iter().any(|input| input.accept_message(message))
+    }
+
+    /// How this flow uses the mapper context: the strongest use among its steps
+    pub fn context_access(&self) -> ContextAccess {
+        self.steps
+            .iter()
+            .map(|step| step.context_access())
+            .max()
+            .unwrap_or(ContextAccess::Independent)
+    }
+
+    /// Return true if some steps of this flow use `globalThis` to share state with other flows
+    pub fn shares_globals(&self) -> bool {
+        self.steps.iter().any(|step| step.shares_globals())
     }
 
     pub async fn on_message(
@@ -836,6 +870,8 @@ mod tests {
             errors: FlowOutput::Mqtt { topic: None },
             source: Utf8PathBuf::from("test.toml"),
             expect_loop,
+            copies: vec![],
+            partition: crate::flow::Partition::None,
         }
     }
 
@@ -936,6 +972,8 @@ mod tests {
             },
             source: Utf8PathBuf::from("events.toml"),
             expect_loop: false,
+            copies: vec![],
+            partition: crate::flow::Partition::None,
         }
     }
 }

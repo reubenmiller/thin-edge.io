@@ -1,3 +1,4 @@
+use crate::access::ContextAccess;
 use serde_json::Value;
 use tedge_utils::timestamp::IsoOrUnix;
 use tedge_utils::timestamp::TimeFormat;
@@ -65,6 +66,10 @@ impl Default for GroupMeasurements {
 impl Transformer for GroupMeasurements {
     fn name(&self) -> &str {
         "group-measurements"
+    }
+
+    fn context_access(&self) -> ContextAccess {
+        ContextAccess::Independent
     }
 
     fn set_config(&mut self, config: JsonValue) -> Result<(), ConfigError> {

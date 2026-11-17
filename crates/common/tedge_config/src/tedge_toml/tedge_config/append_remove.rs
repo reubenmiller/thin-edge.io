@@ -60,6 +60,7 @@ impl_append_remove_for_single_value!(
     CloudType,
     Cryptoki,
     ProxyUrl,
+    WorkerCount,
 );
 
 impl AppendRemoveItem for TemplatesSet {

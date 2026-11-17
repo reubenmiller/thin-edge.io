@@ -4,7 +4,7 @@ use serde_json::Map;
 use serde_json::Value;
 use std::collections::HashMap;
 use tokio::fs::read_to_string;
-use tracing::log;
+use tracing::warn;
 
 /// The mapper.toml file of the mapper running the flows
 ///
@@ -90,11 +90,11 @@ impl<'a, T: MapperParams + ?Sized> Params<&'a T> {
         let default_params =
             Self::load_params(mapper_config, &directory.join(params_template_filename()))
                 .await
-                .map_err(|err| log::warn!("{err:?}"))
+                .map_err(|err| warn!("{err:?}"))
                 .unwrap_or_else(|()| Params::new(mapper_config));
         let user_params = Self::load_params(mapper_config, &directory.join(params_filename()))
             .await
-            .map_err(|err| log::warn!("{err:?}"))
+            .map_err(|err| warn!("{err:?}"))
             .unwrap_or_else(|()| Params::new(mapper_config));
         Ok(default_params.merge(user_params))
     }
@@ -142,7 +142,7 @@ impl<'a, T: MapperParams + ?Sized> Params<&'a T> {
             // To avoid breaking flows, a null value is substituted for an ill-formed params path
             Value::String(expr) => self
                 .substitute_path(expr)
-                .map_err(|err| log::warn!("{err:?}"))
+                .map_err(|err| warn!("{err:?}"))
                 .or(Ok(Value::Null)),
 
             Value::Array(values) => values.iter().map(|value| self.substitute(value)).collect(),
@@ -190,7 +190,7 @@ impl<'a, T: MapperParams + ?Sized> Params<&'a T> {
                     let (prefix, expr) = s.split_at(i);
                     let value = self
                         .substitute_path(expr)
-                        .map_err(|err| log::warn!("{err:?}"))
+                        .map_err(|err| warn!("{err:?}"))
                         .unwrap_or(Value::Null);
                     let value_str = match value {
                         Value::String(s) => s.to_string(),

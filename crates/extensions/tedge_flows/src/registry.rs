@@ -220,7 +220,12 @@ impl<T: FlowRegistry + Send> FlowRegistryExt for T {
         let mut reloaded_flows = HashSet::new();
         for flow in self.store_mut().flows_mut() {
             let mut reloaded = false;
-            for step in &mut flow.as_mut().steps {
+            let flow = flow.as_mut();
+            let copy_steps = flow
+                .copies
+                .iter_mut()
+                .flat_map(|copy| copy.steps.iter_mut());
+            for step in flow.steps.iter_mut().chain(copy_steps) {
                 if step.path() == Some(path) {
                     match step.load_script(js_runtime).await {
                         Ok(()) => {
@@ -234,7 +239,10 @@ impl<T: FlowRegistry + Send> FlowRegistryExt for T {
                 }
             }
             if reloaded {
-                reloaded_flows.insert(flow.as_ref().source.clone());
+                js_runtime
+                    .context_handle()
+                    .declare_access(flow.source.as_str(), flow.context_access());
+                reloaded_flows.insert(flow.source.clone());
             }
         }
 

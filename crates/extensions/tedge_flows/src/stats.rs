@@ -140,6 +140,13 @@ impl Counter {
         self.from_start.entry(dim).or_default().add(sample);
     }
 
+    /// Add to these stats the samples collected by another counter
+    pub fn merge(&mut self, other: Counter) {
+        for (dim, stats) in other.from_start {
+            self.from_start.entry(dim).or_default().merge(stats);
+        }
+    }
+
     pub fn dump_processing_stats<P: StatsPublisher>(
         &self,
         publisher: &P,
@@ -169,6 +176,21 @@ impl Stats {
                 None => self.processing_time = Some(DurationStats::new(t)),
                 Some(stats) => stats.add(t),
             },
+        }
+    }
+
+    pub fn merge(&mut self, other: Stats) {
+        self.messages_in += other.messages_in;
+        self.messages_out += other.messages_out;
+        self.error_raised += other.error_raised;
+        if let Some(other) = other.processing_time {
+            match self.processing_time.as_mut() {
+                None => self.processing_time = Some(other),
+                Some(stats) => {
+                    stats.add(other.min);
+                    stats.add(other.max);
+                }
+            }
         }
     }
 

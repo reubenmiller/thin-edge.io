@@ -1,3 +1,4 @@
+use crate::access::ContextAccess;
 use crate::config::ConfigError;
 use crate::js_runtime::JsRuntime;
 use crate::js_script::JsScript;
@@ -68,10 +69,7 @@ impl FlowStep {
     }
 
     pub fn with_interval(mut self, interval: Option<Duration>, flow: &str) -> Self {
-        let is_periodic = match &self.handler {
-            StepHandler::JsScript(script, _) => script.is_periodic,
-            StepHandler::Transformer(_, builtin) => builtin.is_periodic(),
-        };
+        let is_periodic = self.is_periodic();
         if !is_periodic && interval.is_some() {
             tracing::warn!(target: "flows", "Script with no 'onInterval' function: {}; but configured with an 'interval' in {flow}", self.source());
         }
@@ -96,6 +94,30 @@ impl FlowStep {
 
         self.init_next_execution();
         self
+    }
+
+    /// How this step uses the mapper context
+    pub fn context_access(&self) -> ContextAccess {
+        match &self.handler {
+            StepHandler::JsScript(script, _) => script.access,
+            StepHandler::Transformer(_, builtin) => builtin.context_access(),
+        }
+    }
+
+    /// Return true if this step uses `globalThis` to share state with other flows
+    pub fn shares_globals(&self) -> bool {
+        match &self.handler {
+            StepHandler::JsScript(script, _) => script.shares_globals,
+            StepHandler::Transformer(_, _) => false,
+        }
+    }
+
+    /// Return true if this step has an `onInterval` function
+    pub fn is_periodic(&self) -> bool {
+        match &self.handler {
+            StepHandler::JsScript(script, _) => script.is_periodic,
+            StepHandler::Transformer(_, builtin) => builtin.is_periodic(),
+        }
     }
 
     /// Return source of this step (a path or a builtin transformer)
