@@ -140,8 +140,10 @@ impl TermSignals {
 /// Send a signal to all the processes of a process group.
 ///
 /// On Windows, where there are no POSIX signals, the process tree rooted at `pgid` is terminated
-/// with `taskkill /T`: `SIGTERM` asks the processes to close (honored by GUI applications only),
-/// `SIGKILL` forcefully terminates them (`taskkill /T /F`).
+/// with `taskkill /T`: `SIGTERM` asks the processes to close, `SIGKILL` forcefully terminates them (`taskkill /T /F`).
+/// Only GUI applications can be asked to close: when `taskkill` reports that the processes
+/// can only be terminated forcefully (e.g. console scripts), `SIGTERM` terminates them forcefully,
+/// rather than leaving them running until the forceful timeout.
 pub fn terminate_process_group(pgid: u32, signal_type: Signal) {
     #[cfg(unix)]
     {
@@ -155,18 +157,25 @@ pub fn terminate_process_group(pgid: u32, signal_type: Signal) {
     }
     #[cfg(windows)]
     {
-        let mut command = std::process::Command::new("taskkill");
-        command.arg("/T");
-        if matches!(signal_type, Signal::SIGKILL) {
-            command.arg("/F");
+        let taskkill = |force: bool| {
+            let mut command = std::process::Command::new("taskkill");
+            command.arg("/T");
+            if force {
+                command.arg("/F");
+            }
+            command
+                .arg("/PID")
+                .arg(pgid.to_string())
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .is_ok_and(|status| status.success())
+        };
+        let force = matches!(signal_type, Signal::SIGKILL);
+        if !taskkill(force) && !force {
+            taskkill(true);
         }
-        let _ = command
-            .arg("/PID")
-            .arg(pgid.to_string())
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
     }
     #[cfg(not(any(unix, windows)))]
     {

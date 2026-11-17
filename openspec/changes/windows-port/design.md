@@ -60,8 +60,9 @@ This keeps one place that decides which commands can run under the SCM.
 Unix starts commands in their own process group and signals the group.
 Windows has no process groups usable without `unsafe`, but `taskkill /T /PID <pid>` walks the process tree.
 
-- Graceful step: `taskkill /T /PID <pid>`. GUI processes receive `WM_CLOSE`; console processes ignore it.
-- Forceful step: `taskkill /T /F /PID <pid>`.
+- Graceful step: `taskkill /T /PID <pid>`. GUI processes receive `WM_CLOSE`.
+  Console processes cannot be asked to close: `taskkill` then fails, and the tree is terminated with `taskkill /T /F` immediately.
+- Forceful step: `taskkill /T /F /PID <pid>`, for what is left of the tree.
 
 This is implemented once in `tedge_utils::signals::terminate_process_group` (used by `LoggedCommand`)
 and in `tedge_script_ext` (which does not depend on `tedge_utils`).
@@ -69,8 +70,10 @@ and in `tedge_script_ext` (which does not depend on `tedge_utils`).
 Alternative rejected: Job objects. They give stronger guarantees (no escape by re-parenting)
 but need `unsafe` Win32 calls or a new dependency, and the gain does not justify either for timeouts.
 
-Consequence: a console script cannot react to the graceful step, so on Windows the graceful timeout
-only delays the forceful kill. This is documented as a difference.
+Consequence: a console script cannot react to the graceful step: on Windows it is killed when the graceful timeout expires,
+without the forceful timeout extension a Unix script gets to clean up after SIGTERM. This is documented as a difference.
+Waiting for the forceful timeout instead would let a 3 s workflow timeout run for more than a minute,
+since the forceful extension is at least 60 s.
 
 ### D4 — One plugin discovery rule, in `tedge_utils::plugins`
 
@@ -143,7 +146,7 @@ Alternative rejected: the `ssh` adapter against a Windows VM. It needs long-live
 
 ## Risks / Trade-offs
 
-- [Graceful timeout has no effect on console scripts] → Documented; the forceful kill still bounds the run time.
+- [Console scripts get no chance to clean up on timeout] → Documented; they are killed at the configured timeout, as a user expects.
 - [`taskkill` can miss a child that re-parented before the kill] → Rare for plugin scripts; job objects remain an option.
 - [Directory ACL locks out non-admin users who used `tedge` before] → `tedge` CLI on Windows already needs an elevated shell to manage services; documented in the install guide.
 - [Percent-encoded directory names surprise users creating child-device directories by hand] → Documented with an example; Linux behavior is unchanged.

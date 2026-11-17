@@ -14,7 +14,9 @@ ${LOG_URL}      http://127.0.0.1:8000/te/v1/files/main/log_upload/robot-win-1
 
 *** Test Cases ***
 PowerShell software management plugin is registered without its extension
-    Should Have Retained MQTT Messages
+    # The agent publishes its capabilities shortly after it is up
+    Wait Until Keyword Succeeds    30s    1s
+    ...    Should Have Retained MQTT Messages
     ...    te/device/main///cmd/software_list
     ...    message_pattern=.*"winlist".*
     Should Not Have Retained MQTT Messages With Text    te/device/main///cmd/software_list    winlist.ps1
@@ -34,7 +36,8 @@ Software list uses the PowerShell plugin
     ...    AND    Get Logs
 
 Batch log plugin is registered without its extension
-    Should Have Retained MQTT Messages
+    Wait Until Keyword Succeeds    30s    1s
+    ...    Should Have Retained MQTT Messages
     ...    te/device/main///cmd/log_upload
     ...    message_pattern=.*"robot_log::robotlog".*
 

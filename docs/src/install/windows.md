@@ -128,5 +128,5 @@ The extension is not part of the plugin name:
 | PKCS#11 socket proxy (`tedge-p11-server`) | Not supported |
 | SIGHUP log level reload, SIGUSR1 mapper restart | Not supported. Restart the service. |
 | `tedge init` symbolic links | Not needed: components run as `tedge.exe run <component>` |
-| Graceful termination on timeout | Console scripts cannot react to the graceful termination request; they are killed, with their child processes, when the forceful timeout expires. |
+| Graceful termination on timeout | Console scripts cannot be asked to close: they are killed, with their child processes, when the timeout expires, without the extra time a Unix script gets after SIGTERM. |
 | File ownership and modes | Replaced by the ACL of `C:\ProgramData\tedge` |

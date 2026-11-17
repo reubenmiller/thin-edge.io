@@ -118,8 +118,8 @@ async fn kill_on_timeout(
 /// Kill the process tree on timeout.
 ///
 /// Windows has no SIGTERM: on the graceful timeout, `taskkill /T` asks the processes to close,
-/// which is honored by GUI applications but not by console ones.
-/// On the forceful timeout, `taskkill /T /F` terminates the whole process tree.
+/// which is only possible for GUI applications: console processes are then terminated forcefully.
+/// On the forceful timeout, `taskkill /T /F` terminates whatever is left of the process tree.
 #[cfg(windows)]
 async fn kill_on_timeout(
     pid: u32,
@@ -127,7 +127,9 @@ async fn kill_on_timeout(
     forceful_timeout: Duration,
 ) -> std::io::Error {
     tokio::time::sleep(graceful_timeout).await;
-    taskkill(pid, false).await;
+    if !taskkill(pid, false).await {
+        taskkill(pid, true).await;
+    }
 
     tokio::time::sleep(forceful_timeout).await;
     taskkill(pid, true).await;
@@ -136,8 +138,9 @@ async fn kill_on_timeout(
     std::io::Error::other("failed to kill the process after timeout")
 }
 
+/// Returns true if `taskkill` terminated the process tree
 #[cfg(windows)]
-async fn taskkill(pid: u32, force: bool) {
+async fn taskkill(pid: u32, force: bool) -> bool {
     let mut command = tokio::process::Command::new("taskkill");
     command.arg("/T");
     if force {
@@ -149,7 +152,7 @@ async fn taskkill(pid: u32, force: bool) {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    let _ = command.status().await;
+    command.status().await.is_ok_and(|status| status.success())
 }
 
 impl ScriptActor {

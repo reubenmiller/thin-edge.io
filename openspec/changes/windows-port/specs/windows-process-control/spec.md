@@ -59,13 +59,14 @@ and SHALL be replaceable by a `[init]` section in `system.toml` as on Linux.
 
 ### Requirement: Termination of process trees on timeout
 
-When a workflow script, an operation plugin or a custom operation exceeds its graceful timeout on Windows, thin-edge.io SHALL request the termination of the process and all its descendants (`taskkill /T`).
+When a workflow script, an operation plugin or a custom operation exceeds its graceful timeout on Windows, thin-edge.io SHALL request the termination of the process and all its descendants (`taskkill /T`),
+and SHALL forcefully terminate them immediately if they cannot be asked to close, as is the case for console processes.
 When the forceful timeout expires, it SHALL forcefully terminate the process tree (`taskkill /T /F`).
 No process started by the command SHALL remain running after the forceful timeout.
 
-#### Scenario: Script exceeding its timeout
-- **WHEN** a workflow script starts a child process and runs longer than its timeout plus the forceful timeout extension
-- **THEN** the script and its child process are terminated
+#### Scenario: Console script exceeding its timeout
+- **WHEN** a workflow script runs in a console process, starts a child process, and runs longer than its timeout
+- **THEN** the script and its child process are terminated when the timeout expires, without waiting for the forceful timeout extension
 - **AND** the operation step is reported as failed on timeout
 
 ### Requirement: Scripts launched through their interpreter

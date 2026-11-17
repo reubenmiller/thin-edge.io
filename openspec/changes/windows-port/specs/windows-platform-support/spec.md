@@ -33,7 +33,7 @@ The matrix SHALL contain at least:
 | SIGHUP log level reload, SIGUSR1 mapper restart | unsupported: restart the service instead |
 | `tedge init` symlinks to the multicall binary | unsupported: not needed, components run as `tedge run <component>` |
 | Ownership and mode of files (`user`, `group`, `mode`) | supported with differences: directory ACL, see access control requirement |
-| Graceful termination on timeout | supported with differences: console processes are killed at the forceful timeout |
+| Graceful termination on timeout | supported with differences: console processes cannot be asked to close and are killed when the timeout expires |
 
 #### Scenario: Matrix covers every binary
 - **WHEN** a new component binary or multicall entry is added to the `tedge` package
