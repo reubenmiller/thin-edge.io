@@ -215,6 +215,9 @@ jobs:
         working-directory: tests/RobotFramework
         env:
           DEVICE_ADAPTER: local
+          # The Cumulocity tests must run (not be skipped) where the secrets are available:
+          # on the upstream repository, except for pull requests from forks
+          C8Y_REQUIRED: ${{ github.repository == 'thin-edge/thin-edge.io' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         run: |
           $include = "${{ inputs.include }}"
           # `$args` is a PowerShell automatic variable, so use another name
@@ -232,7 +235,7 @@ jobs:
           Copy-Item -Recurse -Force C:\ProgramData\tedge\log\* $out -ErrorAction SilentlyContinue
           Copy-Item -Force C:\Windows\Temp\*-scm.log $out -ErrorAction SilentlyContinue
           # Service registrations and the errors reported by the Service Control Manager
-          foreach ($service in "tedge-agent", "tedge-mapper-c8y", "tedge", "mosquitto") {
+          foreach ($service in "tedge-agent", "tedge-mapper-c8y", "tedge-mapper-local", "tedge", "mosquitto") {
             sc.exe qc $service | Out-File -Append "$out/services.txt"
           }
           Get-WinEvent -FilterHashtable @{ LogName = "System"; ProviderName = "Service Control Manager" } -MaxEvents 100 -ErrorAction SilentlyContinue |

@@ -71,6 +71,10 @@ Log upload
 *** Keywords ***
 Custom Setup
     ${base_url}=    Get Environment Variable    C8Y_BASEURL    default=${EMPTY}
+    ${required}=    Get Environment Variable    C8Y_REQUIRED    default=false
+    IF    not $base_url.strip() and $required.lower() == 'true'
+        Fail    Cumulocity credentials (C8Y_BASEURL) are not set, but the Cumulocity tests are required (C8Y_REQUIRED)
+    END
     Skip If    not $base_url.strip()    Cumulocity credentials (C8Y_BASEURL) are not set
     # Imported here, as the library cannot be initialized without the credentials
     Import Library    Cumulocity

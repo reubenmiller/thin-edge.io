@@ -137,6 +137,9 @@ function Register-TedgeService {
 
 Register-TedgeService -Name "tedge-agent"      -DisplayName "thin-edge.io Agent"             -Arguments "run tedge-agent"
 Register-TedgeService -Name "tedge-mapper-c8y" -DisplayName "thin-edge.io Mapper (Cumulocity)" -Arguments "run tedge-mapper c8y"
+# User-defined flows (C:\ProgramData\tedge\mappers\local\flows), registered but not started, as on Linux
+Register-TedgeService -Name "tedge-mapper-local" -DisplayName "thin-edge.io Mapper (local flows)" -Arguments "run tedge-mapper local"
+sc.exe config tedge-mapper-local start= demand | Out-Null
 # Single-process mode (`tedge run all`), registered but not started: use it instead of the services above
 Register-TedgeService -Name "tedge" -DisplayName "thin-edge.io" -Arguments "run all"
 sc.exe config tedge start= demand | Out-Null

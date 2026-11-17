@@ -49,6 +49,8 @@
 - [x] 6.4 Windows implementations of the service keywords and of `Get Logs`
 - [x] 6.5 `tests/RobotFramework/tests/windows/` suite: install and ACL, services and health, CLI, plugins, workflow timeout, `shell_execute` absent
 - [x] 6.6 Windows Cumulocity tests (connect, telemetry, software list, config snapshot, log upload), skipped without credentials
+- [x] 6.8 Windows mapper tests without cloud credentials: flows translation and the `tedge-mapper-local` service (start, flow reload, stop)
+- [x] 6.9 Skip the Cumulocity lookups of `Get Logs` and the suite cleanup when `C8Y_BASEURL` is not set; fail the Cumulocity suite instead of skipping it where the secrets are expected (`C8Y_REQUIRED`)
 - [ ] 6.7 Upstream the Windows local adapter to `device-test-core` and remove the local copy
 
 ## 7. Remaining Windows test gaps

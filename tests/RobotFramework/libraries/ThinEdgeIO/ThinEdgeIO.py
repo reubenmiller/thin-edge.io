@@ -42,17 +42,25 @@ if IS_WINDOWS:
     register_windows_local_adapter()
 
 devices_lib = DeviceLibrary()
-try:
+
+
+def _c8y_is_configured() -> bool:
+    """Whether Cumulocity credentials are set (C8Y_BASEURL)
+
+    The Windows suite runs its local tests without Cumulocity credentials
+    (e.g. on forks), and skips the tests which need Cumulocity.
+    """
+    return bool(os.environ.get("C8Y_BASEURL", "").strip())
+
+
+c8y_lib: Optional[Cumulocity] = None
+if not IS_WINDOWS or _c8y_is_configured():
     c8y_lib = Cumulocity()
-except Exception:  # pylint: disable=broad-except
-    if not IS_WINDOWS:
-        raise
-    # The Windows suite runs its local tests without Cumulocity credentials
-    # (e.g. on forks), and skips the tests which need Cumulocity
+else:
     logging.getLogger(__name__).warning(
-        "Cumulocity is not configured, so the Cumulocity keywords are not available"
+        "Cumulocity is not configured (C8Y_BASEURL is not set), "
+        "so the Cumulocity keywords are not available"
     )
-    c8y_lib = None
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s %(module)s -%(levelname)s- %(message)s"
@@ -167,6 +175,11 @@ class ThinEdgeIO(DeviceLibrary):
         """
         log.info("Suite %s (%s) ending", result.name, result.message)
 
+        if c8y_lib is None:
+            self._stop_mqtt_recorder()
+            super().end_suite(_data, result)
+            return
+
         log.info(
             "Removing the following self-signed certificates (thumbprints): %s",
             self._certificates,
@@ -195,11 +208,13 @@ class ThinEdgeIO(DeviceLibrary):
             except Exception as ex:
                 log.warning("Could not cleanup device. %s", ex)
 
+        self._stop_mqtt_recorder()
+        super().end_suite(_data, result)
+
+    def _stop_mqtt_recorder(self):
         if self._mqtt_recorder is not None:
             self._mqtt_recorder.stop()
             self._mqtt_recorder = None
-
-        super().end_suite(_data, result)
 
     def end_test(self, _data: Any, result: Any):
         """End test hook which is called by Robot Framework
@@ -455,19 +470,10 @@ class ThinEdgeIO(DeviceLibrary):
             return []
 
         device_sn = name or device.get_id()
-        try:
-            managed_object = c8y_lib.c8y.identity.get_object(device_sn, "c8y_Serial")
-            log.info(
-                "Managed Object\n%s", json.dumps(managed_object.to_json(), indent=2)
-            )
-            self.log_operations(managed_object.id)
-        except KeyError:
-            log.info(
-                "Skip getting managed object as it has not been registered in Cumulocity"
-            )
-        except Exception as ex:  # pylint: disable=broad-except
-            # Only log info as not all tests require creating an object in Cumulocity
-            log.warning("Failed to get device managed object. %s", ex)
+        if c8y_lib is None:
+            log.info("Skip getting the managed object as Cumulocity is not configured")
+        else:
+            self._log_managed_object(device_sn)
 
         # Log mqtt messages separately so it is easier to read/debug
         try:
@@ -484,6 +490,22 @@ class ThinEdgeIO(DeviceLibrary):
                 print(hide_sensitive(line))
 
         return log_output
+
+    def _log_managed_object(self, device_sn: str):
+        """Log the device managed object and its operations"""
+        try:
+            managed_object = c8y_lib.c8y.identity.get_object(device_sn, "c8y_Serial")
+            log.info(
+                "Managed Object\n%s", json.dumps(managed_object.to_json(), indent=2)
+            )
+            self.log_operations(managed_object.id)
+        except KeyError:
+            log.info(
+                "Skip getting managed object as it has not been registered in Cumulocity"
+            )
+        except Exception as ex:  # pylint: disable=broad-except
+            # Only log info as not all tests require creating an object in Cumulocity
+            log.warning("Failed to get device managed object. %s", ex)
 
     def _log_device_files(self, device: DeviceAdapter):
         """Log the agent operation logs, the entity stores and the mqtt-log messages"""
@@ -693,14 +715,16 @@ class ThinEdgeIO(DeviceLibrary):
         """
 
         # pylint: disable=line-too-long
-        self.execute_command("""
+        self.execute_command(
+            """
             type -p curl >/dev/null || sudo apt install curl -y
             curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \\
             && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \\
             && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \\
             && sudo apt-get update \\
             && sudo apt-get -y install gh
-        """.lstrip())
+        """.lstrip()
+        )
 
         run_ids = []
         # Also support providing values via csv (e.g. when set from variables)
@@ -716,9 +740,11 @@ class ThinEdgeIO(DeviceLibrary):
         arch = arch_mapping.get(arch, arch)
 
         for i_run_id in run_ids:
-            self.execute_command(f"""
+            self.execute_command(
+                f"""
                 gh run download {i_run_id} -n debian-packages-{arch}-unknown-linux-gnu -R thin-edge/thin-edge.io
-            """.strip())
+            """.strip()
+            )
 
     #
     # Tedge commands

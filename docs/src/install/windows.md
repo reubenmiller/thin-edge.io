@@ -37,7 +37,7 @@ The script:
 - creates the configuration directory `C:\ProgramData\tedge`,
   and restricts it to `SYSTEM` and `Administrators`,
 - writes a default `tedge.toml` with the built-in bridge enabled,
-- registers the `tedge-agent`, `tedge-mapper-c8y` and `tedge` Windows Services.
+- registers the `tedge-agent`, `tedge-mapper-c8y`, `tedge-mapper-local` and `tedge` Windows Services.
 
 The MSIX package registers the same services.
 
@@ -60,6 +60,7 @@ Only the built-in bridge (`mqtt.bridge.built_in = true`) is supported on Windows
 |---|---|---|
 | `tedge-agent` | `tedge.exe run tedge-agent` | Agent: operations and workflows |
 | `tedge-mapper-c8y` | `tedge.exe run tedge-mapper c8y` | Cumulocity mapper and built-in bridge |
+| `tedge-mapper-local` | `tedge.exe run tedge-mapper local` | User-defined flows in `C:\ProgramData\tedge\mappers\local\flows`. Not started by default. |
 | `tedge` | `tedge.exe run all` | Agent and mappers in one process. Use it instead of the two services above. |
 
 Manage them with the usual cmdlets:
