@@ -92,7 +92,13 @@ pub trait SystemServiceManager: Debug + Send + Sync {
     ) -> Result<bool, SystemServiceError>;
 
     /// Returns true when the given executable is found on the `PATH`
+    ///
+    /// On Windows, the thin-edge.io components (`tedge-agent`, `tedge-mapper`) are not separate executables:
+    /// they run as `tedge.exe run <component>`, so they are always available.
     async fn has_executable(&self, executable: &str) -> bool {
+        if cfg!(windows) && is_built_into_tedge(executable) {
+            return true;
+        }
         let executable = executable.to_owned();
         tokio::task::spawn_blocking(move || which::which(executable).is_ok())
             .await
@@ -100,8 +106,36 @@ pub trait SystemServiceManager: Debug + Send + Sync {
     }
 }
 
+/// The components run by `tedge run <component>` which are checked with [SystemServiceManager::has_executable]
+fn is_built_into_tedge(executable: &str) -> bool {
+    matches!(executable, "tedge-agent" | "tedge-mapper")
+}
+
 pub fn service_manager(
     config_root: &Utf8Path,
 ) -> Result<Arc<dyn SystemServiceManager>, SystemTomlError> {
     Ok(Arc::new(GeneralServiceManager::try_new(config_root)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tedge_components_are_built_into_tedge() {
+        assert!(is_built_into_tedge("tedge-agent"));
+        assert!(is_built_into_tedge("tedge-mapper"));
+        assert!(!is_built_into_tedge("mosquitto"));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn tedge_components_are_available_on_windows_without_their_own_executable() {
+        let ttd = tedge_test_utils::fs::TempTedgeDir::new();
+        let manager = service_manager(ttd.path()).unwrap();
+
+        assert!(manager.has_executable("tedge-mapper").await);
+        assert!(manager.has_executable("tedge-agent").await);
+        assert!(!manager.has_executable("not-a-tedge-component").await);
+    }
 }

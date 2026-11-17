@@ -6182,6 +6182,7 @@ dependencies = [
  "camino",
  "strum_macros",
  "tedge_config",
+ "tedge_test_utils",
  "test-case",
  "thiserror 2.0.21",
  "tokio",
