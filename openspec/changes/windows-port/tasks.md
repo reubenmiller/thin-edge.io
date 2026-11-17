@@ -39,16 +39,16 @@
 - [x] 5.2 Add a `cargo clippy -D warnings` step for the Windows target
 - [x] 5.3 Build the release `tedge.exe` once and pass it to the system test job as an artifact
 - [x] 5.4 Add a system test job: install Mosquitto, install tedge from the build, run the Windows Robot Framework suite, upload the reports
-- [ ] 5.5 Exclude the `platform:windows` tag from the Linux Robot Framework runs
+- [x] 5.5 Exclude the `platform:windows` tag from the Linux Robot Framework runs
 
 ## 6. Robot Framework on Windows
 
-- [ ] 6.1 Windows local adapter: PowerShell command execution, environment passed to the process, no sudo, `copy_to` with `shutil`
-- [ ] 6.2 Register the Windows adapter from `ThinEdgeIO` when running on Windows
-- [ ] 6.3 MQTT recorder: paho-mqtt subscription to `#` started in `Setup`, used by `mqtt_match_messages` on Windows
-- [ ] 6.4 Windows implementations of the service keywords and of `Get Logs`
-- [ ] 6.5 `tests/RobotFramework/tests/windows/` suite: install and ACL, services and health, CLI, plugins, workflow timeout, `shell_execute` absent
-- [ ] 6.6 Windows Cumulocity tests (connect, telemetry, software list, config snapshot, log upload), skipped without credentials
+- [x] 6.1 Windows local adapter: PowerShell command execution, environment passed to the process, no sudo, `copy_to` with `shutil`
+- [x] 6.2 Register the Windows adapter from `ThinEdgeIO` when running on Windows
+- [x] 6.3 MQTT recorder: paho-mqtt subscription to `#` started in `Setup`, used by `mqtt_match_messages` on Windows
+- [x] 6.4 Windows implementations of the service keywords and of `Get Logs`
+- [x] 6.5 `tests/RobotFramework/tests/windows/` suite: install and ACL, services and health, CLI, plugins, workflow timeout, `shell_execute` absent
+- [x] 6.6 Windows Cumulocity tests (connect, telemetry, software list, config snapshot, log upload), skipped without credentials
 - [ ] 6.7 Upstream the Windows local adapter to `device-test-core` and remove the local copy
 
 ## 7. Remaining Windows test gaps
@@ -56,4 +56,5 @@
 - [ ] 7.1 Replace hard-coded `/etc/tedge` fixtures in tests ignored on Windows with `TempTedgeDir` paths
 - [ ] 7.2 Match the Windows connection-abort error (`WSAECONNABORTED`) in the TLS rejection tests
 - [ ] 7.3 Add a timeout to `assert_rx_stream` and align the `notify` tests with `ReadDirectoryChangesW` events
+- [ ] 7.5 Run the Windows workflow on GitHub Actions and fix the failures it reports
 - [ ] 7.4 Audit every remaining `cfg_attr(windows, ignore)` and record the reason category in the support matrix
