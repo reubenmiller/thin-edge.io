@@ -85,8 +85,8 @@ Custom Setup
     Restart Agent And Wait Until Up
 
     # Debug logs of the mapper, to analyze failures from the CI logs
-    Execute Command
-    ...    cmd=if (-not (Select-String -Quiet -Path '${TEDGE_DIR}\\system.toml' -Pattern 'tedge-mapper-c8y' -ErrorAction SilentlyContinue)) { Add-Content -Path '${TEDGE_DIR}\\system.toml' -Value @('', '[log]', 'tedge-mapper-c8y = "debug"') }
+    # The tests run on the device itself, and system.toml is not created by the installation
+    OperatingSystem.Append To File    ${TEDGE_DIR}\\system.toml    \n[log]\ntedge-mapper-c8y = "debug"\n
     Execute Command    tedge disconnect c8y    ignore_exit_code=${True}
     Execute Command    tedge cert remove    ignore_exit_code=${True}
     Execute Command    tedge config set mqtt.bridge.built_in true
