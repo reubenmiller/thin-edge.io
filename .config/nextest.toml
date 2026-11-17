@@ -21,3 +21,10 @@ test-group = 'serial'
 # This is only a backstop so a stuck test fails instead of hanging.
 filter = 'package(tedge_mqtt_bridge)'
 slow-timeout = { period = "30s", terminate-after = 2 }
+
+[[profile.default.overrides]]
+# Property tests writing the entity store for each case: they take 5-30s on the Windows CI runners,
+# whose file system is slower, so they are given more time there rather than fewer cases.
+platform = 'cfg(windows)'
+filter = 'package(tedge-agent) and test(/^entity_manager::tests::it_works_/)'
+slow-timeout = { period = "30s", terminate-after = 4 }
