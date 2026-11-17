@@ -261,7 +261,7 @@ fn test_verify_command_does_not_probe_the_tedge_agent_service() {
     let config_content = format!(
         r###"
 [[files]]
-path = "{}"
+path = '{}'
 type = "tedge.conf"
 service = "tedge-agent"
 "###,

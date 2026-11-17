@@ -384,8 +384,13 @@ mod tests {
             "--config-dir".to_string(),
             command.config_dir.to_string(),
         ];
+        // The arguments are logged with debug formatting, which escapes the Windows path separators
         for item in expected_command {
-            assert!(content.contains(item.as_str()));
+            let logged = format!("{item:?}");
+            assert!(
+                content.contains(item.as_str()) || content.contains(logged.as_str()),
+                "{item} not found in {content}"
+            );
         }
     }
 
@@ -394,10 +399,11 @@ mod tests {
         let ttd = TempTedgeDir::new();
         let command = DiagCollectCommand::new(&ttd);
         let diag_root_dir = TedgePaths::from_root_with_defaults(&command.diag_dir, "", "");
-        let plugin_path = command.first_plugin_dir().join("plugin_env.sh");
-        with_exec_permission(
-            &plugin_path,
+        let plugin_path = with_plugin_script(
+            command.first_plugin_dir(),
+            "plugin_env",
             "#!/bin/sh\necho \"TEDGE_CONFIG_DIR=$TEDGE_CONFIG_DIR\"",
+            "@echo off\r\necho TEDGE_CONFIG_DIR=%TEDGE_CONFIG_DIR%",
         );
 
         let status = command

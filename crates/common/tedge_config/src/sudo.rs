@@ -274,6 +274,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "sudo is not used on Windows")]
     fn an_installed_sudo_prefixes_the_script() {
         let sudo = SudoCommandBuilder::with_program("echo");
         let echo = Utf8PathBuf::from_path_buf(which::which("echo").unwrap()).unwrap();

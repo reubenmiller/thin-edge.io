@@ -1833,6 +1833,7 @@ async fn json_custom_operation_receives_cloud_profile_env() {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "uses printf to produce escape sequences")]
 async fn custom_operation_csv_result_is_reported_without_escape_sequences() {
     let ttd = TempTedgeDir::new();
     ttd.dir("operations")

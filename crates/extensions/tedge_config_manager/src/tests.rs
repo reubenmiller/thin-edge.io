@@ -58,6 +58,15 @@ struct TestHandle {
     pub steps: StepMessageBox,
 }
 
+/// The end of line written by the mocked `file` plugin, JSON-escaped: `.cmd` plugins on Windows write CRLF
+fn plugin_eol(expected_payload: &str) -> String {
+    if cfg!(windows) {
+        expected_payload.replace("\\n\"", "\\r\\n\"")
+    } else {
+        expected_payload.to_string()
+    }
+}
+
 fn prepare() -> Result<TempTedgeDir, anyhow::Error> {
     let tempdir = TempTedgeDir::new();
     let tempdir_path = tempdir.path().as_str().replace('\\', "/");
@@ -477,7 +486,7 @@ async fn request_config_snapshot_that_does_not_exist() -> Result<(), anyhow::Err
         mqtt.recv().await,
         Some(MqttMessage::new(
             &config_topic,
-            r#"{"status":"failed","reason":"Config plugin 'file' error: Command execution failed: Unknown config type: type_five\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/config-snapshot/type_five-1234","type":"type_five"}"#
+            plugin_eol(r#"{"status":"failed","reason":"Config plugin 'file' error: Command execution failed: Unknown config type: type_five\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/config-snapshot/type_five-1234","type":"type_five"}"#)
         ).with_retain())
     );
 

@@ -1553,8 +1553,8 @@ mod tests {
                 .with_raw_content("user = ''\ngroup = ''\n");
             ttd.file("tedge.toml").with_raw_content(&format!(
                 "c8y.url = \"example.com\"
-                c8y.device.cert_path = \"{cert_path}\"
-                c8y.device.key_path = \"{key_path}\""
+                c8y.device.cert_path = '{cert_path}'
+                c8y.device.key_path = '{key_path}'"
             ));
             TEdgeConfig::load(ttd.path()).await.unwrap()
         }

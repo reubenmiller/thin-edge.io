@@ -60,9 +60,18 @@ if "%~2"=="type_two" (
     echo Some content
     exit /b 0
 )
-echo No logs found for log type "%~2" 1>&2
+>&2 echo No logs found for log type "%~2"
 exit /b 1
 "#;
+
+/// The end of line written by the mocked `file` plugin, JSON-escaped: `.cmd` plugins on Windows write CRLF
+fn plugin_eol(expected_payload: &str) -> String {
+    if cfg!(windows) {
+        expected_payload.replace("\\n\"", "\\r\\n\"")
+    } else {
+        expected_payload.to_string()
+    }
+}
 
 /// Preparing a temp directory with a mocked `file` plugin.
 fn prepare() -> Result<TempTedgeDir, anyhow::Error> {
@@ -665,7 +674,7 @@ async fn request_logtype_that_does_not_exist() -> Result<(), anyhow::Error> {
         mqtt.recv().await,
         Some(MqttMessage::new(
             &logfile_topic,
-            r#"{"status":"failed","reason":"Failed to initiate log file upload: Log plugin 'file' error: Get command error: No logs found for log type \"type_four\"\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/log_upload/type_four-1234","type":"type_four","dateFrom":"1970-01-01T00:00:00Z","dateTo":"1970-01-01T00:00:30Z","lines":1000}"#
+            plugin_eol(r#"{"status":"failed","reason":"Failed to initiate log file upload: Log plugin 'file' error: Get command error: No logs found for log type \"type_four\"\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/log_upload/type_four-1234","type":"type_four","dateFrom":"1970-01-01T00:00:00Z","dateTo":"1970-01-01T00:00:30Z","lines":1000}"#)
         ).with_retain())
     );
 
@@ -771,7 +780,7 @@ async fn read_log_from_file_that_does_not_exist() -> Result<(), anyhow::Error> {
         mqtt.recv().await,
         Some(MqttMessage::new(
             &logfile_topic,
-            r#"{"status":"failed","reason":"Failed to initiate log file upload: Log plugin 'file' error: Get command error: No logs found for log type \"type_three\"\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/log_upload/type_three-1234","type":"type_three","dateFrom":"1970-01-01T00:00:00Z","dateTo":"1970-01-01T00:00:30Z","lines":1000}"#
+            plugin_eol(r#"{"status":"failed","reason":"Failed to initiate log file upload: Log plugin 'file' error: Get command error: No logs found for log type \"type_three\"\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/log_upload/type_three-1234","type":"type_three","dateFrom":"1970-01-01T00:00:00Z","dateTo":"1970-01-01T00:00:30Z","lines":1000}"#)
         ).with_retain())
     );
 

@@ -1108,6 +1108,7 @@ fn builtin_workflows_are_valid_operation_workflows() {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "sudo is not used on Windows")]
 async fn an_elevated_script_is_launched_through_sudo() {
     let tmp_dir = Arc::new(TempTedgeDir::new());
     let TestHandler {
@@ -1443,6 +1444,7 @@ async fn a_missing_sudo_is_reported_in_the_operation_log() {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "sudo is not used on Windows")]
 async fn an_elevated_background_script_moves_on_before_being_launched() {
     let tmp_dir = Arc::new(TempTedgeDir::new());
     let TestHandler {

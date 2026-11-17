@@ -79,7 +79,7 @@ impl SupportedOperations {
             self.base_ops_dir.file(c8y_operation_name)?
         } else {
             self.base_ops_dir
-                .dir(device_xid)?
+                .dir(device_dir::dir_name_from_xid(device_xid).as_ref())?
                 .file(c8y_operation_name)?
         };
 

@@ -184,7 +184,9 @@ impl ServiceActionCommand {
     async fn run_plugin_action(&self) -> Result<(), ServiceActionError> {
         let plugin = self.find_plugin().await?;
 
-        let mut command = LoggedCommand::from_command(std::process::Command::new(&plugin), ".");
+        // On Windows, the plugin is started by its interpreter (e.g. PowerShell for a `.ps1` plugin)
+        let plugin_command = tedge_config::SudoCommandBuilder::enabled(false).command(&plugin);
+        let mut command = LoggedCommand::from_command(plugin_command, ".");
         command
             .arg(self.action.as_str())
             .arg(self.service_name.as_str());
@@ -252,12 +254,26 @@ impl ServiceActionCommand {
     }
 
     /// Returns the first plugin file found in the configured plugin paths for the service type.
+    ///
+    /// On Windows, the plugin file name is the service type with one of the plugin extensions,
+    /// e.g. `container.ps1` for the `container` type (see [`tedge_utils::plugins`]).
     async fn find_plugin(&self) -> Result<Utf8PathBuf, ServiceActionError> {
+        let service_type = self.service_type.as_str();
+        let file_names: Vec<String> = if cfg!(windows) {
+            tedge_utils::plugins::WINDOWS_PLUGIN_EXTENSIONS
+                .iter()
+                .map(|ext| format!("{service_type}.{ext}"))
+                .collect()
+        } else {
+            vec![service_type.to_string()]
+        };
         for dir in &self.plugin_paths {
-            let plugin = dir.join(self.service_type.as_str());
-            if let Ok(metadata) = tokio::fs::metadata(&plugin).await {
-                if metadata.is_file() {
-                    return Ok(plugin);
+            for file_name in &file_names {
+                let plugin = dir.join(file_name);
+                if let Ok(metadata) = tokio::fs::metadata(&plugin).await {
+                    if metadata.is_file() {
+                        return Ok(plugin);
+                    }
                 }
             }
         }
@@ -421,12 +437,18 @@ async fn service_type_completions_for_config_dir(
                 continue;
             };
             while let Ok(Some(entry)) = entries.next_entry().await {
-                let is_file = tokio::fs::metadata(entry.path())
+                let path = entry.path();
+                let is_file = tokio::fs::metadata(&path)
                     .await
                     .is_ok_and(|metadata| metadata.is_file());
-                let name = entry.file_name().to_string_lossy().into_owned();
-                if is_file && name.parse::<ServiceType>().is_ok() {
-                    types.insert(name);
+                if !is_file || !tedge_utils::plugins::is_plugin_candidate(&path) {
+                    continue;
+                }
+                let Some(name) = tedge_utils::plugins::plugin_name(&path) else {
+                    continue;
+                };
+                if name.parse::<ServiceType>().is_ok() {
+                    types.insert(name.to_string());
                 }
             }
         }
@@ -439,7 +461,9 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use tedge_api::workflow::extract_script_output;
+    #[cfg(unix)]
     use tedge_test_utils::fs::with_exec_permission;
+    use tedge_test_utils::fs::with_plugin_script;
     use tedge_test_utils::fs::TempTedgeDir;
     use test_case::test_case;
 
@@ -495,6 +519,7 @@ mod tests {
     #[tokio::test]
     async fn an_init_system_failure_is_reported_with_its_exit_code() {
         let config_dir = TempTedgeDir::new();
+        #[cfg(unix)]
         config_dir.file("system.toml").with_raw_content(
             r#"[init]
 name = "test"
@@ -504,6 +529,18 @@ restart = ["/bin/true", "{}"]
 stop = ["/bin/true", "{}"]
 enable = ["/bin/true", "{}"]
 disable = ["/bin/true", "{}"]
+"#,
+        );
+        #[cfg(windows)]
+        config_dir.file("system.toml").with_raw_content(
+            r#"[init]
+name = "test"
+is_available = ["cmd.exe", "/c", "exit 0"]
+is_active = ["cmd.exe", "/c", "echo {} is inactive & exit 3"]
+restart = ["cmd.exe", "/c", "exit 0"]
+stop = ["cmd.exe", "/c", "exit 0"]
+enable = ["cmd.exe", "/c", "exit 0"]
+disable = ["cmd.exe", "/c", "exit 0"]
 "#,
         );
 
@@ -520,6 +557,8 @@ disable = ["/bin/true", "{}"]
     }
 
     #[tokio::test]
+    // Asserts the POSIX signals used to stop the command on timeout
+    #[cfg(unix)]
     async fn a_plugin_not_completing_in_time_is_terminated() {
         let dir = TempTedgeDir::new();
         let plugin = dir.path().join("container");
@@ -545,6 +584,8 @@ disable = ["/bin/true", "{}"]
     }
 
     #[tokio::test]
+    // Asserts the POSIX signals used to stop the command on timeout
+    #[cfg(unix)]
     async fn a_plugin_ignoring_sigterm_is_not_reported_as_stopped_with_sigterm() {
         let dir = TempTedgeDir::new();
         let plugin = dir.path().join("container");
@@ -570,6 +611,8 @@ disable = ["/bin/true", "{}"]
     }
 
     #[tokio::test]
+    // Asserts the POSIX signals used to stop the command on timeout
+    #[cfg(unix)]
     async fn an_init_system_command_not_completing_in_time_is_terminated() {
         let config_dir = TempTedgeDir::new();
         config_dir.file("system.toml").with_raw_content(
@@ -788,7 +831,7 @@ is_active = ["/bin/true", "{}"]
         service_plugin(second.path(), "lxc");
         second.dir("not-a-plugin");
         config_dir.file("tedge.toml").with_raw_content(&format!(
-            "service.plugin_paths = [\"{}\", \"{}\", \"/no/such/directory\"]",
+            "service.plugin_paths = ['{}', '{}', '/no/such/directory']",
             first.path(),
             second.path()
         ));
@@ -814,9 +857,9 @@ is_active = ["/bin/true", "{}"]
     }
 
     fn service_plugin(dir: &Utf8Path, service_type: &str) -> Utf8PathBuf {
-        let plugin = dir.join(service_type);
-        with_exec_permission(
-            &plugin,
+        with_plugin_script(
+            dir,
+            service_type,
             r#"#!/bin/sh
 echo "called with: $*"
 case "$1" in
@@ -825,24 +868,40 @@ case "$1" in
   *) echo "$1 is not implemented" >&2; exit 2;;
 esac
 "#,
-        );
-        plugin
+            r#"@echo off
+echo called with: %*
+if "%~1"=="restart" exit /b 0
+if "%~1"=="stop" (
+  >&2 echo starting %~2
+  >&2 echo %~1 failed on %~2
+  exit /b 1
+)
+>&2 echo %~1 is not implemented
+exit /b 2
+"#,
+        )
     }
 
     fn init_system(config_dir: &TempTedgeDir) -> Utf8PathBuf {
         // Each action leaves a file named after the action and the service it was run on
         let done = config_dir.path().join("done");
+        // The command creating an empty file, as a TOML array prefix
+        let touch = if cfg!(windows) {
+            "'cmd.exe', '/c', 'type nul >"
+        } else {
+            "'/usr/bin/touch', '"
+        };
         config_dir.file("system.toml").with_raw_content(&format!(
             r#"[init]
 name = "test"
-is_available = ["/usr/bin/touch", "{done}.is_available"]
-is_active = ["/usr/bin/touch", "{done}.is_active.{{}}"]
-start = ["/usr/bin/touch", "{done}.start.{{}}"]
-stop = ["/usr/bin/touch", "{done}.stop.{{}}"]
-restart = ["/usr/bin/touch", "{done}.restart.{{}}"]
-enable = ["/usr/bin/touch", "{done}.enable.{{}}"]
-disable = ["/usr/bin/touch", "{done}.disable.{{}}"]
-reload = ["/usr/bin/touch", "{done}.reload.{{}}"]
+is_available = [{touch}{done}.is_available']
+is_active = [{touch}{done}.is_active.{{}}']
+start = [{touch}{done}.start.{{}}']
+stop = [{touch}{done}.stop.{{}}']
+restart = [{touch}{done}.restart.{{}}']
+enable = [{touch}{done}.enable.{{}}']
+disable = [{touch}{done}.disable.{{}}']
+reload = [{touch}{done}.reload.{{}}']
 "#
         ));
         done
