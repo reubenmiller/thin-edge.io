@@ -1,10 +1,8 @@
-use nix::unistd::Pid;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 use std::time::Duration;
-use tokio::signal::unix;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Interruption {
@@ -12,6 +10,37 @@ pub enum Interruption {
     Interrupted,
 }
 
+pub enum Signal {
+    SIGTERM,
+    SIGKILL,
+}
+
+struct TimeoutHandler {
+    timeout: Option<Pin<Box<tokio::time::Sleep>>>,
+}
+
+impl Future for TimeoutHandler {
+    type Output = Option<()>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.timeout.as_mut() {
+            Some(timeout) => timeout.as_mut().poll(cx).map(Some),
+            None => Poll::Ready(None),
+        }
+    }
+}
+
+impl From<Option<tokio::time::Sleep>> for TimeoutHandler {
+    fn from(timeout: Option<tokio::time::Sleep>) -> Self {
+        TimeoutHandler {
+            timeout: timeout.map(Box::pin),
+        }
+    }
+}
+
+#[cfg(unix)]
+use tokio::signal::unix;
+
+#[cfg(unix)]
 pub struct TermSignals {
     sigint: SignalHandler,
     sigquit: SignalHandler,
@@ -19,6 +48,7 @@ pub struct TermSignals {
     timeout: TimeoutHandler,
 }
 
+#[cfg(unix)]
 impl TermSignals {
     pub fn new(timeout: Option<Duration>) -> TermSignals {
         let sigint = unix::signal(unix::SignalKind::interrupt())
@@ -57,10 +87,12 @@ impl TermSignals {
     }
 }
 
+#[cfg(unix)]
 struct SignalHandler {
     signal: Option<unix::Signal>,
 }
 
+#[cfg(unix)]
 impl Future for SignalHandler {
     type Output = Option<()>;
 
@@ -72,45 +104,72 @@ impl Future for SignalHandler {
     }
 }
 
+#[cfg(unix)]
 impl From<Option<unix::Signal>> for SignalHandler {
     fn from(signal: Option<unix::Signal>) -> Self {
         SignalHandler { signal }
     }
 }
 
-struct TimeoutHandler {
-    timeout: Option<Pin<Box<tokio::time::Sleep>>>,
+// On non-unix platforms (Windows), SIGTERM/SIGQUIT don't exist; ctrl_c is the
+// only interactive termination signal.
+#[cfg(not(unix))]
+pub struct TermSignals {
+    timeout: TimeoutHandler,
 }
 
-impl Future for TimeoutHandler {
-    type Output = Option<()>;
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.timeout.as_mut() {
-            Some(timeout) => timeout.as_mut().poll(cx).map(Some),
-            None => Poll::Ready(None),
+#[cfg(not(unix))]
+impl TermSignals {
+    pub fn new(timeout: Option<Duration>) -> TermSignals {
+        let timeout = timeout.map(tokio::time::sleep).into();
+        TermSignals { timeout }
+    }
+
+    pub async fn might_interrupt<F, O>(&mut self, future: F) -> Result<O, Interruption>
+    where
+        F: Future<Output = O>,
+    {
+        tokio::select! {
+            _ = async { let _ = tokio::signal::ctrl_c().await; } => Err(Interruption::Interrupted),
+            Some(_) = &mut self.timeout => Err(Interruption::Timeout),
+            outcome = future => Ok(outcome),
         }
     }
 }
 
-impl From<Option<tokio::time::Sleep>> for TimeoutHandler {
-    fn from(timeout: Option<tokio::time::Sleep>) -> Self {
-        TimeoutHandler {
-            timeout: timeout.map(Box::pin),
-        }
-    }
-}
-
-pub enum Signal {
-    SIGTERM,
-    SIGKILL,
-}
-
-/// Send a signal to all the processes of a process group
+/// Send a signal to all the processes of a process group.
+///
+/// On Windows, where there are no POSIX signals, the process tree rooted at `pgid` is terminated
+/// with `taskkill /T`: `SIGTERM` asks the processes to close (honored by GUI applications only),
+/// `SIGKILL` forcefully terminates them (`taskkill /T /F`).
 pub fn terminate_process_group(pgid: u32, signal_type: Signal) {
-    let pgid: Pid = nix::unistd::Pid::from_raw(pgid as nix::libc::pid_t);
-    let signal = match signal_type {
-        Signal::SIGTERM => nix::sys::signal::SIGTERM,
-        Signal::SIGKILL => nix::sys::signal::SIGKILL,
-    };
-    let _ = nix::sys::signal::killpg(pgid, signal);
+    #[cfg(unix)]
+    {
+        use nix::unistd::Pid;
+        let pgid: Pid = Pid::from_raw(pgid as nix::libc::pid_t);
+        let signal = match signal_type {
+            Signal::SIGTERM => nix::sys::signal::SIGTERM,
+            Signal::SIGKILL => nix::sys::signal::SIGKILL,
+        };
+        let _ = nix::sys::signal::killpg(pgid, signal);
+    }
+    #[cfg(windows)]
+    {
+        let mut command = std::process::Command::new("taskkill");
+        command.arg("/T");
+        if matches!(signal_type, Signal::SIGKILL) {
+            command.arg("/F");
+        }
+        let _ = command
+            .arg("/PID")
+            .arg(pgid.to_string())
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (pgid, signal_type);
+    }
 }

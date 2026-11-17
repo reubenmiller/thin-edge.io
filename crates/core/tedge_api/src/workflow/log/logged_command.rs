@@ -2,7 +2,6 @@ use crate::CommandLog;
 use std::ffi::OsStr;
 use std::future::Future;
 use std::io::Cursor;
-use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::ExitStatus;
 use std::process::Output;
@@ -262,7 +261,11 @@ impl LoggedCommand {
     }
 
     pub fn spawn(&mut self) -> Result<LoggingChild, std::io::Error> {
-        let child = self.command.process_group(0).spawn()?;
+        // Start the command in its own process group, so all its processes can be killed on timeout.
+        // On Windows, the processes started by the command are found from the process tree.
+        #[cfg(unix)]
+        self.command.process_group(0);
+        let child = self.command.spawn()?;
         Ok(LoggingChild {
             command_line: self.to_string(),
             inner_child: child,
@@ -290,10 +293,14 @@ impl LoggedCommand {
                         .write_all(format!("Exit status: {code} ({exit_code_msg})\n\n").as_bytes())
                         .await?
                 };
-                if let Some(signal) = &output.status.signal() {
-                    logger
-                        .write_all(format!("Killed by signal: {signal}\n\n").as_bytes())
-                        .await?
+                #[cfg(unix)]
+                {
+                    use std::os::unix::process::ExitStatusExt;
+                    if let Some(signal) = &output.status.signal() {
+                        logger
+                            .write_all(format!("Killed by signal: {signal}\n\n").as_bytes())
+                            .await?
+                    }
                 }
 
                 // Log stderr then stdout, so the flow reads chronologically
@@ -347,10 +354,12 @@ impl<'a> From<&'a std::process::Output> for CommandOutput<'a> {
     }
 }
 
-#[cfg(test)]
+// These tests check the termination of process groups with POSIX signals
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
+    use std::os::unix::process::ExitStatusExt;
     use tedge_test_utils::fs::TempTedgeDir;
 
     #[tokio::test]

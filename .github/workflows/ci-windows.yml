@@ -1,0 +1,169 @@
+name: Windows CI
+
+on:
+  push:
+    branches:
+      - feat/windows-port-phase1
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+permissions:
+  contents: read
+
+jobs:
+  test-windows:
+    name: Build and test (windows-latest)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Retrieve MSRV
+        id: rust_version
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: Cargo.toml
+          field: "workspace.package.rust-version"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust_version.outputs.value }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      # Compilation check — fast feedback before spending time building test binaries.
+      # tedge-p11-server is unix-only (gated with #![cfg(unix)]) and has no main on Windows.
+      - name: cargo check
+        run: >
+          cargo check
+          --workspace
+          --exclude tedge-p11-server
+        shell: pwsh
+
+      # Mirror the Linux CI test invocation (minus coverage).
+      # Tests use rumqttd as an embedded broker — no external Mosquitto needed.
+      # Unix-specific tests are skipped via #[cfg_attr(not(unix), ignore)] or
+      # #[cfg_attr(windows, ignore)] annotations.
+      - name: cargo nextest run
+        run: >
+          cargo nextest run
+          --no-fail-fast
+          --locked
+          --workspace
+          --exclude tedge-p11-server
+          --all-features
+          --all-targets
+        shell: pwsh
+
+      # Build the tedge binary as a debug artifact for manual startup diagnosis.
+      # Runs even if tests fail so the artifact is always available for investigation.
+      # Debug build preserves symbols for better RUST_BACKTRACE output.
+      - name: Build tedge binary (debug)
+        if: always()
+        run: cargo build --package tedge --locked
+        shell: pwsh
+
+      - name: Upload tedge binary artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tedge-windows-debug
+          path: |
+            target/debug/tedge.exe
+            configuration/contrib/sm-plugins/winget.ps1
+            configuration/contrib/sm-plugins/install.ps1
+          retention-days: 14
+
+  package-windows:
+    name: Package MSIX+APPX (${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            cargo_target: x86_64-pc-windows-msvc
+          - arch: arm64
+            cargo_target: aarch64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Validate the manifest early — before spending time on the cargo build.
+      # Uses makeappx.exe with stub files so no compiled binary is needed.
+      # Run this locally too: pwsh configuration/package_scripts/windows/validate-manifest.ps1
+      - name: Validate AppxManifest.xml
+        run: pwsh configuration/package_scripts/windows/validate-manifest.ps1 -Arch ${{ matrix.arch }}
+        shell: pwsh
+
+      - name: Retrieve MSRV
+        id: rust_version
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: Cargo.toml
+          field: "workspace.package.rust-version"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust_version.outputs.value }}
+          targets: ${{ matrix.cargo_target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.cargo_target }}
+
+      - name: Build tedge (release)
+        run: cargo build --package tedge --locked --release --target ${{ matrix.cargo_target }}
+        shell: pwsh
+
+      - name: Determine version
+        id: version
+        run: |
+          $tag = git describe --tags --always --match 'v[0-9]*' 2>$null
+          if ($tag -match '^v(\d+\.\d+\.\d+)') {
+            $semver = $Matches[1]
+          } else {
+            $semver = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' |
+              Select-Object -First 1).Matches.Groups[1].Value
+          }
+          echo "GIT_SEMVER=$semver" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      # package.ps1 auto-creates a dev cert when no MSIX_SIGNING_CERT_THUMBPRINT
+      # is set, signs all packages with it, and writes tedge-dev.cer to
+      # target\packages\ alongside the MSIX/APPX/ZIP artifacts.
+      - name: Build MSIX and APPX packages
+        run: >
+          pwsh configuration/package_scripts/windows/package.ps1
+          -Version "$env:GIT_SEMVER"
+          -Arch "${{ matrix.arch }}"
+          -OutputDir "target\packages"
+        shell: pwsh
+
+      # Copy trust-dev-cert.ps1 into the output directory so it ships
+      # alongside tedge-dev.cer in the artifact.
+      - name: Stage trust script with packages
+        run: >
+          Copy-Item
+          configuration/package_scripts/windows/trust-dev-cert.ps1
+          target/packages/trust-dev-cert.ps1
+        shell: pwsh
+
+      - name: Upload packages artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tedge-windows-${{ matrix.arch }}
+          path: |
+            target/packages/*.msix
+            target/packages/*.appx
+            target/packages/*.zip
+            target/packages/*.cer
+            target/packages/trust-dev-cert.ps1
+          retention-days: 30

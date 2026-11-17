@@ -2627,9 +2627,19 @@ async fn assert_no_message_or_actor_exit<T>(
 }
 
 fn script_output(code: i32, stdout: &str) -> Output {
-    use std::os::unix::process::ExitStatusExt;
+    // On Unix, the raw wait status holds the exit code in its second byte
+    #[cfg(unix)]
+    let status = {
+        use std::os::unix::process::ExitStatusExt;
+        std::process::ExitStatus::from_raw(code << 8)
+    };
+    #[cfg(windows)]
+    let status = {
+        use std::os::windows::process::ExitStatusExt;
+        std::process::ExitStatus::from_raw(code as u32)
+    };
     Output {
-        status: std::process::ExitStatus::from_raw(code << 8),
+        status,
         stdout: stdout.as_bytes().to_vec(),
         stderr: vec![],
     }

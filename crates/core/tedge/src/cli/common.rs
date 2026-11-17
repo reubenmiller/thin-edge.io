@@ -442,7 +442,6 @@ pub async fn is_run_all_active(service_manager: &dyn SystemServiceManager) -> bo
 /// A [SystemServiceManager] recording the actions it is asked to run, for unit tests
 #[cfg(test)]
 pub(crate) mod test_service_manager {
-    use std::os::unix::process::ExitStatusExt;
     use std::process::ExitStatus;
     use std::sync::Mutex;
     use tedge_system_services::ExecCommand;
@@ -515,7 +514,7 @@ pub(crate) mod test_service_manager {
             self.actions.lock().unwrap().push(service_command.clone());
             Ok(ServiceCommandOutcome {
                 service_command,
-                status: ExitStatus::from_raw(0),
+                status: ExitStatus::default(),
                 stdout: String::new(),
                 stderr: String::new(),
             })

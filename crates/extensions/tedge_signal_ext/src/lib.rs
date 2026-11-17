@@ -15,7 +15,6 @@ use tedge_actors::RuntimeRequestSink;
 use tedge_actors::Sender;
 use tedge_actors::SimpleMessageBox;
 use tedge_actors::SimpleMessageBoxBuilder;
-use tokio::signal::unix;
 
 pub type SignalMessageBox = SimpleMessageBox<NoMessage, RuntimeAction>;
 
@@ -68,24 +67,39 @@ impl Actor for SignalActor {
     }
 
     async fn run(mut self) -> Result<(), RuntimeError> {
-        let mut sig_int = unix::signal(unix::SignalKind::interrupt())
-            .map_err(|e| RuntimeError::ActorError(e.into()))?;
-        let mut sig_term = unix::signal(unix::SignalKind::terminate())
-            .map_err(|e| RuntimeError::ActorError(e.into()))?;
-        let mut sig_quit = unix::signal(unix::SignalKind::quit())
-            .map_err(|e| RuntimeError::ActorError(e.into()))?;
-        loop {
-            tokio::select! {
-                _ = self.messages.recv() => return Ok(()),
-                _ = sig_int.recv() => {
-                    self.messages.send(RuntimeAction::Shutdown).await?
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix;
+            let mut sig_int = unix::signal(unix::SignalKind::interrupt())
+                .map_err(|e| RuntimeError::ActorError(e.into()))?;
+            let mut sig_term = unix::signal(unix::SignalKind::terminate())
+                .map_err(|e| RuntimeError::ActorError(e.into()))?;
+            let mut sig_quit = unix::signal(unix::SignalKind::quit())
+                .map_err(|e| RuntimeError::ActorError(e.into()))?;
+            loop {
+                tokio::select! {
+                    _ = self.messages.recv() => return Ok(()),
+                    _ = sig_int.recv() => {
+                        self.messages.send(RuntimeAction::Shutdown).await?
+                    }
+                    _ = sig_term.recv() => {
+                        self.messages.send(RuntimeAction::Shutdown).await?
+                    }
+                    _ = sig_quit.recv() => {
+                        self.messages.send(RuntimeAction::Shutdown).await?
+                    },
                 }
-                _ = sig_term.recv() => {
-                    self.messages.send(RuntimeAction::Shutdown).await?
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            loop {
+                tokio::select! {
+                    _ = self.messages.recv() => return Ok(()),
+                    _ = async { let _ = tokio::signal::ctrl_c().await; } => {
+                        self.messages.send(RuntimeAction::Shutdown).await?
+                    }
                 }
-                _ = sig_quit.recv() => {
-                    self.messages.send(RuntimeAction::Shutdown).await?
-                },
             }
         }
     }

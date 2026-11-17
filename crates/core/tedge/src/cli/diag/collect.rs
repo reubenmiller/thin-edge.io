@@ -8,7 +8,9 @@ use camino::Utf8PathBuf;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use std::collections::BTreeSet;
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::process::ExitStatus;
 use std::time::Duration;
@@ -18,6 +20,7 @@ use tedge_config::models::AbsolutePath;
 use tedge_config::TEdgeConfig;
 use tedge_utils::paths::TedgePaths;
 use tracing::debug;
+#[cfg(unix)]
 use uzers;
 
 #[derive(Debug)]
@@ -225,25 +228,36 @@ async fn validate_plugin(path: &Utf8Path, logger: &mut DualLogger) -> bool {
 
     match tokio::fs::metadata(path).await {
         Ok(metadata) => {
-            if metadata.permissions().mode() & 0o111 == 0 {
+            #[cfg(unix)]
+            {
+                if metadata.permissions().mode() & 0o111 == 0 {
+                    logger.warning(&format!("Skipping file: {path} (not executable)"));
+                    return false;
+                }
+
+                // extra metadata check when the process is running by the root user for the security
+                if uzers::get_current_uid() == 0 {
+                    if metadata.uid() != 0 {
+                        logger.warning(&format!("Skipping file: {path} (not owned by root)"));
+                        return false;
+                    }
+                    if metadata.permissions().mode() & 0o022 != 0 {
+                        logger.warning(&format!(
+                            "Skipping file: {path} (writable by non-root users)",
+                        ));
+                        return false;
+                    }
+                }
+            }
+            // On Windows, executable detection is by file extension only;
+            // ownership checks are not applicable.
+            #[cfg(windows)]
+            if !tedge_utils::plugins::has_windows_plugin_extension(path.as_std_path()) {
                 logger.warning(&format!("Skipping file: {path} (not executable)"));
                 return false;
             }
 
-            // extra metadata check when the process is running by the root user for the security
-            if uzers::get_current_uid() == 0 {
-                if metadata.uid() != 0 {
-                    logger.warning(&format!("Skipping file: {path} (not owned by root)"));
-                    return false;
-                }
-                if metadata.permissions().mode() & 0o022 != 0 {
-                    logger.warning(&format!(
-                        "Skipping file: {path} (writable by non-root users)",
-                    ));
-                    return false;
-                }
-            }
-
+            let _ = metadata;
             true
         }
         Err(_) => false,
@@ -257,6 +271,10 @@ mod tests {
     use tedge_test_utils::fs::TempTedgeDir;
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "plugins have no .exe/.bat extension so Windows executability check skips them"
+    )]
     async fn test_read_diag_plugins() {
         let ttd = TempTedgeDir::new();
         let command = DiagCollectCommand::new(&ttd);
@@ -270,6 +288,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "plugins have no .exe/.bat extension so Windows executability check skips them"
+    )]
     async fn test_read_diag_plugins_from_multiple_dirs() {
         let ttd = TempTedgeDir::new();
         let second_plugin_dir = ttd.dir("plugins_2");
@@ -336,6 +358,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "plugins have no .exe/.bat extension so Windows executability check skips them"
+    )]
     async fn test_execute_diag_plugins() {
         let ttd = TempTedgeDir::new();
         let command = DiagCollectCommand::new(&ttd);

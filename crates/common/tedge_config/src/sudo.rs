@@ -13,6 +13,29 @@ const SUDO: &str = "sudo";
 /// The sudo option to fail instead of prompting for a password
 const NON_INTERACTIVE: &str = "-n";
 
+/// Builds a command that launches a script through its interpreter on Windows.
+///
+/// `CreateProcessW` cannot start non-PE executables directly, so `.bat`/`.cmd`
+/// scripts are launched via `cmd.exe /c` and `.ps1` scripts via `powershell.exe -File`.
+#[cfg(windows)]
+fn windows_script_command(program: &OsStr) -> Option<Command> {
+    let ext = std::path::Path::new(program).extension()?.to_str()?;
+    match ext.to_ascii_lowercase().as_str() {
+        "bat" | "cmd" => {
+            let mut cmd = Command::new("cmd.exe");
+            cmd.arg("/c").arg(program);
+            Some(cmd)
+        }
+        "ps1" => {
+            let mut cmd = Command::new("powershell.exe");
+            cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+                .arg(program);
+            Some(cmd)
+        }
+        _ => None,
+    }
+}
+
 /// A object used to spawn processes according to the user's sudo preference.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SudoCommandBuilder {
@@ -65,8 +88,20 @@ impl SudoCommandBuilder {
     /// Checks if sudo is present in $PATH. If it's present and sudo is enabled,
     /// prepare a [`Command`](std::process::Command) using sudo. Otherwise,
     /// prepares a Command that starts `program` directly.
+    ///
+    /// On Windows, `.bat`/`.cmd` scripts are launched via `cmd.exe /c` and
+    /// `.ps1` scripts via `powershell.exe -File`, because `CreateProcessW`
+    /// cannot start non-PE executables directly.
     pub fn command<S: AsRef<OsStr>>(&self, program: S) -> Command {
         let program = program.as_ref();
+
+        // On Windows, shell scripts must be run through their interpreter.
+        // This takes precedence over sudo (which doesn't exist on Windows).
+        #[cfg(windows)]
+        if let Some(cmd) = windows_script_command(program) {
+            return cmd;
+        }
+
         let resolution = self.resolve();
         match &resolution {
             SudoResolution::Sudo(sudo) => {

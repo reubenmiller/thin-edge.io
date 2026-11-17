@@ -14,6 +14,7 @@ use tedge_file_config_plugin::bin::FileConfigCli;
 use tedge_file_log_plugin::bin::FileLogCli;
 use tedge_flows_plugin::FlowsCli;
 use tedge_mapper::MapperOpt;
+#[cfg(unix)]
 use tedge_shell_plugin::bin::ShellCli;
 use tedge_watchdog::WatchdogOpt;
 use tedge_write::bin::Args as TedgeWriteOpt;
@@ -22,6 +23,7 @@ use self::init::TEdgeInitCmd;
 mod bridge;
 mod certificate;
 mod common;
+pub use common::RUN_ALL_SERVICE;
 mod completions;
 pub mod config;
 mod connect;
@@ -38,6 +40,10 @@ mod reconnect;
 mod refresh_bridges;
 mod service;
 mod upload;
+#[cfg(windows)]
+pub mod windows_init;
+#[cfg(windows)]
+pub mod windows_service_control;
 
 #[derive(clap::Parser, Debug)]
 #[clap(
@@ -90,6 +96,8 @@ pub enum Component {
 
     TedgeMapper(MapperOpt),
 
+    // shell_execute is not supported on Windows
+    #[cfg(unix)]
     TedgeShellPlugin(ShellCli),
 
     TedgeWatchdog(WatchdogOpt),

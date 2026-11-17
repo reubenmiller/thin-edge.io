@@ -194,7 +194,8 @@ impl AgentConfig {
             config_update: tedge_config.agent.enable.config_update,
             config_snapshot: tedge_config.agent.enable.config_snapshot,
             log_upload: tedge_config.agent.enable.log_upload,
-            shell_execute: tedge_config.agent.enable.shell_execute,
+            // The shell_execute operation relies on POSIX process groups and is not supported on Windows
+            shell_execute: cfg!(unix) && tedge_config.agent.enable.shell_execute,
         };
 
         let entity_auto_register = tedge_config.agent.entity_store.auto_register;
@@ -268,6 +269,10 @@ impl Agent {
         // under data_dir (/var/tedge)
         self.config.data_dir.cache_dir().ensure().await?;
         self.config.http_config.file_transfer_dir.ensure().await?;
+
+        // tmp_dir is used as the working directory for plugin processes and for
+        // staging downloads; it must exist before any plugin is invoked.
+        self.config.tmp_dir.root_dir().ensure().await?;
 
         // under log_dir (/var/log/tedge)
         self.config.agent_log_dir.ensure().await?;

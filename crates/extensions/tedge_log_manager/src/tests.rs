@@ -86,6 +86,8 @@ esac
         perms.set_mode(0o755);
         std::fs::set_permissions(plugin_path.path(), perms)?;
     }
+    #[cfg(not(unix))]
+    let _ = plugin_path;
 
     Ok(tempdir)
 }
@@ -184,6 +186,10 @@ async fn default_plugin_config() {
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn log_manager_reloads_log_types() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, _fs, _uploader) = spawn_log_manager_actor(tempdir.path()).await;
@@ -243,6 +249,10 @@ async fn log_manager_reloads_log_types_on_plugin_dir_removal() -> Result<(), any
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn log_manager_reloads_log_types_on_new_plugin_file() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, mut fs, _uploader) = spawn_log_manager_actor(tempdir.path()).await;
@@ -276,6 +286,10 @@ async fn log_manager_reloads_log_types_on_new_plugin_file() -> Result<(), anyhow
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn log_manager_reloads_log_types_on_plugin_file_deletion() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, mut fs, _uploader) = spawn_log_manager_actor(tempdir.path()).await;
@@ -300,6 +314,10 @@ async fn log_manager_reloads_log_types_on_plugin_file_deletion() -> Result<(), a
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn log_manager_reloads_log_types_on_plugin_config_change() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, mut fs, _uploader) = spawn_log_manager_actor(tempdir.path()).await;
@@ -332,6 +350,10 @@ async fn log_manager_reloads_log_types_on_plugin_config_change() -> Result<(), a
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn log_manager_upload_log_files_on_request() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, _fs, mut uploader) = spawn_log_manager_actor(tempdir.path()).await;
@@ -407,6 +429,10 @@ async fn log_manager_upload_log_files_on_request() -> Result<(), anyhow::Error> 
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn filter_logs_by_line_count() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, _fs, mut uploader) = spawn_log_manager_actor(tempdir.path()).await;
@@ -471,6 +497,10 @@ async fn filter_logs_by_line_count() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn filter_logs_by_search_text() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, _fs, mut uploader) = spawn_log_manager_actor(tempdir.path()).await;
@@ -534,6 +564,10 @@ async fn filter_logs_by_search_text() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn filter_logs_by_search_text_and_line_count() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, _fs, mut uploader) = spawn_log_manager_actor(tempdir.path()).await;
@@ -598,6 +632,10 @@ async fn filter_logs_by_search_text_and_line_count() -> Result<(), anyhow::Error
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn request_logtype_that_does_not_exist() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, _fs, _uploader) = spawn_log_manager_actor(tempdir.path()).await;
@@ -704,6 +742,10 @@ async fn send_incorrect_payload() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn read_log_from_file_that_does_not_exist() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, _fs, _uploader) = spawn_log_manager_actor(tempdir.path()).await;
@@ -751,6 +793,10 @@ async fn read_log_from_file_that_does_not_exist() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn log_types_published_on_software_update_message() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, _fs, _uploader) = spawn_log_manager_actor(tempdir.path()).await;
@@ -809,6 +855,10 @@ async fn log_types_published_on_software_update_message() -> Result<(), anyhow::
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "prepare() creates a bash shell script which is unavailable on Windows"
+)]
 async fn log_types_published_on_config_update_message() -> Result<(), anyhow::Error> {
     let tempdir = prepare()?;
     let (mut mqtt, _fs, _uploader) = spawn_log_manager_actor(tempdir.path()).await;

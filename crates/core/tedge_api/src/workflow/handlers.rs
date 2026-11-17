@@ -4,7 +4,6 @@ use serde_json::json;
 use serde_json::Value;
 use std::cmp::max;
 use std::fmt::Display;
-use std::os::unix::prelude::ExitStatusExt;
 use std::time::Duration;
 
 /// Define how to interpret the exit code of a script as the next state for a command
@@ -94,7 +93,7 @@ impl ExitHandlers {
                     .context(format!("Program `{program}` stdout"));
                 match output.status.code() {
                     None => self
-                        .state_update_on_kill(program, output.status.signal().unwrap_or(0) as u8)
+                        .state_update_on_kill(program, exit_signal(&output.status) as u8)
                         .into_json(),
                     Some(0) => match (&self.on_success, json_stdout) {
                         (None, Err(reason)) => GenericStateUpdate::failed(reason).into_json(),
@@ -225,7 +224,7 @@ fn json_output(outcome: std::io::Result<std::process::Output>) -> Result<Value, 
     let code = output.status.code().ok_or_else(|| {
         format!(
             "has been killed by SIG{}",
-            output.status.signal().unwrap_or(0) as u8
+            exit_signal(&output.status) as u8
         )
     })?;
     if code != 0 {
@@ -369,6 +368,21 @@ impl Default for DefaultHandlers {
     }
 }
 
+/// Returns the Unix signal number that terminated the process, or 0.
+/// Always returns 0 on non-unix platforms (no POSIX signals).
+fn exit_signal(status: &std::process::ExitStatus) -> i32 {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        status.signal().unwrap_or(0)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = status;
+        0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -417,6 +431,7 @@ on_exit._ = "oops"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses 'sh -c' and Unix process signals")]
     fn signal_determines_next_state() {
         let file = r#"
 script = "sh -c 'sleep 10'"
@@ -613,6 +628,7 @@ on_exit._ = "oops"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses Unix path /bin/user-script")]
     fn error_messages_capture_script_exec_errors() {
         let script = ShellScript::from_str("/bin/user-script").unwrap();
         assert_eq!(
@@ -634,6 +650,7 @@ on_exit._ = "oops"
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "uses 'sh -c kill -11' and Unix signals")]
     fn error_messages_capture_script_killing_signal() {
         // SIGKILL, not a signal like SIGSEGV that dumps a core file in the crate directory
         let script = ShellScript::from_str("sh -c 'kill -9 $$'").unwrap();

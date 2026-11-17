@@ -143,7 +143,7 @@ impl ExternalPlugins {
         for maybe_entry in fs::read_dir(&self.plugin_dir)? {
             let entry = maybe_entry?;
             let path = entry.path();
-            if path.is_file() {
+            if path.is_file() && tedge_utils::plugins::is_plugin_candidate(&path) {
                 match self.sudo.ensure_command_succeeds(&path, &vec![LIST]) {
                     Ok(()) => {
                         info!(target: "SM plugins", "Plugin activated: {}", path.display());
@@ -171,22 +171,20 @@ impl ExternalPlugins {
                     }
                 }
 
-                if let Some(file_name) = path.file_name() {
-                    if let Some(plugin_name) = file_name.to_str() {
-                        let identity = config.http.client.auth.identity()?;
-                        let plugin = ExternalPluginCommand::new(
-                            plugin_name,
-                            &path,
-                            self.sudo.clone(),
-                            config.software.plugin.max_packages,
-                            config.software.plugin.exclude.or_none().cloned(),
-                            config.software.plugin.include.or_none().cloned(),
-                            identity,
-                            config.cloud_root_certs().await?,
-                            config.tmp.path.as_path().into(),
-                        );
-                        self.plugin_map.insert(plugin_name.into(), plugin);
-                    }
+                if let Some(plugin_name) = tedge_utils::plugins::plugin_name(&path) {
+                    let identity = config.http.client.auth.identity()?;
+                    let plugin = ExternalPluginCommand::new(
+                        plugin_name,
+                        &path,
+                        self.sudo.clone(),
+                        config.software.plugin.max_packages,
+                        config.software.plugin.exclude.or_none().cloned(),
+                        config.software.plugin.include.or_none().cloned(),
+                        identity,
+                        config.cloud_root_certs().await?,
+                        config.tmp.path.as_path().into(),
+                    );
+                    self.plugin_map.insert(plugin_name.into(), plugin);
                 }
             }
         }

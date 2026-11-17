@@ -80,6 +80,10 @@ async fn interval_executes_at_configured_frequency() {
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "uses shell scripts (collect_mongo_disk.sh) that don't run on Windows"
+)]
 async fn process_polling_flows_do_not_starve_on_message_flows() {
     let config_dir = create_test_flow_dir();
     let collector = config_dir.path().join("collect_mongo_disk.sh");
@@ -186,6 +190,10 @@ async fn process_polling_flows_do_not_starve_on_message_flows() {
 }
 
 #[tokio::test(start_paused = true)]
+#[cfg_attr(
+    windows,
+    ignore = "uses shell scripts and timing behaviour differs on Windows"
+)]
 async fn sources_poll_at_configured_frequency() {
     let config_dir = create_test_flow_dir();
 

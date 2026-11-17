@@ -193,6 +193,20 @@ fn logger_for_services(
     config_dir: Option<&Utf8Path>,
     default_level: tracing::Level,
 ) -> Result<Arc<dyn tracing::Subscriber + Send + Sync>, SystemTomlError> {
+    // On Windows, when stderr is not a terminal (i.e. running as a Windows
+    // Service), redirect all output to a log file so failures are observable.
+    #[cfg(windows)]
+    if let (Some(config_dir), [sname]) = (config_dir, service_names) {
+        if !std::io::stderr().is_terminal() {
+            let level = flags
+                .log_level
+                .or(flags.debug.then_some(tracing::Level::DEBUG))
+                .or_else(|| log_level_for_service(sname, config_dir))
+                .unwrap_or(default_level);
+            return Ok(windows_service_file_logger(sname, config_dir, level));
+        }
+    }
+
     let is_running_as_systemd_unit = std::env::var("INVOCATION_ID").is_ok();
 
     // Flags / RUST_LOG take priority over file config.
@@ -220,6 +234,33 @@ fn logger_for_services(
         is_running_as_systemd_unit,
         default_level,
     ))
+}
+
+/// A subscriber writing to `<config_dir>/log/<sname>.log`.
+///
+/// Used when a process runs as a Windows Service, where stderr is not captured.
+/// The writer guard is intentionally leaked: services are long-running and the
+/// process is stopped rather than gracefully exited, so flushing on drop is not required.
+#[cfg(windows)]
+fn windows_service_file_logger(
+    sname: &str,
+    config_dir: &Utf8Path,
+    level: tracing::Level,
+) -> Arc<dyn tracing::Subscriber + Send + Sync> {
+    let log_dir = config_dir.join("log");
+    let _ = std::fs::create_dir_all(&log_dir);
+    let file_appender = tracing_appender::rolling::never(log_dir, format!("{sname}.log"));
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+    std::mem::forget(guard);
+
+    Arc::new(
+        tracing_subscriber::fmt()
+            .with_writer(non_blocking)
+            .with_ansi(false)
+            .with_timer(utc_timer())
+            .with_max_level(level)
+            .finish(),
+    )
 }
 
 /// `TimeFormat::Disabled` under systemd (journald already timestamps records),

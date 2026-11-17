@@ -4,6 +4,7 @@ use camino::Utf8PathBuf;
 use std::fs as std_fs;
 use std::io::Read;
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use tokio::fs as tokio_fs;
 use tokio::io::AsyncWriteExt;
@@ -61,9 +62,7 @@ pub fn atomically_write_file_sync(
     let dest_dir = parent_dir(&dest);
 
     // removed on drop
-    let mut file = tempfile::Builder::new()
-        .rand_bytes(6)
-        .permissions(std_fs::Permissions::from_mode(0o644))
+    let mut file = tempfile_builder()
         .tempfile_in(&dest_dir)
         .with_context(|| "could not create temporary file".to_string(), &dest_dir)?;
 
@@ -102,12 +101,17 @@ pub fn atomically_write_file_sync(
     file.persist(&dest)
         .with_context(|| "could not write to destination file".to_string(), &dest)?;
 
-    // Ensure the new name reach the disk
-    let dir = std::fs::File::open(&dest_dir)
-        .with_context(|| "could not open the directory".to_string(), &dest)?;
-
-    dir.sync_all()
-        .with_context(|| "could not save the file to disk".to_string(), &dest)?;
+    // Ensure the directory entry reaches the disk.
+    // On Windows, opening a directory handle for fsync is not supported
+    // (returns Access Denied); NTFS provides sufficient durability guarantees
+    // without an explicit directory fsync.
+    #[cfg(unix)]
+    {
+        let dir = std::fs::File::open(&dest_dir)
+            .with_context(|| "could not open the directory".to_string(), &dest)?;
+        dir.sync_all()
+            .with_context(|| "could not save the file to disk".to_string(), &dest)?;
+    }
 
     Ok(())
 }
@@ -130,9 +134,7 @@ pub async fn atomically_write_file_async(
     let dest_dir = parent_dir(&dest);
 
     // removed on drop if not persisted
-    let mut file = tempfile::Builder::new()
-        .rand_bytes(6)
-        .permissions(std_fs::Permissions::from_mode(0o644))
+    let mut file = tempfile_builder()
         .make_in(&dest_dir, |path| {
             let file = std_fs::OpenOptions::new()
                 .write(true)
@@ -162,14 +164,19 @@ pub async fn atomically_write_file_async(
     file.persist(&dest)
         .with_context(|| "could not create destination file".to_string(), &dest)?;
 
-    // Ensure the new name reach the disk
-    let dir = tokio_fs::File::open(&dest_dir)
-        .await
-        .with_context(|| "could not open the directory".to_string(), &dest)?;
-
-    dir.sync_all()
-        .await
-        .with_context(|| "could not save the file to disk".to_string(), &dest)?;
+    // Ensure the directory entry reaches the disk.
+    // On Windows, opening a directory handle for fsync is not supported
+    // (returns Access Denied); NTFS provides sufficient durability guarantees
+    // without an explicit directory fsync.
+    #[cfg(unix)]
+    {
+        let dir = tokio_fs::File::open(&dest_dir)
+            .await
+            .with_context(|| "could not open the directory".to_string(), &dest)?;
+        dir.sync_all()
+            .await
+            .with_context(|| "could not save the file to disk".to_string(), &dest)?;
+    }
 
     Ok(())
 }
@@ -180,6 +187,18 @@ fn parent_dir(file: &Utf8Path) -> Utf8PathBuf {
         Some(path) if path.as_str().is_empty() => Utf8PathBuf::from("."),
         Some(dir) => dir.to_owned(),
     }
+}
+
+/// A builder of temporary files with random names.
+///
+/// On unix, the files are created with mode 0o644.
+/// On other platforms, the default permissions are used.
+fn tempfile_builder<'a, 'b>() -> tempfile::Builder<'a, 'b> {
+    let mut builder = tempfile::Builder::new();
+    builder.rand_bytes(6);
+    #[cfg(unix)]
+    builder.permissions(std_fs::Permissions::from_mode(0o644));
+    builder
 }
 
 #[cfg(test)]
@@ -213,13 +232,17 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     async fn atomically_write_file_file_async_with_symlink() {
         let temp_dir = tempdir().unwrap();
         let root = tempdir_utf8_path(&temp_dir);
         let link_path = root.join("test-link");
         let destination_path = root.join("test-orig");
         let _ = std::fs::write(&destination_path, "dummy contents");
+        #[cfg(unix)]
         let _ = std::os::unix::fs::symlink(&destination_path, &link_path);
+        #[cfg(not(unix))]
+        let _ = std::os::windows::fs::symlink_file(&destination_path, &link_path);
 
         let content = "test_data";
 
@@ -232,12 +255,16 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     async fn atomically_write_file_file_async_with_broken_symlink() {
         let temp_dir = tempdir().unwrap();
         let root = tempdir_utf8_path(&temp_dir);
         let link_path = root.join("test-link");
         let destination_path = root.join("test-orig");
+        #[cfg(unix)]
         let _ = std::os::unix::fs::symlink(&destination_path, &link_path);
+        #[cfg(not(unix))]
+        let _ = std::os::windows::fs::symlink_file(&destination_path, &link_path);
 
         let content = "test_data";
 
@@ -264,13 +291,17 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     fn atomically_write_file_file_sync_with_symlink() {
         let temp_dir = tempdir().unwrap();
         let root = tempdir_utf8_path(&temp_dir);
         let link_path = root.join("test-link");
         let destination_path = root.join("test-orig");
         let _ = std::fs::write(&destination_path, "dummy contents");
+        #[cfg(unix)]
         let _ = std::os::unix::fs::symlink(&destination_path, &link_path);
+        #[cfg(not(unix))]
+        let _ = std::os::windows::fs::symlink_file(&destination_path, &link_path);
 
         let content = "test_data";
 
@@ -281,12 +312,16 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     fn atomically_write_file_file_sync_with_broken_symlink() {
         let temp_dir = tempdir().unwrap();
         let root = tempdir_utf8_path(&temp_dir);
         let link_path = root.join("test-link");
         let destination_path = root.join("test-orig");
+        #[cfg(unix)]
         let _ = std::os::unix::fs::symlink(&destination_path, &link_path);
+        #[cfg(not(unix))]
+        let _ = std::os::windows::fs::symlink_file(&destination_path, &link_path);
 
         let content = "test_data";
 

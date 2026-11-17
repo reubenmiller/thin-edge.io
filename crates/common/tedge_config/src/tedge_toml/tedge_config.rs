@@ -1372,7 +1372,7 @@ define_tedge_config! {
 
     logs: {
         /// The directory used to store logs
-        #[tedge_config(example = "/var/log/tedge", default(from_str = "/var/log/tedge"))]
+        #[tedge_config(example = "/var/log/tedge", default(function = "default_logs_path"))]
         path: AbsolutePath,
 
         /// The maximum count of log files per operation
@@ -1384,13 +1384,13 @@ define_tedge_config! {
 
     tmp: {
         /// The temporary directory used to download files to the device
-        #[tedge_config(example = "/tmp", default(from_str = "/tmp"))]
+        #[tedge_config(example = "/tmp", default(function = "default_tmp_path"))]
         path: AbsolutePath,
     },
 
     data: {
         /// The directory used to store data like cached files, runtime metadata, etc.
-        #[tedge_config(example = "/var/tedge", default(from_str = "/var/tedge"))]
+        #[tedge_config(example = "/var/tedge", default(function = "default_data_path"))]
         path: AbsolutePath,
     },
 
@@ -1766,6 +1766,18 @@ fn cert_error_into_config_error(key: Cow<'static, str>, err: CertificateError) -
 
 fn default_root_cert_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
     AbsolutePath::try_new(DEFAULT_ROOT_CERT_PATH).unwrap()
+}
+
+fn default_logs_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
+    AbsolutePath::try_new(crate::platform::log_root().to_str().unwrap()).unwrap()
+}
+
+fn default_tmp_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
+    AbsolutePath::try_new(crate::platform::tmp_root().to_str().unwrap()).unwrap()
+}
+
+fn default_data_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
+    AbsolutePath::try_new(crate::platform::data_root().to_str().unwrap()).unwrap()
 }
 
 fn default_device_key(location: &TEdgeConfigLocation) -> AbsolutePath {
@@ -2234,6 +2246,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "set_mode(0o000) is a no-op on Windows so the directory stays accessible"
+    )]
     async fn mapper_config_fails_if_mapper_config_directory_exists_but_is_inaccessible() {
         let ttd = TempTedgeDir::new();
         ttd.dir("mappers").set_mode(0o000);

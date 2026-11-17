@@ -220,14 +220,18 @@ mod tests {
         }
 
         #[tokio::test]
+        #[cfg_attr(
+            windows,
+            ignore = "chown('root') is a no-op on Windows so the expected error is never returned"
+        )]
         async fn creates_directory_using_the_system_toml_user() {
             let ttd = TempTedgeDir::new();
             let dir = ttd.path().join("bridge");
 
-            #[cfg(target_os = "linux")]
-            let target_group = "root";
             #[cfg(target_os = "macos")]
             let target_group = "wheel";
+            #[cfg(not(target_os = "macos"))]
+            let target_group = "root";
 
             let config =
                 load_config_with_owner(&ttd, &Owner::user_group("root", target_group)).await;

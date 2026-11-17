@@ -1,3 +1,5 @@
+// The property tests are disabled on Windows, leaving their implementations unused
+#![cfg_attr(windows, allow(dead_code))]
 use crate::tests::spawn_c8y_mapper_actor;
 use crate::tests::spawn_dummy_c8y_http_proxy;
 use crate::tests::MockMqttBoxUnbuffered;
@@ -181,6 +183,7 @@ impl<R: Rng + Send> MessageReceiver<MqttMessage> for ShuffledMqttBox<'_, R> {
     }
 }
 
+#[cfg(not(windows))]
 #[proptest::property_test(config = proptest_config())]
 fn birth_message_with_shuffled_entity_registration(seed: u64) {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -301,6 +304,7 @@ async fn nested_child_registration_with_shuffled_ordering_impl(seed: u64) {
     .await;
 }
 
+#[cfg(not(windows))]
 #[proptest::property_test(config = proptest_config())]
 fn child_service_alarm_with_shuffled_ordering(seed: u64) {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -357,6 +361,10 @@ async fn child_service_alarm_with_shuffled_ordering_impl(seed: u64) {
 }
 
 #[proptest::property_test(config = proptest_config())]
+#[cfg_attr(
+    windows,
+    ignore = "child device IDs contain ':' which is invalid in Windows filesystem paths"
+)]
 fn child_alarm_with_shuffled_entity_registration(seed: u64) {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -403,6 +411,7 @@ async fn child_alarm_with_shuffled_entity_registration_impl(seed: u64) {
     .await;
 }
 
+#[cfg(not(windows))]
 #[proptest::property_test(config = proptest_config())]
 fn child_event_with_shuffled_entity_registration(seed: u64) {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -445,6 +454,7 @@ async fn child_event_with_shuffled_entity_registration_impl(seed: u64) {
     .await;
 }
 
+#[cfg(not(windows))]
 #[proptest::property_test(config = proptest_config())]
 fn nested_child_alarm_with_shuffled_ordering(seed: u64) {
     let rt = tokio::runtime::Builder::new_current_thread()

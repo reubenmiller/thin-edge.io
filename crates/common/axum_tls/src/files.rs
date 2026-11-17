@@ -116,6 +116,7 @@ mod tests {
     use camino::Utf8PathBuf;
     use std::io::Cursor;
 
+    #[cfg(unix)]
     mod read_trust_store {
         use super::*;
         use std::os::unix::fs::symlink;

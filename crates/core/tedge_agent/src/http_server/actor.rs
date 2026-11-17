@@ -227,6 +227,11 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "TLS rejection errors surface as WSAECONNABORTED on Windows rather than \
+                  rustls::AlertDescription — same root cause as axum_tls acceptor tests"
+    )]
     async fn server_rejects_unauthenticated_connections_if_configured() -> anyhow::Result<()> {
         let server_cert = rcgen::generate_simple_self_signed(["localhost".into()])
             .context("generating server certificate")?;

@@ -229,7 +229,9 @@ mod tests {
         tokio::fs::write(
             mapper_dir.join("mapper.toml"),
             format!(
-                "device.cert_path = \"{mapper_dir}/cert.pem\"\ndevice.key_path = \"{mapper_dir}/key.pem\"\n",
+                "device.cert_path = \"{}/cert.pem\"\ndevice.key_path = \"{}/key.pem\"\n",
+                mapper_dir.as_str().replace('\\', "/"),
+                mapper_dir.as_str().replace('\\', "/"),
             ),
         )
         .await
@@ -274,7 +276,9 @@ mod tests {
         tokio::fs::write(
             mapper_dir.join("mapper.toml"),
             format!(
-                "device.cert_path = \"{mapper_dir}/cert.pem\"\ndevice.key_path = \"{mapper_dir}/key.pem\"\nbridge.topic_prefix = \"custom-az\"\n",
+                "device.cert_path = \"{}/cert.pem\"\ndevice.key_path = \"{}/key.pem\"\nbridge.topic_prefix = \"custom-az\"\n",
+                mapper_dir.as_str().replace('\\', "/"),
+                mapper_dir.as_str().replace('\\', "/"),
             ),
         )
         .await

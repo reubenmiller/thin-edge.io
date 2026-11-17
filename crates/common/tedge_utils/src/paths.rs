@@ -599,19 +599,29 @@ pub fn ok_if_not_found(err: std::io::Error) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use nix::unistd::Uid;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
     use tedge_test_utils::fs::TempTedgeDir;
 
     fn current_owner() -> Owner {
-        Owner::user_group(
-            tedge_test_utils::user::current_username(),
-            tedge_test_utils::user::current_groupname(),
-        )
+        #[cfg(unix)]
+        {
+            Owner::user_group(
+                tedge_test_utils::user::current_username(),
+                tedge_test_utils::user::current_groupname(),
+            )
+        }
+        #[cfg(not(unix))]
+        {
+            // Ownership management is a no-op on Windows
+            Owner::user_group("", "")
+        }
     }
 
     fn root_group() -> &'static str {
-        #[cfg(target_os = "linux")]
+        #[cfg(not(target_os = "macos"))]
         {
             "root"
         }
@@ -622,6 +632,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        windows,
+        ignore = "/etc/tedge is not recognised as absolute on Windows (no drive letter)"
+    )]
     fn accepts_absolute_paths_under_the_root() {
         let root = TedgePaths::from_root_with_defaults("/etc/tedge", "tedge", "tedge");
 
@@ -633,6 +647,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        windows,
+        ignore = "/etc/tedge is not recognised as absolute on Windows (no drive letter)"
+    )]
     fn rejects_absolute_paths_outside_the_root() {
         let root = TedgePaths::from_root_with_defaults("/etc/tedge", "tedge", "tedge");
         let err = root.dir("/etc").unwrap_err();
@@ -654,6 +672,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix mode bits not applicable on Windows")]
     async fn ensure_creates_missing_managed_directories_with_default_mode() {
         let ttd = TempTedgeDir::new();
         let root = ttd.path();
@@ -670,10 +689,12 @@ mod tests {
 
         assert!(root.join("operations").is_dir());
         assert!(root.join("operations/c8y").is_dir());
+        #[cfg(unix)]
         assert_eq!(mode_bits(root.join("operations/c8y")).await, 0o755);
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix mode bits not applicable on Windows")]
     async fn group_writable_sets_group_write_bit() {
         let ttd = TempTedgeDir::new();
         let root = ttd.path();
@@ -689,6 +710,7 @@ mod tests {
             .await
             .unwrap();
 
+        #[cfg(unix)]
         assert_eq!(mode_bits(root.join("operations")).await, 0o775);
     }
 
@@ -715,6 +737,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix mode bits not applicable on Windows")]
     async fn respect_existing_leaves_existing_directory_mode_unchanged() {
         let ttd = TempTedgeDir::new();
         let existing = ttd.dir("operations");
@@ -735,6 +758,7 @@ mod tests {
             .await
             .unwrap();
 
+        #[cfg(unix)]
         assert_eq!(mode_bits(existing.path()).await, 0o700);
     }
 
@@ -821,6 +845,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix mode bits not applicable on Windows")]
     async fn file_create_if_missing_sets_mode() {
         let ttd = TempTedgeDir::new();
         let root = ttd.path();
@@ -834,6 +859,7 @@ mod tests {
             .await
             .unwrap();
 
+        #[cfg(unix)]
         assert_eq!(mode_bits(root.join("system.toml")).await, 0o644);
     }
 
@@ -856,6 +882,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix user lookup not available on Windows")]
     async fn file_create_if_missing_with_wrong_user() {
         let ttd = TempTedgeDir::new();
         let owner = current_owner();
@@ -873,6 +900,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "Unix user lookup not available on Windows")]
     async fn ensure_with_wrong_user() {
         let ttd = TempTedgeDir::new();
         let owner = current_owner();
@@ -890,7 +918,12 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        not(unix),
+        ignore = "Unix uid/ownership checks not applicable on Windows"
+    )]
     async fn ensure_reports_the_failing_ancestor_path() {
+        #[cfg(unix)]
         if Uid::current().is_root() {
             return;
         }
@@ -914,6 +947,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "Ownership is not managed on Windows")]
     async fn ensure_creates_directories_above_the_root_but_does_not_take_ownership() {
         let ttd = TempTedgeDir::new();
         let root = ttd.path().join("missing-parent").join("managed-root");
@@ -934,6 +968,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     async fn replace_atomic_preserves_symlink_following_behavior() {
         let ttd = TempTedgeDir::new();
         let root = ttd.path();
@@ -942,7 +977,10 @@ mod tests {
             .file("c8y-bridge.conf")
             .with_raw_content("before");
         let link = root.join("bridge-link.conf");
+        #[cfg(unix)]
         std::os::unix::fs::symlink(bridge_conf.path(), &link).unwrap();
+        #[cfg(not(unix))]
+        std::os::windows::fs::symlink_file(bridge_conf.path(), &link).unwrap();
 
         let owner = current_owner();
         let config_root =
@@ -1099,7 +1137,12 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        not(unix),
+        ignore = "Unix uid/ownership checks not applicable on Windows"
+    )]
     async fn template_persistence_can_warn_and_ignore_owner_or_mode_errors() {
+        #[cfg(unix)]
         if Uid::current().is_root() {
             return;
         }
@@ -1189,6 +1232,7 @@ mod tests {
         assert_eq!(c8y.owner(), &Owner::user_group("mosquitto", "mosquitto"));
     }
 
+    #[cfg(unix)]
     async fn mode_bits(path: impl AsRef<std::path::Path>) -> u32 {
         tokio::fs::metadata(path.as_ref())
             .await

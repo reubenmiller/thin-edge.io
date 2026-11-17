@@ -3,6 +3,10 @@
 //! This plugin is the executable behind the built-in `shell_execute` operation workflow.
 //! It runs `<shell> -c <command>`, captures the combined standard output and standard error
 //! of the command, and reports it as the `result` field of the workflow output.
+//!
+//! This plugin relies on POSIX process groups, file locks and `poll`,
+//! and is not supported on Windows.
+#![cfg(unix)]
 
 pub mod bin;
 pub mod job;

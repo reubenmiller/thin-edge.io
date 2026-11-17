@@ -55,8 +55,9 @@ impl ExternalPlugins {
                     }
                 };
                 let path = entry.path();
-                if path.is_file() {
-                    let Some(plugin_name) = path.file_name() else {
+                if path.is_file() && tedge_utils::plugins::is_plugin_candidate(path.as_std_path()) {
+                    let Some(plugin_name) = tedge_utils::plugins::plugin_name(path.as_std_path())
+                    else {
                         error!(
                             target: "log plugins",
                             "Skipping {path}: failed to extract plugin name",

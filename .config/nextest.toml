@@ -1,6 +1,7 @@
 [profile.default]
 retries = 0
 test-threads = "num-cpus"
+slow-timeout = { period = "15s", terminate-after = 2 }
 
 [test-groups]
 serial = { max-threads = 1 }

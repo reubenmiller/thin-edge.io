@@ -165,7 +165,32 @@ pub fn add_certs_from_directory(
 
 fn new_root_store(cert_path: &Path) -> Result<RootCertStore, CertificateError> {
     let mut root_store = RootCertStore::empty();
+
+    // On Windows the system CA bundle is in the OS certificate store, not a
+    // PEM file on disk.  Always load it so that:
+    //   - the default /etc/ssl/certs path (which doesn't exist on Windows) is
+    //     gracefully skipped, and
+    //   - corporate/IT-managed CAs added via Group Policy are trusted.
+    // Any explicitly configured file path is loaded in addition to the OS store.
+    #[cfg(windows)]
+    {
+        let native = rustls_native_certs::load_native_certs();
+        for e in &native.errors {
+            tracing::debug!("Skipping Windows certificate store entry: {e}");
+        }
+        for cert in native.certs {
+            if let Err(e) = root_store.add(cert) {
+                tracing::debug!("Skipping invalid Windows certificate store entry: {e}");
+            }
+        }
+        if cert_path.exists() {
+            rec_add_root_cert(&mut root_store, cert_path);
+        }
+    }
+
+    #[cfg(not(windows))]
     rec_add_root_cert(&mut root_store, cert_path);
+
     Ok(root_store)
 }
 
@@ -282,6 +307,9 @@ mod tests {
         read_pvt_key(temp_file.path()).unwrap_err();
     }
 
+    // On Windows, new_root_store always augments with the OS certificate store,
+    // so the count is not purely determined by the files on disk.
+    #[cfg_attr(windows, ignore)]
     #[test]
     fn an_empty_directory_contains_no_root_certificate() {
         let temp_dir = TempDir::new().unwrap();
@@ -290,6 +318,7 @@ mod tests {
         assert!(root_certs.is_empty());
     }
 
+    #[cfg_attr(windows, ignore)]
     #[test]
     fn all_certificates_of_all_chains_are_root_certificates() {
         let temp_dir = TempDir::new().unwrap();
@@ -312,6 +341,7 @@ mod tests {
         assert_eq!(root_certs.len(), 3);
     }
 
+    #[cfg_attr(windows, ignore)]
     #[test]
     fn all_certificates_are_loaded_even_under_sub_directories() {
         let temp_dir = TempDir::new().unwrap();
