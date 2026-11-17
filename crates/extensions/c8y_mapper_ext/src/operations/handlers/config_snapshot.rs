@@ -10,6 +10,7 @@ use tedge_api::commands::CommandStatus;
 use tedge_api::commands::ConfigSnapshotCmd;
 use tedge_downloader_ext::DownloadRequest;
 use tedge_mqtt_ext::MqttMessage;
+use tedge_utils::file_name::to_file_name;
 use tracing::warn;
 
 impl OperationContext {
@@ -104,8 +105,13 @@ impl OperationContext {
 
         let destination_dir = tempfile::tempdir_in(self.tmp_dir.as_std_path())
             .context("Failed to create a temporary directory")?;
-        let destination_path = Utf8PathBuf::try_from(destination_dir.path().join(config_filename))
-            .expect("tempdir path is valid UTF-8");
+        // The local file name is encoded on Windows, as the config type can contain ':' and '/'
+        let destination_path = Utf8PathBuf::try_from(
+            destination_dir
+                .path()
+                .join(to_file_name(&config_filename).as_ref()),
+        )
+        .expect("tempdir path is valid UTF-8");
 
         let download_request = DownloadRequest::new(&tedge_file_url, &destination_path);
 
@@ -128,7 +134,7 @@ impl OperationContext {
             .upload_file(
                 &target.external_id,
                 &file_path,
-                None,
+                Some(format!("{}_{config_filename}", target.external_id.as_ref())),
                 None,
                 cmd_id,
                 event_type,

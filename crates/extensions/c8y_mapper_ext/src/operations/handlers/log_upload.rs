@@ -10,6 +10,7 @@ use tedge_api::commands::LogUploadCmd;
 use tedge_api::mqtt_topics::OperationType;
 use tedge_downloader_ext::DownloadRequest;
 use tedge_mqtt_ext::MqttMessage;
+use tedge_utils::file_name::to_file_name;
 use tracing::warn;
 
 impl OperationContext {
@@ -77,8 +78,13 @@ impl OperationContext {
 
         let destination_dir = tempfile::tempdir_in(self.tmp_dir.as_std_path())
             .context("Failed to create a temporary directory")?;
-        let destination_path = Utf8PathBuf::try_from(destination_dir.path().join(log_filename))
-            .expect("tempdir path is valid UTF-8");
+        // The local file name is encoded on Windows, as log types can contain ':' (e.g. `robot_log::robotlog`)
+        let destination_path = Utf8PathBuf::try_from(
+            destination_dir
+                .path()
+                .join(to_file_name(&log_filename).as_ref()),
+        )
+        .expect("tempdir path is valid UTF-8");
 
         let download_request = DownloadRequest::new(tedge_file_url, &destination_path);
         let (_, download_result) = self
@@ -97,7 +103,7 @@ impl OperationContext {
             .upload_file(
                 &target.external_id,
                 &download_response.file_path,
-                None,
+                Some(format!("{}_{log_filename}", target.external_id.as_ref())),
                 Some(mime::TEXT_PLAIN),
                 cmd_id,
                 event_type.clone(),
