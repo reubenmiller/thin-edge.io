@@ -1,4 +1,5 @@
 use crate::cli::common::is_run_all_active;
+use crate::cli::common::mosquitto_applies_tedge_config;
 use crate::cli::common::Cloud;
 use crate::cli::common::RUN_ALL_SERVICE;
 use crate::cli::disconnect::error::*;
@@ -166,6 +167,9 @@ impl DisconnectBridgeCommand {
     // Deviation from specification:
     // Check if mosquitto is running, restart only if it was active before, if not don't do anything.
     async fn apply_changes_to_mosquitto(&self) -> Result<bool, Fancy<DisconnectBridgeError>> {
+        if !mosquitto_applies_tedge_config() {
+            return Ok(false);
+        }
         restart_service_if_running(&*self.service_manager, SystemService::new("mosquitto"))
             .await
             .map_err(<_>::into)
@@ -259,6 +263,12 @@ mod tests {
         cmd.stop_bridge().await.unwrap();
 
         assert!(!bridge_file.path().exists());
-        assert_eq!(manager.actions(), ["restart mosquitto"]);
+        let expected: &[&str] = if mosquitto_applies_tedge_config() {
+            &["restart mosquitto"]
+        } else {
+            // Mosquitto for Windows doesn't read the bridge configuration
+            &[]
+        };
+        assert_eq!(manager.actions(), expected);
     }
 }

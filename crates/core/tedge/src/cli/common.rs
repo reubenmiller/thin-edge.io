@@ -172,6 +172,16 @@ impl Cloud {
 }
 
 /// Resolve a cloud name string to a known `Cloud`, or `None` for custom mappers.
+/// Whether mosquitto has to be restarted to apply the configuration written by `tedge connect` and `tedge disconnect`
+///
+/// On Linux, `mosquitto.conf` includes the configuration written by thin-edge.io (`mosquitto-conf/`).
+/// Mosquitto for Windows is configured by the user and does not include it:
+/// restarting it would only drop the retained messages (e.g. the capabilities of the agent),
+/// as it does not persist them by default.
+pub fn mosquitto_applies_tedge_config() -> bool {
+    !cfg!(windows)
+}
+
 pub fn resolve_cloud(name: &str, profile: Option<ProfileName>) -> Option<Cloud> {
     // If no explicit profile is given and the name looks like `<cloud>.<profile>`,
     // split and treat the second segment as the profile name.

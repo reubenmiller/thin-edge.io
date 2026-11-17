@@ -21,6 +21,18 @@ winget install EclipseFoundation.Mosquitto
 Start-Service mosquitto
 ```
 
+Mosquitto for Windows does not keep retained messages when it restarts.
+%%te%% publishes the capabilities of the device as retained messages,
+so enable persistence in `C:\Program Files\mosquitto\mosquitto.conf`:
+
+```text
+persistence true
+persistence_location C:\ProgramData\mosquitto\
+```
+
+%%te%% does not change the Mosquitto configuration on Windows:
+`tedge connect` and `tedge disconnect` do not restart Mosquitto.
+
 All the commands below run in a PowerShell window started as administrator.
 
 ## Install

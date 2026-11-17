@@ -9,6 +9,7 @@ use crate::bridge::BridgeLocation;
 use crate::bridge::CommonMosquittoConfig;
 use crate::bridge::TEDGE_BRIDGE_CONF_DIR_PATH;
 use crate::cli::common::is_run_all_active;
+use crate::cli::common::mosquitto_applies_tedge_config;
 use crate::cli::common::Cloud;
 use crate::cli::common::MaybeBorrowedCloud;
 use crate::cli::common::RUN_ALL_SERVICE;
@@ -1164,7 +1165,9 @@ impl ConnectCommand {
             return Err(err.into());
         }
 
-        restart_mosquitto(bridge_config, service_manager.as_ref(), tedge_config).await?;
+        if mosquitto_applies_tedge_config() {
+            restart_mosquitto(bridge_config, service_manager.as_ref(), tedge_config).await?;
+        }
 
         let spinner = Spinner::start("Waiting for mosquitto to be listening for connections");
         spinner.finish(wait_for_mosquitto_listening(&tedge_config.mqtt).await)?;
@@ -1500,13 +1503,7 @@ mod tests {
 
             assert_eq!(
                 manager.actions(),
-                [
-                    "stop mosquitto",
-                    "restart mosquitto",
-                    "enable mosquitto",
-                    "restart tedge",
-                    "enable tedge"
-                ]
+                after_mosquitto_restart(&["enable mosquitto", "restart tedge", "enable tedge"])
             );
         }
 
@@ -1526,16 +1523,24 @@ mod tests {
 
             assert_eq!(
                 manager.actions(),
-                [
-                    "stop mosquitto",
-                    "restart mosquitto",
+                after_mosquitto_restart(&[
                     "enable mosquitto",
                     "start tedge-mapper-c8y",
                     "enable tedge-mapper-c8y",
                     "start tedge-agent",
                     "enable tedge-agent"
-                ]
+                ])
             );
+        }
+
+        /// The service actions of `tedge connect`, after the mosquitto restart on Linux
+        fn after_mosquitto_restart(actions: &[&'static str]) -> Vec<&'static str> {
+            let restart: &[&'static str] = if mosquitto_applies_tedge_config() {
+                &["stop mosquitto", "restart mosquitto"]
+            } else {
+                &[]
+            };
+            [restart, actions].concat()
         }
 
         async fn c8y_config(ttd: &TempTedgeDir) -> TEdgeConfig {

@@ -51,6 +51,9 @@
 - [x] 6.6 Windows Cumulocity tests (connect, telemetry, software list, config snapshot, log upload), skipped without credentials
 - [x] 6.8 Windows mapper tests without cloud credentials: flows translation and the `tedge-mapper-local` service (start, flow reload, stop)
 - [x] 6.9 Skip the Cumulocity lookups of `Get Logs` and the suite cleanup when `C8Y_BASEURL` is not set; fail the Cumulocity suite instead of skipping it where the secrets are expected (`C8Y_REQUIRED`)
+- [x] 6.10 `tedge connect`/`tedge disconnect` do not restart Mosquitto on Windows, which does not read the thin-edge.io broker configuration and drops the retained capabilities on restart
+- [x] 6.11 `tedge connect` starts the agent and mapper services on Windows, where they are `tedge.exe` subcommands rather than executables on the `PATH`
+- [x] 6.12 Service logs of the agent and mappers in `C:\ProgramData\tedge\log\<service>.log`
 - [ ] 6.7 Upstream the Windows local adapter to `device-test-core` and remove the local copy
 
 ## 7. Remaining Windows test gaps
