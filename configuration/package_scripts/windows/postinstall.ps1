@@ -55,6 +55,16 @@ function Copy-IfAbsent([string]$Src, [string]$Dst) {
 }
 
 # --- Directories ---
+# Restrict a new configuration directory to SYSTEM (S-1-5-18) and Administrators (S-1-5-32-544),
+# removing the read access that C:\ProgramData grants to all users.
+# SIDs are used as the group names depend on the Windows display language.
+# An existing directory is left as is, so an administrator can relax the ACL.
+if (-not (Test-Path $ConfigDir)) {
+    Ensure-Dir $ConfigDir
+    & icacls $ConfigDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' /grant:r '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Failed to restrict the access to $ConfigDir (icacls exit code $LASTEXITCODE)" }
+    Write-Host "Restricted access: $ConfigDir"
+}
 Ensure-Dir $ConfigDir
 Ensure-Dir "$ConfigDir\data"
 Ensure-Dir "$ConfigDir\log"
@@ -85,6 +95,9 @@ plugin_paths = '$ConfigPluginsDir'
 
 [log]
 plugin_paths = '$LogPluginsDir'
+
+[mqtt.bridge]
+built_in = true
 "@
 
 Write-IfAbsent -Path "$ConfigDir\tedge.toml" -Content $DefaultToml

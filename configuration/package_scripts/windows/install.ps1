@@ -21,6 +21,9 @@
 .PARAMETER ConfigDir
     Root for configuration and data. Defaults to C:\ProgramData\tedge.
 
+.PARAMETER SourceExe
+    The tedge.exe to install. Defaults to bin\tedge.exe next to this script (ZIP package layout).
+
 .PARAMETER StartServices
     Start tedge-agent and tedge-mapper-c8y immediately after registering them.
     Defaults to $true.
@@ -28,6 +31,7 @@
 param(
     [string]$InstallDir    = "C:\Program Files\tedge\bin",
     [string]$ConfigDir     = "C:\ProgramData\tedge",
+    [string]$SourceExe     = "",
     [switch]$StartServices = $true
 )
 
@@ -41,7 +45,8 @@ function Write-Step([string]$Msg) { Write-Host "==> $Msg" }
 # --- Install binary ---
 Write-Step "Installing tedge.exe to $InstallDir"
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-Copy-Item (Join-Path $ScriptDir "bin\tedge.exe") (Join-Path $InstallDir "tedge.exe") -Force
+if (-not $SourceExe) { $SourceExe = Join-Path $ScriptDir "bin\tedge.exe" }
+Copy-Item $SourceExe (Join-Path $InstallDir "tedge.exe") -Force
 
 # Add install dir to system PATH if not already present
 $syspath = [Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -52,6 +57,15 @@ if ($syspath -notlike "*$InstallDir*") {
 
 # --- Bootstrap data directories ---
 Write-Step "Bootstrapping $ConfigDir"
+# Restrict a new configuration directory to SYSTEM (S-1-5-18) and Administrators (S-1-5-32-544),
+# removing the read access that C:\ProgramData grants to all users.
+# SIDs are used as the group names depend on the Windows display language.
+if (-not (Test-Path $ConfigDir)) {
+    New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+    & icacls $ConfigDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' /grant:r '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Failed to restrict the access to $ConfigDir (icacls exit code $LASTEXITCODE)" }
+    Write-Host "    Restricted access to SYSTEM and Administrators"
+}
 foreach ($sub in @("data", "log", "tmp", "sm-plugins", "config-plugins", "log-plugins")) {
     New-Item -ItemType Directory -Path (Join-Path $ConfigDir $sub) -Force | Out-Null
 }
@@ -79,6 +93,9 @@ plugin_paths = '$configPluginsDir'
 
 [log]
 plugin_paths = '$logPluginsDir'
+
+[mqtt.bridge]
+built_in = true
 "@
     Write-Host "    Created $TomlPath"
 } else {
@@ -119,6 +136,9 @@ function Register-TedgeService {
 
 Register-TedgeService -Name "tedge-agent"      -DisplayName "thin-edge.io Agent"             -Args "run tedge-agent"
 Register-TedgeService -Name "tedge-mapper-c8y" -DisplayName "thin-edge.io Mapper (Cumulocity)" -Args "run tedge-mapper c8y"
+# Single-process mode (`tedge run all`), registered but not started: use it instead of the services above
+Register-TedgeService -Name "tedge" -DisplayName "thin-edge.io" -Args "run all"
+sc.exe config tedge start= demand | Out-Null
 
 # --- Optionally start services ---
 if ($StartServices) {
