@@ -15,25 +15,15 @@ const NON_INTERACTIVE: &str = "-n";
 
 /// Builds a command that launches a script through its interpreter on Windows.
 ///
-/// `CreateProcessW` cannot start non-PE executables directly, so `.bat`/`.cmd`
-/// scripts are launched via `cmd.exe /c` and `.ps1` scripts via `powershell.exe -File`.
+/// `CreateProcessW` cannot start non-PE executables directly,
+/// see [`tedge_utils::plugins::windows_interpreter`].
 #[cfg(windows)]
 fn windows_script_command(program: &OsStr) -> Option<Command> {
-    let ext = std::path::Path::new(program).extension()?.to_str()?;
-    match ext.to_ascii_lowercase().as_str() {
-        "bat" | "cmd" => {
-            let mut cmd = Command::new("cmd.exe");
-            cmd.arg("/c").arg(program);
-            Some(cmd)
-        }
-        "ps1" => {
-            let mut cmd = Command::new("powershell.exe");
-            cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
-                .arg(program);
-            Some(cmd)
-        }
-        _ => None,
-    }
+    let (interpreter, args) =
+        tedge_utils::plugins::windows_interpreter(std::path::Path::new(program))?;
+    let mut cmd = Command::new(interpreter);
+    cmd.args(args).arg(program);
+    Some(cmd)
 }
 
 /// A object used to spawn processes according to the user's sudo preference.

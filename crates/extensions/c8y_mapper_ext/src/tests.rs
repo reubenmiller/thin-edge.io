@@ -1294,10 +1294,6 @@ async fn mapper_dynamically_updates_supported_operations_for_tedge_device() {
 }
 
 #[tokio::test]
-#[cfg_attr(
-    windows,
-    ignore = "child device IDs contain ':' which is invalid in Windows paths"
-)]
 async fn mapper_dynamically_updates_supported_operations_for_child_device() {
     // The test assures tedge-mapper reads the operations for the child devices from the operations directory, and then it publishes them on to `c8y/s/us/child1`.
     // When mapper is running test adds a new operation for a child into the operations directory, then the mapper discovers the new
@@ -1332,7 +1328,9 @@ async fn mapper_dynamically_updates_supported_operations_for_child_device() {
     fs.send(FsWatchEvent::FileCreated(
         ttd.dir("operations")
             .dir("c8y")
-            .dir("test-device:device:child1")
+            .dir(&crate::supported_operations::device_dir::dir_name_from_xid(
+                "test-device:device:child1",
+            ))
             .file("c8y_ChildTestOp3")
             .std_path()
             .to_path_buf(),
@@ -3270,10 +3268,6 @@ async fn mapper_converts_config_metadata_to_supported_op_and_types_for_main_devi
 }
 
 #[tokio::test]
-#[cfg_attr(
-    windows,
-    ignore = "child device IDs contain ':' which is invalid in Windows paths"
-)]
 async fn mapper_converts_config_cmd_to_supported_op_and_types_for_child_device() {
     let ttd = TempTedgeDir::new();
     let test_handle = spawn_c8y_mapper_actor(&ttd, true).await;
@@ -3390,20 +3384,26 @@ async fn mapper_converts_config_cmd_to_supported_op_and_types_for_child_device()
 async fn mapper_publishes_all_supported_operations_on_signal() {
     let ttd = TempTedgeDir::new();
     ttd.dir("operations").dir("c8y").file("c8y_Restart");
+    ttd.dir("operations").dir("c8y").dir(
+        &crate::supported_operations::device_dir::dir_name_from_xid("test-device:device:child01"),
+    );
     ttd.dir("operations")
         .dir("c8y")
-        .dir("test-device:device:child01");
-    ttd.dir("operations")
-        .dir("c8y")
-        .dir("test-device:device:child02")
+        .dir(&crate::supported_operations::device_dir::dir_name_from_xid(
+            "test-device:device:child02",
+        ))
         .file("c8y_Restart");
     ttd.dir("operations")
         .dir("c8y")
-        .dir("test-device:device:child02")
+        .dir(&crate::supported_operations::device_dir::dir_name_from_xid(
+            "test-device:device:child02",
+        ))
         .file("c8y_UploadConfigFile");
     ttd.dir("operations")
         .dir("c8y")
-        .dir("test-device:device:main:service:collectd")
+        .dir(&crate::supported_operations::device_dir::dir_name_from_xid(
+            "test-device:device:main:service:collectd",
+        ))
         .file("c8y_ServiceCommand");
 
     let test_handle = spawn_c8y_mapper_actor(&ttd, true).await;
@@ -3517,7 +3517,9 @@ fn create_thin_edge_operations(ttd: &TempTedgeDir, ops: Vec<&str>) {
 fn create_thin_edge_child_operations(ttd: &TempTedgeDir, child_id: &str, ops: Vec<&str>) {
     let p1 = ttd.dir("operations");
     let tedge_ops_dir = p1.dir("c8y");
-    let child_ops_dir = tedge_ops_dir.dir(child_id);
+    let child_ops_dir = tedge_ops_dir.dir(
+        &crate::supported_operations::device_dir::dir_name_from_xid(child_id),
+    );
     for op in ops {
         child_ops_dir.file(op);
     }

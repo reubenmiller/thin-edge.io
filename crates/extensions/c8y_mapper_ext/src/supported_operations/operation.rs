@@ -281,7 +281,8 @@ pub fn get_child_ops<C: Record + C8yPrefix>(
         let ops = Operations::try_new(&cdir, bridge_config)?;
         if let Some(id) = cdir.file_name() {
             if let Some(id_str) = id.to_str() {
-                child_ops.insert(id_str.to_string(), ops);
+                let xid = super::device_dir::xid_from_dir_name(id_str);
+                child_ops.insert(xid.into_owned(), ops);
             }
         }
     }

@@ -165,23 +165,29 @@ impl LoggedCommand {
         program: impl AsRef<OsStr>,
         working_dir: impl AsRef<Path>,
     ) -> Result<LoggedCommand, std::io::Error> {
-        let mut args = shell_words::split(&program.as_ref().to_string_lossy())
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+        let mut args =
+            tedge_utils::plugins::split_command_line(&program.as_ref().to_string_lossy())
+                .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+        if args.is_empty() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "command line is empty.",
+            ));
+        }
+        let program = args.remove(0);
 
-        let mut command = match args.len() {
-            0 => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "command line is empty.",
-                ))
-            }
-            1 => Command::new(&args[0]),
-            _ => {
-                let mut command = Command::new(args.remove(0));
-                command.args(&args);
+        // On Windows, scripts are started by their interpreter
+        let mut command = match tedge_utils::plugins::windows_interpreter(Path::new(&program))
+            .filter(|_| cfg!(windows))
+        {
+            Some((interpreter, interpreter_args)) => {
+                let mut command = Command::new(interpreter);
+                command.args(interpreter_args).arg(&program);
                 command
             }
+            None => Command::new(&program),
         };
+        command.args(&args);
 
         command
             .current_dir(working_dir)

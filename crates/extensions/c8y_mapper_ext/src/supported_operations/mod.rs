@@ -13,6 +13,7 @@
 //! For known c8y operations, the file can be empty. For custom c8y operations, the file should contain a
 //! [`OnMessageExec`] section describing how c8y mapper should convert this c8y operation to a local thin-edge command.
 
+pub mod device_dir;
 pub mod operation;
 
 use c8y_api::json_c8y_deserializer::C8yDeviceControlTopic;
@@ -222,7 +223,7 @@ impl SupportedOperations {
             .context("directory name should be a valid external id")?
         {
             "" => self.device_id.to_string(),
-            filename => filename.to_string(),
+            dir_name => device_dir::xid_from_dir_name(dir_name).into_owned(),
         };
 
         Ok(device_xid)
@@ -233,7 +234,9 @@ impl SupportedOperations {
         if device_xid == self.device_id {
             self.base_ops_dir.path().to_path_buf()
         } else {
-            self.base_ops_dir.path().join(device_xid)
+            self.base_ops_dir
+                .path()
+                .join(device_dir::dir_name_from_xid(device_xid).as_ref())
         }
     }
 
@@ -251,7 +254,7 @@ impl SupportedOperations {
         } else {
             self.base_ops_dir
                 .path()
-                .join(device_xid)
+                .join(device_dir::dir_name_from_xid(device_xid).as_ref())
                 .join(c8y_operation_name)
         }
     }

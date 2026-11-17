@@ -85,26 +85,8 @@ impl TEdgeInitCmd {
                     true => Path::new(executable_file_name),
                     false => &executable_name,
                 },
-                uid: {
-                    #[cfg(unix)]
-                    {
-                        stat.uid()
-                    }
-                    #[cfg(not(unix))]
-                    {
-                        0
-                    }
-                },
-                gid: {
-                    #[cfg(unix)]
-                    {
-                        stat.gid()
-                    }
-                    #[cfg(not(unix))]
-                    {
-                        0
-                    }
-                },
+                uid: stat.uid(),
+                gid: stat.gid(),
             };
 
             for component in &component_subcommands {
@@ -126,11 +108,6 @@ impl TEdgeInitCmd {
             .ensure()
             .await?;
         TedgePaths::from_root_with_defaults(&config.data.path, &user, &group)
-            .root_dir()
-            .group_writable()
-            .ensure()
-            .await?;
-        TedgePaths::from_root_with_defaults(&config.tmp.path, &user, &group)
             .root_dir()
             .group_writable()
             .ensure()
@@ -230,14 +207,7 @@ trait FileSystem {
     }
 
     async fn symlink(&self, original: &Path, link: &Path) -> std::io::Result<()> {
-        #[cfg(unix)]
-        return tokio::fs::symlink(original, link).await;
-        #[cfg(windows)]
-        return tokio::fs::symlink_file(original, link).await;
-        #[cfg(not(any(unix, windows)))]
-        return Err(std::io::Error::other(
-            "symlinks not supported on this platform",
-        ));
+        tokio::fs::symlink(original, link).await
     }
 
     async fn chown_symlink(&self, link: &Path, uid: u32, gid: u32) -> anyhow::Result<()> {

@@ -40,7 +40,6 @@ mod reconnect;
 mod refresh_bridges;
 mod service;
 mod upload;
-#[cfg(windows)]
 pub mod windows_init;
 #[cfg(windows)]
 pub mod windows_service_control;

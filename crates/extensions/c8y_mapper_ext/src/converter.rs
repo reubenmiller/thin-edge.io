@@ -1566,7 +1566,10 @@ pub fn get_local_child_devices_list(path: &Path) -> Result<HashSet<String>, Cumu
         .collect::<Result<Vec<PathBuf>, _>>()?
         .into_iter()
         .filter(|path| path.is_dir())
-        .map(|entry| entry.file_name().unwrap().to_string_lossy().to_string()) // safe unwrap
+        .filter_map(|entry| {
+            let dir_name = entry.file_name()?.to_string_lossy();
+            Some(crate::supported_operations::device_dir::xid_from_dir_name(&dir_name).into_owned())
+        })
         .collect::<HashSet<String>>())
 }
 

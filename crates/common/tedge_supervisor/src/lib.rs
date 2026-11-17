@@ -1076,6 +1076,35 @@ mod tests {
             .unwrap();
     }
 
+    // The only test using the process-wide shutdown request, so no other test can consume it
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_shutdown_request_drains_all_units_even_if_sent_before_the_supervisor_runs() {
+        let builds = Arc::new(AtomicUsize::new(0));
+        let units = vec![
+            make_unit(
+                "agent",
+                UnitKind::Agent,
+                healthy_factory(builds.clone()),
+                test_policy(1000),
+            ),
+            make_unit(
+                "mapper",
+                UnitKind::Mapper,
+                healthy_factory(builds.clone()),
+                test_policy(1000),
+            ),
+        ];
+
+        // e.g. a Windows Service stop request received while the service is still starting
+        request_shutdown();
+
+        let supervisor = Supervisor::new(units);
+        timeout(Duration::from_secs(5), supervisor.run())
+            .await
+            .expect("a shutdown request should drain all the units")
+            .unwrap();
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_drain_that_overruns_its_deadline_forces_an_exit() {
         let builds = Arc::new(AtomicUsize::new(0));

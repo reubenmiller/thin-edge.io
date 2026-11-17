@@ -13,7 +13,11 @@ use camino::Utf8PathBuf;
 use std::fs;
 
 pub const SYSTEM_CONFIG_FILE: &str = "system.toml";
+#[cfg(not(windows))]
 const REBOOT_COMMAND: &[&str] = &["init", "6"];
+/// Restart Windows immediately
+#[cfg(windows)]
+const REBOOT_COMMAND: &[&str] = &["shutdown", "/r", "/t", "0"];
 
 #[derive(thiserror::Error, Debug)]
 pub enum SystemTomlError {

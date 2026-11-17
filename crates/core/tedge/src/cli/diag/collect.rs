@@ -175,7 +175,9 @@ impl DiagCollectCommand {
             .await
             .with_context(|| format!("Failed to create output directory at {plugin_output_dir}"))?;
 
-        let mut command = LoggedCommand::new(plugin_path, self.working_dir.to_path_buf())?;
+        // The plugin path is not parsed as a command line, so it can contain spaces
+        let plugin = tedge_config::SudoCommandBuilder::enabled(false).command(plugin_path);
+        let mut command = LoggedCommand::from_command(plugin, self.working_dir.as_std_path());
         command
             .arg("collect")
             .arg("--output-dir")
@@ -268,19 +270,17 @@ async fn validate_plugin(path: &Utf8Path, logger: &mut DualLogger) -> bool {
 mod tests {
     use super::*;
     use tedge_test_utils::fs::with_exec_permission;
+    use tedge_test_utils::fs::with_plugin_script;
     use tedge_test_utils::fs::TempTedgeDir;
 
     #[tokio::test]
-    #[cfg_attr(
-        windows,
-        ignore = "plugins have no .exe/.bat extension so Windows executability check skips them"
-    )]
     async fn test_read_diag_plugins() {
         let ttd = TempTedgeDir::new();
         let command = DiagCollectCommand::new(&ttd);
-        with_exec_permission(command.first_plugin_dir().join("plugin_a"), "pwd");
-        with_exec_permission(command.first_plugin_dir().join("plugin_b"), "pwd");
-        with_exec_permission(command.first_plugin_dir().join("plugin_c"), "pwd");
+        let first_plugin_dir = command.first_plugin_dir();
+        with_plugin_script(first_plugin_dir, "plugin_a", "pwd", "cd");
+        with_plugin_script(first_plugin_dir, "plugin_b", "pwd", "cd");
+        with_plugin_script(first_plugin_dir, "plugin_c", "pwd", "cd");
 
         let mut logger = DualLogger::new(command.diag_dir.join("summary.log")).unwrap();
         let plugins = command.read_diag_plugins(&mut logger).await.unwrap();
@@ -288,10 +288,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg_attr(
-        windows,
-        ignore = "plugins have no .exe/.bat extension so Windows executability check skips them"
-    )]
     async fn test_read_diag_plugins_from_multiple_dirs() {
         let ttd = TempTedgeDir::new();
         let second_plugin_dir = ttd.dir("plugins_2");
@@ -299,12 +295,13 @@ mod tests {
         let mut command = DiagCollectCommand::new(&ttd);
         command.add_plugin_dir(second_plugin_dir.path());
         command.add_plugin_dir(third_plugin_dir.path());
-        with_exec_permission(command.first_plugin_dir().join("plugin_1a"), "pwd");
-        with_exec_permission(command.first_plugin_dir().join("plugin_1b"), "pwd");
-        with_exec_permission(second_plugin_dir.path().join("plugin_2a"), "pwd");
-        with_exec_permission(second_plugin_dir.path().join("plugin_2b"), "pwd");
-        with_exec_permission(third_plugin_dir.path().join("plugin_3a"), "pwd");
-        with_exec_permission(third_plugin_dir.path().join("plugin_3b"), "pwd");
+        let first_plugin_dir = command.first_plugin_dir();
+        with_plugin_script(first_plugin_dir, "plugin_1a", "pwd", "cd");
+        with_plugin_script(first_plugin_dir, "plugin_1b", "pwd", "cd");
+        with_plugin_script(second_plugin_dir.path(), "plugin_2a", "pwd", "cd");
+        with_plugin_script(second_plugin_dir.path(), "plugin_2b", "pwd", "cd");
+        with_plugin_script(third_plugin_dir.path(), "plugin_3a", "pwd", "cd");
+        with_plugin_script(third_plugin_dir.path(), "plugin_3b", "pwd", "cd");
 
         let mut logger = DualLogger::new(command.diag_dir.join("summary.log")).unwrap();
         let plugins = command.read_diag_plugins(&mut logger).await.unwrap();
@@ -358,18 +355,15 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg_attr(
-        windows,
-        ignore = "plugins have no .exe/.bat extension so Windows executability check skips them"
-    )]
     async fn test_execute_diag_plugins() {
         let ttd = TempTedgeDir::new();
         let command = DiagCollectCommand::new(&ttd);
         let diag_root_dir = TedgePaths::from_root_with_defaults(&command.diag_dir, "", "");
-        let plugin_a_path = command.first_plugin_dir().join("plugin_a.sh");
-        with_exec_permission(
-            command.first_plugin_dir().join(&plugin_a_path),
+        let plugin_a_path = with_plugin_script(
+            command.first_plugin_dir(),
+            "plugin_a",
             "#!/bin/sh\nls",
+            "@echo off\r\ndir",
         );
 
         let status = command

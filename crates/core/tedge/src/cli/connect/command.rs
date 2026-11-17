@@ -764,7 +764,22 @@ fn check_cert_cn(bridge_config: &BridgeConfig) -> anyhow::Result<()> {
     })
 }
 
+/// Fails if the configured bridge is not supported on the platform
+///
+/// The Mosquitto bridge configuration is written for a Mosquitto broker managed by the init system,
+/// which is not available on Windows, where only the built-in bridge is supported.
+fn ensure_bridge_is_supported(built_in_bridge: bool, is_windows: bool) -> anyhow::Result<()> {
+    if is_windows && !built_in_bridge {
+        anyhow::bail!(
+            "The Mosquitto bridge is not supported on Windows. \
+             Enable the built-in bridge with: tedge config set mqtt.bridge.built_in true"
+        );
+    }
+    Ok(())
+}
+
 fn validate_config(config: &TEdgeConfig, cloud: &MaybeBorrowedCloud<'_>) -> anyhow::Result<()> {
+    ensure_bridge_is_supported(config.mqtt.bridge.built_in, cfg!(windows))?;
     if !config.mqtt.bridge.built_in && config.proxy.address.or_none().is_some() {
         warn!("`proxy.address` is configured without the built-in bridge enabled. The bridge MQTT connection to the cloud will {} communicate via the configured proxy.", "not".bold())
     }
@@ -1417,6 +1432,15 @@ async fn is_configured_tenant_on_another_domain(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn the_mosquitto_bridge_is_rejected_on_windows_only() {
+        assert!(ensure_bridge_is_supported(true, true).is_ok());
+        assert!(ensure_bridge_is_supported(true, false).is_ok());
+        assert!(ensure_bridge_is_supported(false, false).is_ok());
+        let err = ensure_bridge_is_supported(false, true).unwrap_err();
+        assert!(err.to_string().contains("mqtt.bridge.built_in true"));
+    }
     use super::*;
     use mqtt_channel::QoS::AtLeastOnce;
 

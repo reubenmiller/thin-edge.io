@@ -158,6 +158,37 @@ pub fn with_exec_permission(file_path: impl AsRef<Path>, content: &str) {
     file.sync_all().unwrap();
 }
 
+/// The file name of the plugin `name` created by [`with_plugin_script`]
+pub fn plugin_file_name(name: &str) -> String {
+    if cfg!(windows) {
+        format!("{name}.cmd")
+    } else {
+        name.to_string()
+    }
+}
+
+/// Creates an executable plugin named `name` in `dir` and returns its path.
+///
+/// On Unix, the plugin is the file `name` with the `unix_script` content and the execute bit set.
+/// On Windows, the plugin is the file `name.cmd` with the `windows_script` content (with CRLF line endings),
+/// as Windows recognizes plugins by their extension.
+pub fn with_plugin_script(
+    dir: &Utf8Path,
+    name: &str,
+    unix_script: &str,
+    windows_script: &str,
+) -> Utf8PathBuf {
+    let path = dir.join(plugin_file_name(name));
+    if cfg!(windows) {
+        // cmd.exe can fail to find `goto` labels in a batch file with LF-only line endings
+        let windows_script = windows_script.replace("\r\n", "\n").replace('\n', "\r\n");
+        fs::write(&path, windows_script).unwrap();
+    } else {
+        with_exec_permission(&path, unix_script);
+    }
+    path
+}
+
 pub fn create_full_tedge_dir_structure() {
     let ttd = TempTedgeDir::new();
     ttd.file("tedge.toml");
