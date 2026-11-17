@@ -146,6 +146,9 @@ jobs:
   system-test-windows:
     name: System tests (windows)
     needs: build-windows
+    # The Cumulocity credentials are secrets of this environment, as for the Linux system tests
+    environment:
+      name: Test Auto
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -194,6 +197,8 @@ jobs:
             'C8Y_USER="${{ secrets.C8Y_USER }}"',
             'C8Y_TENANT="${{ secrets.C8Y_TENANT }}"',
             'C8Y_PASSWORD="${{ secrets.C8Y_PASSWORD }}"',
+            'CA_KEY="${{ secrets.CA_KEY || '' }}"',
+            'CA_PUB="${{ secrets.CA_PUB || '' }}"',
             'DEVICE_ADAPTER=local'
           )
         shell: pwsh
