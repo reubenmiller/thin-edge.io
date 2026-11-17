@@ -1,0 +1,73 @@
+*** Settings ***
+Resource            windows.resource
+
+Suite Setup         Custom Setup
+Suite Teardown      Custom Teardown
+Test Teardown       Get Logs
+
+Test Tags           platform:windows    theme:plugins
+
+
+*** Variables ***
+${LOG_URL}      http://127.0.0.1:8000/te/v1/files/main/log_upload/robot-win-1
+
+
+*** Test Cases ***
+PowerShell software management plugin is registered without its extension
+    Should Have Retained MQTT Messages
+    ...    te/device/main///cmd/software_list
+    ...    message_pattern=.*"winlist".*
+    Should Not Have Retained MQTT Messages With Text    te/device/main///cmd/software_list    winlist.ps1
+
+Software list uses the PowerShell plugin
+    Execute Command
+    ...    tedge mqtt pub --retain te/device/main///cmd/software_list/robot-win-1 '{"status":"init"}'
+    ${messages}=    Should Have MQTT Messages
+    ...    te/device/main///cmd/software_list/robot-win-1
+    ...    message_pattern="status":\\s*"successful"
+    ...    minimum=1
+    Should Match Regexp    ${messages}[-1]    "type":\\s*"winlist"
+    Should Contain    ${messages}[-1]    "robot-windows-package"
+    Should Contain    ${messages}[-1]    "1.2.3"
+    [Teardown]    Run Keywords
+    ...    Execute Command    tedge mqtt pub --retain te/device/main///cmd/software_list/robot-win-1 ''
+    ...    AND    Get Logs
+
+Batch log plugin is registered without its extension
+    Should Have Retained MQTT Messages
+    ...    te/device/main///cmd/log_upload
+    ...    message_pattern=.*"robot_log::robotlog".*
+
+Log upload uses the batch log plugin
+    Execute Command
+    ...    tedge mqtt pub --retain te/device/main///cmd/log_upload/robot-win-1 '{"status":"init","tedgeUrl":"${LOG_URL}","type":"robot_log::robotlog","dateFrom":"2020-01-01T00:00:00Z","dateTo":"2100-01-01T00:00:00Z","lines":10}'
+    Should Have MQTT Messages
+    ...    te/device/main///cmd/log_upload/robot-win-1
+    ...    message_pattern="status":\\s*"successful"
+    ...    minimum=1
+    ${contents}=    Execute Command    curl.exe -sSf '${LOG_URL}'
+    Should Contain    ${contents}    Robot log content
+    [Teardown]    Run Keywords
+    ...    Execute Command    tedge mqtt pub --retain te/device/main///cmd/log_upload/robot-win-1 ''
+    ...    AND    Get Logs
+
+
+*** Keywords ***
+Custom Setup
+    Windows Setup
+    ThinEdgeIO.Transfer To Device    ${CURDIR}/plugins/winlist.ps1    ${SM_PLUGINS_DIR}\\winlist.ps1
+    ThinEdgeIO.Transfer To Device    ${CURDIR}/plugins/robotlog.cmd    ${LOG_PLUGINS_DIR}\\robotlog.cmd
+    Restart Agent And Wait Until Up
+
+Custom Teardown
+    Remove Device File    ${SM_PLUGINS_DIR}\\winlist.ps1
+    Remove Device File    ${LOG_PLUGINS_DIR}\\robotlog.cmd
+    Restart Agent And Wait Until Up
+    Get Suite Logs
+
+Should Not Have Retained MQTT Messages With Text
+    [Arguments]    ${topic}    ${text}
+    ${output}=    Execute Command
+    ...    tedge mqtt sub '${topic}' --retained-only --no-topic --duration 1s
+    ...    ignore_exit_code=${True}
+    Should Not Contain    ${output}    ${text}
