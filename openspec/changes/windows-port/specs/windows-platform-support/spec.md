@@ -118,6 +118,20 @@ It SHALL NOT be advertised to the cloud.
 - **WHEN** a user runs `tedge-p11-server.exe` or `tedge-shell-plugin.exe` on Windows
 - **THEN** the process exits with a non-zero code and an error stating the component is not supported on this platform
 
+### Requirement: Device restart on Windows
+
+On Windows, the default `system.reboot` command SHALL be `shutdown /r /t 0`.
+After the agent restarts, it SHALL determine whether the device rebooted by comparing the time the restart was requested
+with the last boot time reported by `Win32_OperatingSystem`, since the agent `tmp` directory is not cleared on reboot.
+
+#### Scenario: Restart operation succeeds after a reboot
+- **WHEN** a restart operation reboots the Windows device and the agent starts again
+- **THEN** the restart operation is reported as successful
+
+#### Scenario: Agent restarted without a reboot
+- **WHEN** the agent restarts during a restart operation but Windows did not reboot
+- **THEN** the restart operation is reported as failed with "The agent has been restarted but not the device"
+
 ### Requirement: Windows file names
 
 Files created by thin-edge.io on Windows SHALL NOT contain characters that are invalid in Windows file names.

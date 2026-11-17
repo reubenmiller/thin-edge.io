@@ -11,33 +11,34 @@
 - [x] 2.3 Run `tedge run all` as the `tedge` Windows Service; one `windows_service_name()` for dispatcher and registration
 - [x] 2.4 Terminate process trees on timeout with `taskkill /T` and `taskkill /T /F` in `tedge_utils::signals` and `tedge_script_ext`
 - [x] 2.5 Start `LoggedCommand` and `ScriptActor` commands in their own process group on Unix only
-- [ ] 2.6 Unit test: `request_shutdown()` before and after the supervisor starts drains all units
+- [x] 2.6 Unit test: `request_shutdown()` before and after the supervisor starts drains all units
 
 ## 3. Plugins
 
 - [x] 3.1 Add `tedge_utils::plugins` (`plugin_name`, `is_plugin_candidate`, `has_windows_plugin_extension`) with case-insensitive extensions
 - [x] 3.2 Use it in `plugin_sm`, `tedge_log_manager`, `tedge_config_manager` and `tedge diag collect`
-- [ ] 3.3 Test helper creating a platform-specific plugin script (`.cmd` on Windows, shell script on Unix) in `tedge_test_utils`
-- [ ] 3.4 Re-enable the log manager and configuration manager tests ignored because of bash plugins
+- [x] 3.3 Test helper creating a platform-specific plugin script (`.cmd` on Windows, shell script on Unix) in `tedge_test_utils`
+- [x] 3.4 Re-enable the log manager and configuration manager tests ignored because of bash plugins
 
 ## 4. Platform support
 
-- [ ] 4.1 Percent-encode child-device external IDs in `operations/c8y` directory names on Windows and decode them in `xid_from_path`
-- [ ] 4.2 Re-enable the child-device tests in `c8y_mapper_ext` ignored on Windows
-- [ ] 4.3 Restrict `C:\ProgramData\tedge` to SYSTEM and Administrators when `ensure_windows_data_dirs` creates it
-- [ ] 4.4 Apply the same ACL in `install.ps1` / `postinstall.ps1`
-- [ ] 4.5 `tedge connect` fails with an explicit error on Windows when `mqtt.bridge.built_in` is `false`
-- [ ] 4.6 Default `mqtt.bridge.built_in` to `true` in the Windows first-run `tedge.toml`
+- [x] 4.1 Percent-encode child-device external IDs in `operations/c8y` directory names on Windows and decode them in `xid_from_path`
+- [x] 4.2 Re-enable the child-device tests in `c8y_mapper_ext` ignored on Windows
+- [x] 4.3 Restrict `C:\ProgramData\tedge` to SYSTEM and Administrators when `ensure_windows_data_dirs` creates it
+- [x] 4.4 Apply the same ACL in `install.ps1` / `postinstall.ps1`
+- [x] 4.5 `tedge connect` fails with an explicit error on Windows when `mqtt.bridge.built_in` is `false`
+- [x] 4.6 Default `mqtt.bridge.built_in` to `true` in the Windows first-run `tedge.toml`
 - [x] 4.7 `tedge-shell-plugin` and `tedge-p11-server` exit with "not supported on this platform" on Windows
 - [x] 4.8 The agent does not register `shell_execute` on Windows
-- [ ] 4.9 Write the support matrix and the Windows install guide in `docs/src/` and replace `docs/windows-porting-status.md`
+- [x] 4.10 Detect a Windows reboot from `Win32_OperatingSystem.LastBootUpTime`, default `system.reboot` to `shutdown /r /t 0`
+- [x] 4.9 Write the support matrix and the Windows install guide in `docs/src/` and replace `docs/windows-porting-status.md`
 
 ## 5. CI
 
-- [ ] 5.1 Run `ci-windows.yml` on pull requests and `main`
-- [ ] 5.2 Add a `cargo clippy -D warnings` step for the Windows target
-- [ ] 5.3 Build the release `tedge.exe` once and pass it to the system test job as an artifact
-- [ ] 5.4 Add a system test job: install Mosquitto, install tedge from the build, run the Windows Robot Framework suite, upload the reports
+- [x] 5.1 Run `ci-windows.yml` on pull requests and `main`
+- [x] 5.2 Add a `cargo clippy -D warnings` step for the Windows target
+- [x] 5.3 Build the release `tedge.exe` once and pass it to the system test job as an artifact
+- [x] 5.4 Add a system test job: install Mosquitto, install tedge from the build, run the Windows Robot Framework suite, upload the reports
 - [ ] 5.5 Exclude the `platform:windows` tag from the Linux Robot Framework runs
 
 ## 6. Robot Framework on Windows
