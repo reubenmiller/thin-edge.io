@@ -70,7 +70,7 @@ fn service_main_win(_args: Vec<OsString>) {
     // Create data dirs and seed default config before doing anything else.
     // This also creates the log directory used by register_with_scm's
     // diagnostic file.
-    tedge::cli::windows_init::ensure_windows_data_dirs(&tedge_config::get_config_dir());
+    tedge::cli::windows_init::ensure_windows_data_dirs(&tedge_config::get_config_dir(), true);
 
     // Register with the SCM.  Called from inside ServiceMain so
     // RegisterServiceCtrlHandlerExW has the SCM connection the OS requires.
@@ -158,10 +158,12 @@ async fn main() -> anyhow::Result<()> {
     // On Windows, bootstrap C:\ProgramData\tedge\ and default config files
     // before any service starts.  Safe to call repeatedly — all ops are
     // idempotent.
+    // This is done for the CLI commands too, e.g. `tedge cert create` needs the device-certs directory.
     #[cfg(windows)]
-    if let TEdgeOptMulticall::Component(_) = &opt {
-        tedge::cli::windows_init::ensure_windows_data_dirs(&tedge_config::get_config_dir());
-    }
+    tedge::cli::windows_init::ensure_windows_data_dirs(
+        &tedge_config::get_config_dir(),
+        matches!(opt, TEdgeOptMulticall::Component(_)),
+    );
 
     match opt {
         TEdgeOptMulticall::Component(Component::All(opt)) => {

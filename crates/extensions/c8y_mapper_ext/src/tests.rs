@@ -3310,7 +3310,12 @@ async fn mapper_converts_config_cmd_to_supported_op_and_types_for_child_device()
     // Validate if the supported operation file is created
     assert!(ttd
         .path()
-        .join("operations/c8y/test-device:device:child1/c8y_UploadConfigFile")
+        .join("operations/c8y")
+        .join(
+            crate::supported_operations::device_dir::dir_name_from_xid("test-device:device:child1")
+                .as_ref()
+        )
+        .join("c8y_UploadConfigFile")
         .exists());
 
     // Sending an updated list of config types
@@ -3358,7 +3363,12 @@ async fn mapper_converts_config_cmd_to_supported_op_and_types_for_child_device()
     // Validate if the supported operation file is created
     assert!(ttd
         .path()
-        .join("operations/c8y/test-device:device:child1/c8y_DownloadConfigFile")
+        .join("operations/c8y")
+        .join(
+            crate::supported_operations::device_dir::dir_name_from_xid("test-device:device:child1")
+                .as_ref()
+        )
+        .join("c8y_DownloadConfigFile")
         .exists());
 
     // Sending an updated list of config types

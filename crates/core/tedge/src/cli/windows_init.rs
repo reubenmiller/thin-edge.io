@@ -5,9 +5,13 @@
 /// location.  Every operation is idempotent: existing files are never
 /// overwritten, so user edits survive service upgrades.
 ///
-/// Called once before any `tedge run <service>` dispatch on Windows.
+/// Called before any command on Windows.
+/// `refresh_plugin_wrappers` is set when a component (agent, mapper, ...) starts:
+/// the `file.cmd` plugin wrappers are then pointed at the running `tedge.exe`.
+/// It is not set for CLI commands, so running another `tedge.exe` (e.g. a development build)
+/// does not redirect the plugins of the installed services.
 #[cfg(windows)]
-pub fn ensure_windows_data_dirs(config_dir: &std::path::Path) {
+pub fn ensure_windows_data_dirs(config_dir: &std::path::Path, refresh_plugin_wrappers: bool) {
     use std::fs;
 
     if !config_dir.exists() && fs::create_dir_all(config_dir).is_ok() {
@@ -21,6 +25,8 @@ pub fn ensure_windows_data_dirs(config_dir: &std::path::Path) {
         "sm-plugins",
         "config-plugins",
         "log-plugins",
+        "device-certs",
+        "operations",
     ] {
         let _ = fs::create_dir_all(config_dir.join(subdir));
     }
@@ -45,10 +51,15 @@ pub fn ensure_windows_data_dirs(config_dir: &std::path::Path) {
         // tedge.exe. The MSIX install location changes on every upgrade, so the path
         // must be kept current rather than written once and left stale.
         let exe_path = exe.to_string_lossy();
-        for (subdir, subcommand) in &[
-            ("config-plugins", "tedge-file-config-plugin"),
-            ("log-plugins", "tedge-file-log-plugin"),
-        ] {
+        let wrappers: &[(&str, &str)] = if refresh_plugin_wrappers {
+            &[
+                ("config-plugins", "tedge-file-config-plugin"),
+                ("log-plugins", "tedge-file-log-plugin"),
+            ]
+        } else {
+            &[]
+        };
+        for (subdir, subcommand) in wrappers {
             let content = format!("@echo off\r\n\"{exe_path}\" run {subcommand} %*\r\n");
             let _ = fs::write(config_dir.join(subdir).join("file.cmd"), content.as_bytes());
         }

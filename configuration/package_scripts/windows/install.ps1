@@ -116,9 +116,10 @@ if ((Test-Path $WingetSrc) -and -not (Test-Path $WingetDst)) {
 $TedgeExe = Join-Path $InstallDir "tedge.exe"
 
 function Register-TedgeService {
-    param([string]$Name, [string]$DisplayName, [string]$Args)
+    # Not named $Args, which is a PowerShell automatic variable
+    param([string]$Name, [string]$DisplayName, [string]$Arguments)
 
-    $binPath = "`"$TedgeExe`" $Args"
+    $binPath = "`"$TedgeExe`" $Arguments"
     $existing = sc.exe query $Name 2>$null
     if ($LASTEXITCODE -eq 0) {
         Write-Step "Updating service: $Name"
@@ -134,10 +135,10 @@ function Register-TedgeService {
     }
 }
 
-Register-TedgeService -Name "tedge-agent"      -DisplayName "thin-edge.io Agent"             -Args "run tedge-agent"
-Register-TedgeService -Name "tedge-mapper-c8y" -DisplayName "thin-edge.io Mapper (Cumulocity)" -Args "run tedge-mapper c8y"
+Register-TedgeService -Name "tedge-agent"      -DisplayName "thin-edge.io Agent"             -Arguments "run tedge-agent"
+Register-TedgeService -Name "tedge-mapper-c8y" -DisplayName "thin-edge.io Mapper (Cumulocity)" -Arguments "run tedge-mapper c8y"
 # Single-process mode (`tedge run all`), registered but not started: use it instead of the services above
-Register-TedgeService -Name "tedge" -DisplayName "thin-edge.io" -Args "run all"
+Register-TedgeService -Name "tedge" -DisplayName "thin-edge.io" -Arguments "run all"
 sc.exe config tedge start= demand | Out-Null
 
 # --- Optionally start services ---

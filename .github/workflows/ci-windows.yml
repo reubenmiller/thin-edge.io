@@ -227,8 +227,17 @@ jobs:
       - name: Collect thin-edge.io logs
         if: always()
         run: |
-          New-Item -ItemType Directory -Force tests/RobotFramework/output/tedge-logs | Out-Null
-          Copy-Item -Recurse -Force C:\ProgramData\tedge\log\* tests/RobotFramework/output/tedge-logs/ -ErrorAction SilentlyContinue
+          $out = "tests/RobotFramework/output/tedge-logs"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item -Recurse -Force C:\ProgramData\tedge\log\* $out -ErrorAction SilentlyContinue
+          Copy-Item -Force C:\Windows\Temp\*-scm.log $out -ErrorAction SilentlyContinue
+          # Service registrations and the errors reported by the Service Control Manager
+          foreach ($service in "tedge-agent", "tedge-mapper-c8y", "tedge", "mosquitto") {
+            sc.exe qc $service | Out-File -Append "$out/services.txt"
+          }
+          Get-WinEvent -FilterHashtable @{ LogName = "System"; ProviderName = "Service Control Manager" } -MaxEvents 100 -ErrorAction SilentlyContinue |
+            Format-List TimeCreated, Id, LevelDisplayName, Message | Out-File "$out/scm-events.txt"
+          Get-Content "$out/services.txt", "$out/scm-events.txt" -ErrorAction SilentlyContinue
         shell: pwsh
 
       - name: Upload test results
