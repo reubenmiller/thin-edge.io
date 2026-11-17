@@ -14,18 +14,22 @@ Test Tags           platform:windows    theme:flows
 *** Variables ***
 ${FLOWS_DIR}        ${TEDGE_DIR}\\mappers\\local\\flows
 ${FLOW_DIR}         ${FLOWS_DIR}\\greeting
+# Flows used by `tedge flows test` only, outside the directory of the running mapper
+${TEST_FLOWS_DIR}   ${TEDGE_DIR}\\tmp\\robot-flows
 ${HEALTH_TOPIC}     te/device/main/service/tedge-mapper-local/status/health
 ${STATUS_TOPIC}     te/device/main/service/tedge-mapper-local/status/flows
 
 
 *** Test Cases ***
 Flows translate a measurement to Cumulocity JSON
+    ThinEdgeIO.Transfer To Device    ${CURDIR}/flows/measurements/*    ${TEST_FLOWS_DIR}\\
     ${output}=    Execute Command
-    ...    tedge flows test te/device/main///m/environment '{"time":"2025-06-27T08:11:05.301Z","temperature":258,"location":{"latitude":32.54,"longitude":-117.67}}'
+    ...    tedge flows test --flows-dir '${TEST_FLOWS_DIR}' te/device/main///m/environment '{"time":"2025-06-27T08:11:05.301Z","temperature":258,"location":{"latitude":32.54,"longitude":-117.67}}'
     ...    strip=${True}
     Should Be Equal
     ...    ${output}
     ...    [c8y/measurement/measurements/create] {"type":"environment","time":"2025-06-27T08:11:05.301Z","temperature":{"temperature":{"value":258}},"location":{"latitude":{"value":32.54},"longitude":{"value":-117.67}}}
+    [Teardown]    Run Keywords    Remove Device File    ${TEST_FLOWS_DIR}    AND    Get Logs
 
 Local mapper service runs a user-defined flow
     ${start}=    Get Unix Timestamp
