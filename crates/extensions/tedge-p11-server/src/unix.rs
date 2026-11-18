@@ -588,10 +588,10 @@ module_path = """#;
         }
     }
 
-    /// Belt-and-suspenders for the hybrid approach: even if `flock` silently no-ops (so the lock is
-    /// acquired despite a live server), the ping guard must stop us from stealing a socket that a
-    /// server is actually answering on. Here the live server is stood up directly on the socket
-    /// without going through the lock, mimicking that degraded-`flock` case.
+    // Belt-and-suspenders for the hybrid approach: even if `flock` silently no-ops (so the lock is
+    // acquired despite a live server), the ping guard must stop us from stealing a socket that a
+    // server is actually answering on. Here the live server is stood up directly on the socket
+    // without going through the lock, mimicking that degraded-`flock` case.
     #[tokio::test]
     async fn bind_socket_refuses_when_a_server_is_listening() {
         let dir = tempfile::tempdir().unwrap();

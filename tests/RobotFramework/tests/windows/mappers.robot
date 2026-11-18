@@ -12,12 +12,12 @@ Test Tags           platform:windows    theme:flows
 
 
 *** Variables ***
-${FLOWS_DIR}        ${TEDGE_DIR}\\mappers\\local\\flows
-${FLOW_DIR}         ${FLOWS_DIR}\\greeting
+${FLOWS_DIR}            ${TEDGE_DIR}\\mappers\\local\\flows
+${FLOW_DIR}             ${FLOWS_DIR}\\greeting
 # Flows used by `tedge flows test` only, outside the directory of the running mapper
-${TEST_FLOWS_DIR}   ${TEDGE_DIR}\\tmp\\robot-flows
-${HEALTH_TOPIC}     te/device/main/service/tedge-mapper-local/status/health
-${STATUS_TOPIC}     te/device/main/service/tedge-mapper-local/status/flows
+${TEST_FLOWS_DIR}       ${TEDGE_DIR}\\tmp\\robot-flows
+${HEALTH_TOPIC}         te/device/main/service/tedge-mapper-local/status/health
+${STATUS_TOPIC}         te/device/main/service/tedge-mapper-local/status/flows
 
 
 *** Test Cases ***

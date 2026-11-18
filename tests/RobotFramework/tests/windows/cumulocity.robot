@@ -67,7 +67,6 @@ Log upload
     ...    expected_pattern=.*Robot log content.*
     ...    encoding=utf-8
 
-
 Shell command
     Cumulocity.Should Contain Supported Operations    c8y_Command
     ${operation}=    Cumulocity.Create Operation
@@ -75,6 +74,7 @@ Shell command
     ...    fragments={"c8y_Command":{"text":"Write-Output helloworld"}}
     ${operation}=    Operation Should Be SUCCESSFUL    ${operation}    timeout=120
     Should Contain    ${operation["c8y_Command"]["result"]}    helloworld
+
 
 *** Keywords ***
 Custom Setup

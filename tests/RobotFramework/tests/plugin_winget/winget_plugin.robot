@@ -1,7 +1,7 @@
 *** Settings ***
 Resource            ../../resources/common.resource
-Library             ThinEdgeIO
 Library             Collections
+Library             ThinEdgeIO
 
 Suite Setup         Custom Setup
 Suite Teardown      Get Suite Logs

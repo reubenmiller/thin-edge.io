@@ -370,13 +370,13 @@ mod tests {
         file_handler.await.unwrap();
     }
 
-    /// Make sure that `FsEvent::Modify` is emitted for various operations.
-    ///
-    /// In order to not duplicate various operations, consumers may want to only listen to `Modify` events, which should
-    /// signify that the content of the file changed so it should be read again. However different editors and kinds of
-    /// operation may result in other events, like `Rename`, `Delete`, etc. We want these operations to emit `Modify` as
-    /// well, so that the consumers can only subscribe to single type of event and properly respond every time a file
-    /// they're watching changes.
+    // Make sure that `FsEvent::Modify` is emitted for various operations.
+    //
+    // In order to not duplicate various operations, consumers may want to only listen to `Modify` events, which should
+    // signify that the content of the file changed so it should be read again. However different editors and kinds of
+    // operation may result in other events, like `Rename`, `Delete`, etc. We want these operations to emit `Modify` as
+    // well, so that the consumers can only subscribe to single type of event and properly respond every time a file
+    // they're watching changes.
     #[cfg_attr(target_os = "macos", ignore)]
     #[cfg_attr(
         windows,

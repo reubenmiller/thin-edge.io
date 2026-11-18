@@ -32,9 +32,11 @@ static HANDLE: std::sync::OnceLock<windows_service::service_control_handler::Ser
 ///
 /// Does nothing if the process is not running as a Windows Service.
 pub fn report_stopped(exit_code: u32) {
-    use windows_service::service::{
-        ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType,
-    };
+    use windows_service::service::ServiceControlAccept;
+    use windows_service::service::ServiceExitCode;
+    use windows_service::service::ServiceState;
+    use windows_service::service::ServiceStatus;
+    use windows_service::service::ServiceType;
     if let Some(handle) = HANDLE.get() {
         let _ = handle.set_service_status(ServiceStatus {
             service_type: ServiceType::OWN_PROCESS,
@@ -51,11 +53,14 @@ pub fn report_stopped(exit_code: u32) {
 fn register(service_name: &str) {
     use std::io::Write as _;
     use std::time::Duration;
-    use windows_service::service::{
-        ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
-        ServiceType,
-    };
-    use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
+    use windows_service::service::ServiceControl;
+    use windows_service::service::ServiceControlAccept;
+    use windows_service::service::ServiceExitCode;
+    use windows_service::service::ServiceState;
+    use windows_service::service::ServiceStatus;
+    use windows_service::service::ServiceType;
+    use windows_service::service_control_handler::ServiceControlHandlerResult;
+    use windows_service::service_control_handler::{self};
 
     // Early diagnostic file — written before the tracing logger is initialised.
     let log_path = format!(r"C:\ProgramData\tedge\log\{service_name}-scm.log");

@@ -79,19 +79,19 @@ Log upload of the System event log
     ...    AND    Get Logs
 
 Diagnostic collection runs the Windows plugins
-    ${output_dir}=    Set Variable    ${TEDGE_DIR}\\tmp\\robot-diag
-    Execute Command    tedge diag collect --name robot-diag --keep-dir --output-dir '${output_dir}'
-    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag.tar.gz
-    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\01_tedge\\tedge-config-list.log
-    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\01_tedge\\tedge-agent.log
-    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\02_os\\output.log
-    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\03_mqtt\\tedge-mqtt-sub-retained-only.log
-    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\07_mosquitto\\mosquitto\\mosquitto.conf
-    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\08_truststore\\windows-root-certificates.txt
-    ${os}=    OperatingSystem.Get File    ${output_dir}\\robot-diag\\02_os\\output.log
+    ${diag_dir}=    Set Variable    ${TEDGE_DIR}\\tmp\\robot-diag
+    Execute Command    tedge diag collect --name robot-diag --keep-dir --output-dir '${diag_dir}'
+    OperatingSystem.File Should Exist    ${diag_dir}\\robot-diag.tar.gz
+    OperatingSystem.File Should Exist    ${diag_dir}\\robot-diag\\01_tedge\\tedge-config-list.log
+    OperatingSystem.File Should Exist    ${diag_dir}\\robot-diag\\01_tedge\\tedge-agent.log
+    OperatingSystem.File Should Exist    ${diag_dir}\\robot-diag\\02_os\\output.log
+    OperatingSystem.File Should Exist    ${diag_dir}\\robot-diag\\03_mqtt\\tedge-mqtt-sub-retained-only.log
+    OperatingSystem.File Should Exist    ${diag_dir}\\robot-diag\\07_mosquitto\\mosquitto\\mosquitto.conf
+    OperatingSystem.File Should Exist    ${diag_dir}\\robot-diag\\08_truststore\\windows-root-certificates.txt
+    ${os}=    OperatingSystem.Get File    ${diag_dir}\\robot-diag\\02_os\\output.log
     Should Contain    ${os}    Windows
     [Teardown]    Run Keywords
-    ...    OperatingSystem.Remove Directory    ${output_dir}    recursive=${True}
+    ...    OperatingSystem.Remove Directory    ${diag_dir}    recursive=${True}
     ...    AND    Get Logs
 
 
