@@ -116,12 +116,14 @@ if ((Test-Path $WingetSrc) -and -not (Test-Path $WingetDst)) {
     Write-Host "    Preserved existing winget.ps1"
 }
 
-# The diagnostic and Event Log plugins are owned by thin-edge.io: always replace them.
+# The diagnostic, Event Log and tedge update plugins are owned by thin-edge.io: always replace them.
 # They are next to this script in the installer ZIP, and under configuration\contrib in the repository.
 $ContribDir = Join-Path $ScriptDir "..\..\contrib"
 $BundledPlugins = @{
     "diag-plugins" = @((Join-Path $ScriptDir "diag-plugins\*.ps1"), (Join-Path $ContribDir "diag-plugins\windows\*.ps1"))
     "log-plugins"  = @((Join-Path $ScriptDir "log-plugins\*.ps1"), (Join-Path $ContribDir "log-plugins\eventlog.ps1"))
+    # The plugin updating thin-edge.io itself (software type "tedge")
+    "sm-plugins"   = @((Join-Path $ScriptDir "sm-plugins\tedge.ps1"), (Join-Path $ContribDir "sm-plugins\tedge.ps1"))
 }
 foreach ($sub in $BundledPlugins.Keys) {
     $src = $BundledPlugins[$sub] | Where-Object { Test-Path $_ } | Select-Object -First 1

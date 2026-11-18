@@ -48,11 +48,19 @@ pub fn ensure_windows_data_dirs(config_dir: &std::path::Path, refresh_plugin_wra
                 let _ = fs::copy(&src, &dst);
             }
 
-            // The diagnostic and Event Log plugins are owned by thin-edge.io:
+            // The diagnostic, Event Log and tedge update plugins are owned by thin-edge.io:
             // they are updated with the package, like /usr/share/tedge on Linux.
             if refresh_plugin_wrappers {
                 for subdir in ["diag-plugins", "log-plugins"] {
                     copy_bundled_scripts(&package_root.join(subdir), &config_dir.join(subdir));
+                }
+                // The plugin updating thin-edge.io itself, unlike winget.ps1 which can be customized
+                let tedge_plugin = package_root.join("sm-plugins").join("tedge.ps1");
+                if tedge_plugin.exists() {
+                    let _ = fs::copy(
+                        &tedge_plugin,
+                        config_dir.join("sm-plugins").join("tedge.ps1"),
+                    );
                 }
             }
         }

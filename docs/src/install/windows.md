@@ -175,6 +175,23 @@ A command restarting the agent or the device declares its result first with
 `tedge run tedge-shell-plugin set-result --outcome successful`,
 as there is no `tedge-shell-plugin` executable on Windows.
 
+## Update thin-edge.io from Cumulocity
+
+thin-edge.io updates itself with the software type `tedge`, provided by `sm-plugins\tedge.ps1`.
+In the Cumulocity software repository, create the software `tedge` with the type `tedge`,
+and a version whose file is the installer ZIP (`tedge_<version>_<arch>-installer.zip`) or a `tedge.exe`.
+Installing it on the device:
+
+1. replaces `C:\Program Files\tedge\bin\tedge.exe`, renaming the running one to `tedge.exe.old`,
+   as a running executable cannot be overwritten;
+2. updates the diagnostic, Event Log and `tedge` plugins from the installer ZIP;
+3. restarts the running mapper services;
+4. reports the operation, after which `tedge-agent` detects the new version,
+   exits, and is restarted by the Service Control Manager with the new `tedge.exe`.
+
+This applies to an installation made with `install.ps1`.
+An MSIX installation is updated by installing the new MSIX package.
+
 ## Shell completion
 
 Load the PowerShell completion of `tedge` in the current session,

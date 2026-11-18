@@ -78,4 +78,5 @@
 - [x] 8.7 PowerShell completions (`tedge completions powershell`)
 - [x] 8.8 Unit and system tests on Windows ARM64 (`windows-11-arm`)
 - [x] 8.9 Remote access to RDP and Windows OpenSSH documented
-- [ ] 8.10 Self-update of thin-edge.io from Cumulocity
+- [x] 8.10 Self-update of thin-edge.io from Cumulocity: `tedge.ps1` software type, rename-and-replace of the running `tedge.exe`, agent restart by the SCM recovery actions (`install.ps1` installations)
+- [ ] 8.11 Self-update of MSIX installations

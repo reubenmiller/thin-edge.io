@@ -150,6 +150,9 @@ if (Test-Path $WingetSrc) {
     Write-Warning "winget.ps1 not found at $WingetSrc — sm-plugins will be empty"
 }
 
+# --- Copy the plugin updating thin-edge.io itself (software type "tedge") ---
+Copy-Item (Join-Path $RepoRoot "configuration\contrib\sm-plugins\tedge.ps1") "$StagingDir\sm-plugins\tedge.ps1"
+
 # --- Copy diagnostic and Event Log plugins ---
 Copy-Item (Join-Path $RepoRoot "configuration\contrib\diag-plugins\windows\*.ps1") "$StagingDir\diag-plugins\"
 Copy-Item (Join-Path $RepoRoot "configuration\contrib\log-plugins\eventlog.ps1") "$StagingDir\log-plugins\"
@@ -216,6 +219,7 @@ Copy-Item "$StagingDir\bin\tedge.exe" "$ZipStagingDir\bin\tedge.exe"
 if (Test-Path "$StagingDir\sm-plugins\winget.ps1") {
     Copy-Item "$StagingDir\sm-plugins\winget.ps1" "$ZipStagingDir\sm-plugins\winget.ps1"
 }
+Copy-Item "$StagingDir\sm-plugins\tedge.ps1" "$ZipStagingDir\sm-plugins\tedge.ps1"
 
 Copy-Item "$StagingDir\diag-plugins" "$ZipStagingDir\diag-plugins" -Recurse
 Copy-Item "$StagingDir\log-plugins" "$ZipStagingDir\log-plugins" -Recurse

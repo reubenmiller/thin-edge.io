@@ -280,7 +280,15 @@ impl SoftwareManagerActor {
 
         let executable_path = std::env::current_exe()
             .map_err(|e| anyhow!("Failed to retrieve running executable path due to {}", e))?;
-        let agent_binary_path = executable_path.parent().unwrap().join(TEDGE_AGENT);
+        // On Windows, the agent is `tedge.exe run tedge-agent`, with no `tedge-agent` executable.
+        // The installed `tedge.exe` is next to the running one, which might have been renamed
+        // by the update, as a running executable cannot be replaced, only renamed.
+        let (installed_binary, binary_name) = if cfg!(windows) {
+            ("tedge.exe", "tedge")
+        } else {
+            (TEDGE_AGENT, TEDGE_AGENT)
+        };
+        let agent_binary_path = executable_path.parent().unwrap().join(installed_binary);
 
         let output = Command::new(agent_binary_path)
             .args(["--version"])
@@ -296,7 +304,10 @@ impl SoftwareManagerActor {
 
         let version_output = String::from_utf8_lossy(&output.stdout);
         let version_output_split: Vec<&str> = version_output.split_whitespace().collect();
-        if let ["tedge-agent", installed_binary_version] = version_output_split.as_slice() {
+        if let [name, installed_binary_version] = version_output_split.as_slice() {
+            if *name != binary_name {
+                return Err(anyhow!("Unexpected version output: {:?}", version_output).into());
+            }
             info!("Installed binary version: {}", installed_binary_version);
             if current_running_version != *installed_binary_version {
                 info!("Self update detected. Requesting shutdown...");
