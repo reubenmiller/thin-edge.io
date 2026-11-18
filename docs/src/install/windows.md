@@ -84,6 +84,13 @@ Restart-Service tedge-mapper-c8y
 
 Stopping a service publishes the health status `down` and closes the MQTT connections before the process exits.
 Each service writes its log to `C:\ProgramData\tedge\log\<service-name>.log`.
+A service that crashes or exits with an error is restarted after 5 seconds, twice,
+then every 60 seconds; the count is reset after a day without failure.
+Change this with `sc.exe failure <service-name>`.
+
+Only one instance of each service runs at a time:
+a second `tedge-agent` or mapper of the same cloud exits with the error `Another instance of ... is running`.
+The lock files are in `C:\ProgramData\tedge\run\lock` (`run.path`).
 
 ## Files and directories
 
@@ -95,6 +102,8 @@ Each service writes its log to `C:\ProgramData\tedge\log\<service-name>.log`.
 | `C:\ProgramData\tedge\operations` | Workflows and Cumulocity supported operations |
 | `C:\ProgramData\tedge\sm-plugins` | Software management plugins |
 | `C:\ProgramData\tedge\config-plugins`, `log-plugins` | Configuration and log plugins |
+| `C:\ProgramData\tedge\diag-plugins` | Diagnostic plugins run by `tedge diag collect` |
+| `C:\ProgramData\tedge\run\lock` | Lock files preventing a second instance of a service |
 | `C:\ProgramData\tedge\log` | Service and operation logs |
 
 On Windows, file ownership and Unix modes (`user`, `group`, `mode` settings) are not applied.
@@ -124,6 +133,57 @@ The extension is not part of the plugin name:
 `.bat` and `.cmd` plugins run with `cmd.exe /c`,
 `.ps1` plugins with `powershell.exe -NoProfile -ExecutionPolicy Bypass -File`.
 
+thin-edge.io installs these plugins and replaces them on each upgrade:
+
+| Plugin | Purpose |
+|---|---|
+| `log-plugins\file.cmd` | Log files declared in `plugins\tedge-log-plugin.toml`. The thin-edge.io service logs are declared by default (types `tedge-agent`, `tedge-mapper` and `tedge`). |
+| `log-plugins\eventlog.ps1` | The `System`, `Application` and `Setup` event logs (types `System::eventlog`, …), the Windows counterpart of the `journald` plugin |
+| `config-plugins\file.cmd` | Configuration files declared in `plugins\tedge-configuration-plugin.toml`, including `mosquitto.conf` |
+| `diag-plugins\01_tedge.ps1` … `08_truststore.ps1` | `tedge diag collect`: services and their logs, configuration, OS, MQTT messages, workflows, entities, Mosquitto and trusted certificates |
+
+`sm-plugins\winget.ps1` is installed only if it is absent, so local changes are kept.
+
+## Remote access
+
+The `c8y-remote-access-plugin` connects Cumulocity Cloud Remote Access to any TCP service of the device.
+To give access to the Windows host itself, add an endpoint in Cumulocity for one of these services:
+
+| Protocol | Endpoint | Enable it on Windows |
+|---|---|---|
+| RDP | `127.0.0.1:3389` | Settings > System > Remote Desktop |
+| SSH | `127.0.0.1:22` | `Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0; Start-Service sshd` |
+| VNC | `127.0.0.1:5900` | A VNC server, such as TightVNC |
+
+## Shell commands
+
+The `shell_execute` operation (the Cumulocity shell, `c8y_Command`) runs commands with
+`powershell.exe -NoProfile -NonInteractive -Command <command>`, as `SYSTEM`.
+The output is captured as UTF-8.
+A command still running after `shell.timeout` is terminated with all the processes it started.
+
+To use another shell, set `shell.path`:
+
+| `shell.path` | Command run |
+|---|---|
+| `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe` (default) | `powershell.exe -NoProfile -NonInteractive -Command <command>` |
+| `C:\Program Files\PowerShell\7\pwsh.exe` | `pwsh.exe -NoProfile -NonInteractive -Command <command>` |
+| `C:\Windows\System32\cmd.exe` | `cmd.exe /d /s /c "<command>"` |
+| Any other shell, such as Git Bash | `<shell> -c -- <command>` |
+
+A command restarting the agent or the device declares its result first with
+`tedge run tedge-shell-plugin set-result --outcome successful`,
+as there is no `tedge-shell-plugin` executable on Windows.
+
+## Shell completion
+
+Load the PowerShell completion of `tedge` in the current session,
+or add this line to your PowerShell profile (`$PROFILE`) to load it in every session:
+
+```powershell
+tedge completions powershell | Out-String | Invoke-Expression
+```
+
 ## Differences with Linux
 
 | Feature | Windows |
@@ -137,7 +197,7 @@ The extension is not part of the plugin name:
 | `c8y-firmware-plugin` | Supported |
 | `c8y-remote-access-plugin` | Supported. One process per session: no reuse of a running instance. |
 | `tedge-apt-plugin` | Not supported. Use the winget plugin. |
-| `shell_execute` operation (`c8y_Command`) | Not supported. The agent does not register it. |
+| `shell_execute` operation (`c8y_Command`) | Supported. Commands run in Windows PowerShell by default (see [Shell commands](#shell-commands)). |
 | PKCS#11 module loaded by the mapper (`device.cryptoki.mode = "module"`) | Supported |
 | PKCS#11 socket proxy (`tedge-p11-server`) | Not supported |
 | SIGHUP log level reload, SIGUSR1 mapper restart | Not supported. Restart the service. |

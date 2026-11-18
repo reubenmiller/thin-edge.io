@@ -1358,7 +1358,7 @@ define_tedge_config! {
 
     run: {
         /// The directory used to store runtime information, such as file locks
-        #[tedge_config(example = "/run", default(from_str = "/run"))]
+        #[tedge_config(example = "/run", default(function = "default_run_path"))]
         path: AbsolutePath,
 
         /// Whether to create a lock file or not
@@ -1486,7 +1486,7 @@ define_tedge_config! {
 
     shell: {
         /// The shell used by the `shell_execute` operation to run the commands
-        #[tedge_config(example = "/bin/sh", example = "/bin/bash", default(from_str = "/bin/sh"))]
+        #[tedge_config(example = "/bin/sh", example = "/bin/bash", default(function = "default_shell_path"))]
         #[tedge_config(exposable)]
         path: AbsolutePath,
 
@@ -1769,14 +1769,34 @@ fn cert_error_into_config_error(key: Cow<'static, str>, err: CertificateError) -
 /// Windows has no PEM bundle on disk: its root certificates are in the certificate store,
 /// which is always trusted. The default is an empty directory where extra certificates can be added.
 fn default_root_cert_path(location: &TEdgeConfigLocation) -> AbsolutePath {
+    crate::platform::default_root_cert_path(location.tedge_config_root_path())
+        .try_into()
+        .unwrap()
+}
+
+/// `/run` on Unix, `<config dir>\run` on Windows, which has no system run directory.
+fn default_run_path(location: &TEdgeConfigLocation) -> AbsolutePath {
     if cfg!(windows) {
         location
             .tedge_config_root_path()
-            .join(crate::platform::WINDOWS_CA_CERTS_DIR)
+            .join("run")
             .try_into()
             .unwrap()
     } else {
-        AbsolutePath::try_new(DEFAULT_ROOT_CERT_PATH).unwrap()
+        AbsolutePath::try_new("/run").unwrap()
+    }
+}
+
+/// `/bin/sh` on Unix, Windows PowerShell on Windows
+fn default_shell_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
+    if cfg!(windows) {
+        let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_owned());
+        AbsolutePath::try_new(&format!(
+            r"{system_root}\System32\WindowsPowerShell\v1.0\powershell.exe"
+        ))
+        .unwrap()
+    } else {
+        AbsolutePath::try_new("/bin/sh").unwrap()
     }
 }
 

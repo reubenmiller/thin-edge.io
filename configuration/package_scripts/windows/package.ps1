@@ -105,6 +105,8 @@ $OutputDir  = Join-Path $RepoRoot $OutputDir
 if (Test-Path $StagingDir) { Remove-Item $StagingDir -Recurse -Force }
 New-Item -ItemType Directory -Path "$StagingDir\bin"        | Out-Null
 New-Item -ItemType Directory -Path "$StagingDir\sm-plugins" | Out-Null
+New-Item -ItemType Directory -Path "$StagingDir\diag-plugins" | Out-Null
+New-Item -ItemType Directory -Path "$StagingDir\log-plugins" | Out-Null
 New-Item -ItemType Directory -Path "$StagingDir\assets"     | Out-Null
 New-Item -ItemType Directory -Path $OutputDir               -Force | Out-Null
 
@@ -147,6 +149,10 @@ if (Test-Path $WingetSrc) {
 } else {
     Write-Warning "winget.ps1 not found at $WingetSrc — sm-plugins will be empty"
 }
+
+# --- Copy diagnostic and Event Log plugins ---
+Copy-Item (Join-Path $RepoRoot "configuration\contrib\diag-plugins\windows\*.ps1") "$StagingDir\diag-plugins\"
+Copy-Item (Join-Path $RepoRoot "configuration\contrib\log-plugins\eventlog.ps1") "$StagingDir\log-plugins\"
 
 # --- Logo ---
 $LogoSrc = Join-Path $RepoRoot "configuration\package_manifests\windows\assets\logo.png"
@@ -199,7 +205,7 @@ foreach ($ext in @("msix", "appx")) {
 }
 
 # --- ZIP installer: no certificate or MSIX policy required ---
-# Contains tedge.exe, winget.ps1, install.ps1, uninstall.ps1.
+# Contains tedge.exe, winget.ps1, the diagnostic and Event Log plugins, install.ps1, uninstall.ps1.
 # Install with: PowerShell -ExecutionPolicy Bypass -File install.ps1
 $ZipStagingDir = Join-Path $RepoRoot "target\zip-staging-$Arch"
 if (Test-Path $ZipStagingDir) { Remove-Item $ZipStagingDir -Recurse -Force }
@@ -210,6 +216,9 @@ Copy-Item "$StagingDir\bin\tedge.exe" "$ZipStagingDir\bin\tedge.exe"
 if (Test-Path "$StagingDir\sm-plugins\winget.ps1") {
     Copy-Item "$StagingDir\sm-plugins\winget.ps1" "$ZipStagingDir\sm-plugins\winget.ps1"
 }
+
+Copy-Item "$StagingDir\diag-plugins" "$ZipStagingDir\diag-plugins" -Recurse
+Copy-Item "$StagingDir\log-plugins" "$ZipStagingDir\log-plugins" -Recurse
 
 $PkgScripts = Join-Path $RepoRoot "configuration\package_scripts\windows"
 Copy-Item (Join-Path $PkgScripts "install.ps1")   "$ZipStagingDir\install.ps1"

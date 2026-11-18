@@ -71,6 +71,15 @@ pub fn log_root() -> PathBuf {
 /// | Windows       | `C:\ProgramData\tedge\ca-certificates`     |
 pub const WINDOWS_CA_CERTS_DIR: &str = "ca-certificates";
 
+/// Default trusted root certificates of the cloud connections, given the configuration root
+pub fn default_root_cert_path(config_root: &camino::Utf8Path) -> camino::Utf8PathBuf {
+    if cfg!(windows) {
+        config_root.join(WINDOWS_CA_CERTS_DIR)
+    } else {
+        camino::Utf8PathBuf::from("/etc/ssl/certs")
+    }
+}
+
 /// Temporary directory for downloads and in-progress operations.
 ///
 /// | Platform      | Default path                          |

@@ -32,6 +32,16 @@ First run seeds the file log and configuration plugins
     File Should Exist    ${TEDGE_DIR}\\log-plugins\\file.cmd
     File Should Exist    ${TEDGE_DIR}\\config-plugins\\file.cmd
 
+Default log types include the service logs
+    ${types}=    Execute Command    Get-Content ${TEDGE_DIR}\\plugins\\tedge-log-plugin.toml -Raw
+    Should Contain    ${types}    type = "tedge-agent"
+    Should Contain    ${types}    type = "tedge-mapper"
+
+Default configuration types include mosquitto.conf
+    ${types}=    Execute Command    Get-Content ${TEDGE_DIR}\\plugins\\tedge-configuration-plugin.toml -Raw
+    Should Contain    ${types}    type = "mosquitto"
+    Should Contain    ${types}    mosquitto.conf
+
 Configuration directory is restricted to SYSTEM and Administrators
     ${output}=    Execute Command
     ...    (Get-Acl -LiteralPath '${TEDGE_DIR}').Access | ForEach-Object { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value } | Sort-Object -Unique

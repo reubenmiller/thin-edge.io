@@ -29,7 +29,14 @@ Trusted root certificates default to a thin-edge.io directory
         ${root_cert_path}=    Execute Command    tedge config get ${cloud}.root_cert_path    strip=${True}
         Should Be Equal    ${root_cert_path}    ${TEDGE_DIR}\\ca-certificates
     END
-    Directory Should Exist    ${TEDGE_DIR}\\ca-certificates
+    ${exists}=    Execute Command    Test-Path -PathType Container '${TEDGE_DIR}\\ca-certificates'    strip=${True}
+    Should Be Equal    ${exists}    True
+
+PowerShell completes tedge commands
+    ${matches}=    Execute Command
+    ...    tedge completions powershell | Out-String | Invoke-Expression; (TabExpansion2 'tedge con' 9).CompletionMatches.CompletionText
+    Should Contain    ${matches}    config
+    Should Contain    ${matches}    connect
 
 Publish a message with tedge mqtt pub
     Execute Command    tedge mqtt pub te/device/main///m/robot_windows '{"temperature": 21.5}'

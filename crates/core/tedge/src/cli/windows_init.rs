@@ -25,6 +25,7 @@ pub fn ensure_windows_data_dirs(config_dir: &std::path::Path, refresh_plugin_wra
         "sm-plugins",
         "config-plugins",
         "log-plugins",
+        "diag-plugins",
         "device-certs",
         tedge_config::platform::WINDOWS_CA_CERTS_DIR,
         "operations",
@@ -46,6 +47,14 @@ pub fn ensure_windows_data_dirs(config_dir: &std::path::Path, refresh_plugin_wra
             if src.exists() && !dst.exists() {
                 let _ = fs::copy(&src, &dst);
             }
+
+            // The diagnostic and Event Log plugins are owned by thin-edge.io:
+            // they are updated with the package, like /usr/share/tedge on Linux.
+            if refresh_plugin_wrappers {
+                for subdir in ["diag-plugins", "log-plugins"] {
+                    copy_bundled_scripts(&package_root.join(subdir), &config_dir.join(subdir));
+                }
+            }
         }
 
         // Always regenerate file.cmd wrappers with the absolute path to the current
@@ -63,6 +72,23 @@ pub fn ensure_windows_data_dirs(config_dir: &std::path::Path, refresh_plugin_wra
         for (subdir, subcommand) in wrappers {
             let content = format!("@echo off\r\n\"{exe_path}\" run {subcommand} %*\r\n");
             let _ = fs::write(config_dir.join(subdir).join("file.cmd"), content.as_bytes());
+        }
+    }
+}
+
+/// Copies the PowerShell scripts of a package directory, replacing older copies
+#[cfg(windows)]
+fn copy_bundled_scripts(src_dir: &std::path::Path, dst_dir: &std::path::Path) {
+    let Ok(entries) = std::fs::read_dir(src_dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("ps1"))
+        {
+            let _ = std::fs::copy(&path, dst_dir.join(entry.file_name()));
         }
     }
 }
@@ -131,12 +157,14 @@ fn default_tedge_toml(config_dir: &std::path::Path) -> String {
         "[data]\npath = '{}'\n\n[logs]\npath = '{}'\n\n[tmp]\npath = '{}'\n\n\
          [configuration]\nplugin_paths = '{}'\n\n\
          [log]\nplugin_paths = '{}'\n\n\
+         [diag]\nplugin_paths = '{}'\n\n\
          [mqtt.bridge]\nbuilt_in = true\n",
         path("data"),
         path("log"),
         path("tmp"),
         path("config-plugins"),
         path("log-plugins"),
+        path("diag-plugins"),
     )
 }
 

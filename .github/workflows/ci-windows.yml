@@ -57,8 +57,16 @@ jobs:
         shell: pwsh
 
   test-windows:
-    name: Unit tests (windows)
-    runs-on: windows-latest
+    name: Unit tests (windows, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
     steps:
       - uses: actions/checkout@v7
 
@@ -76,7 +84,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: test
+          key: test-${{ matrix.arch }}
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
@@ -144,20 +152,29 @@ jobs:
           retention-days: 14
 
   system-test-windows:
-    name: System tests (windows)
+    name: System tests (windows, ${{ matrix.arch }})
     needs: build-windows
     # The Cumulocity credentials are secrets of this environment, as for the Linux system tests
     environment:
       name: Test Auto
-    runs-on: windows-latest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          # Windows on ARM: the native arm64 build, with the x64 Mosquitto in emulation
+          - arch: arm64
+            runner: windows-11-arm
     steps:
       - uses: actions/checkout@v7
 
       - name: Download tedge.exe
         uses: actions/download-artifact@v8
         with:
-          name: tedge-windows-x64-exe
-          path: target/windows-x64
+          name: tedge-windows-${{ matrix.arch }}-exe
+          path: target/windows-${{ matrix.arch }}
 
       # Mosquitto for Windows is the documented MQTT broker; it runs as the `mosquitto` service
       # Install with winget (package EclipseFoundation.Mosquitto) when the runner image has it,
@@ -181,7 +198,7 @@ jobs:
       - name: Install thin-edge.io
         run: >
           pwsh configuration/package_scripts/windows/install.ps1
-          -SourceExe target/windows-x64/tedge.exe
+          -SourceExe target/windows-${{ matrix.arch }}/tedge.exe
           -StartServices:$false
         shell: pwsh
 
@@ -252,7 +269,7 @@ jobs:
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: report-windows
+          name: report-windows-${{ matrix.arch }}
           path: tests/RobotFramework/output
 
   package-windows:

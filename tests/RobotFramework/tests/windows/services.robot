@@ -54,6 +54,20 @@ Restart tedge-agent service
     ...    message_pattern="status":\\s*"up"
     Service Health Status Should Be Up    tedge-agent
 
+A second tedge-agent does not start while the service runs
+    Service Should Be Running    tedge-agent
+    Execute Command    tedge run tedge-agent    exp_exit_code=!0    timeout=30
+    File Should Exist    ${TEDGE_DIR}\\run\\lock\\tedge-agent.lock
+    Service Should Be Running    tedge-agent
+
+A crashed tedge-agent service is restarted
+    ${pid_before}=    Service Should Be Running    tedge-agent
+    Execute Command    Stop-Process -Id ${pid_before} -Force
+    ${pid_after}=    Wait Until Keyword Succeeds    30s    2s    Service Should Be Running    tedge-agent
+    Should Not Be Equal    ${pid_before}    ${pid_after}    msg=tedge-agent should have been restarted
+    Service Health Status Should Be Up    tedge-agent
+    [Teardown]    Run Keywords    Ensure Service Is Running    tedge-agent    AND    Get Logs
+
 
 *** Keywords ***
 Custom Setup

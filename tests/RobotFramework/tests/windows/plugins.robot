@@ -1,5 +1,7 @@
 *** Settings ***
 Resource            windows.resource
+Library             DateTime
+Library             OperatingSystem
 
 Suite Setup         Custom Setup
 Suite Teardown      Custom Teardown
@@ -52,6 +54,44 @@ Log upload uses the batch log plugin
     Should Contain    ${contents}    Robot log content
     [Teardown]    Run Keywords
     ...    Execute Command    tedge mqtt pub --retain te/device/main///cmd/log_upload/robot-win-1 ''
+    ...    AND    Get Logs
+
+Windows Event Log is offered as a log type
+    Wait Until Keyword Succeeds    30s    1s
+    ...    Should Have Retained MQTT Messages
+    ...    te/device/main///cmd/log_upload
+    ...    message_pattern=.*"System::eventlog".*
+
+Log upload of the System event log
+    ${date_from}=    Get Current Date    UTC    - 1 day    result_format=%Y-%m-%dT%H:%M:%SZ
+    ${date_to}=    Get Current Date    UTC    + 1 hour    result_format=%Y-%m-%dT%H:%M:%SZ
+    Execute Command
+    ...    tedge mqtt pub --retain te/device/main///cmd/log_upload/robot-win-1 '{"status":"init","tedgeUrl":"${LOG_URL}","type":"System::eventlog","dateFrom":"${date_from}","dateTo":"${date_to}","lines":100}'
+    Should Have MQTT Messages
+    ...    te/device/main///cmd/log_upload/robot-win-1
+    ...    message_pattern="status":\\s*"successful"
+    ...    minimum=1
+    # The tests start and stop services, which the Service Control Manager records in the System log
+    ${contents}=    Execute Command    curl.exe -sSf '${LOG_URL}'
+    Should Contain    ${contents}    Service Control Manager
+    [Teardown]    Run Keywords
+    ...    Execute Command    tedge mqtt pub --retain te/device/main///cmd/log_upload/robot-win-1 ''
+    ...    AND    Get Logs
+
+Diagnostic collection runs the Windows plugins
+    ${output_dir}=    Set Variable    ${TEDGE_DIR}\\tmp\\robot-diag
+    Execute Command    tedge diag collect --name robot-diag --keep-dir --output-dir '${output_dir}'
+    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag.tar.gz
+    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\01_tedge\\tedge-config-list.log
+    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\01_tedge\\tedge-agent.log
+    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\02_os\\output.log
+    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\03_mqtt\\tedge-mqtt-sub-retained-only.log
+    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\07_mosquitto\\mosquitto\\mosquitto.conf
+    OperatingSystem.File Should Exist    ${output_dir}\\robot-diag\\08_truststore\\windows-root-certificates.txt
+    ${os}=    OperatingSystem.Get File    ${output_dir}\\robot-diag\\02_os\\output.log
+    Should Contain    ${os}    Windows
+    [Teardown]    Run Keywords
+    ...    OperatingSystem.Remove Directory    ${output_dir}    recursive=${True}
     ...    AND    Get Logs
 
 

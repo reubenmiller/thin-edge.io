@@ -12,6 +12,7 @@ pub enum Shell {
     Bash,
     Zsh,
     Fish,
+    Powershell,
 }
 
 impl From<Shell> for clap_complete::Shell {
@@ -20,6 +21,7 @@ impl From<Shell> for clap_complete::Shell {
             Shell::Bash => Self::Bash,
             Shell::Zsh => Self::Zsh,
             Shell::Fish => Self::Fish,
+            Shell::Powershell => Self::PowerShell,
         }
     }
 }
@@ -31,6 +33,7 @@ impl From<Shell> for Box<dyn clap_complete::env::EnvCompleter> {
             Shell::Bash => Box::new(env::Bash),
             Shell::Zsh => Box::new(env::Zsh),
             Shell::Fish => Box::new(env::Fish),
+            Shell::Powershell => Box::new(env::Powershell),
         }
     }
 }

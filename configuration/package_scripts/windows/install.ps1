@@ -66,7 +66,7 @@ if (-not (Test-Path $ConfigDir)) {
     if ($LASTEXITCODE -ne 0) { throw "Failed to restrict the access to $ConfigDir (icacls exit code $LASTEXITCODE)" }
     Write-Host "    Restricted access to SYSTEM and Administrators"
 }
-foreach ($sub in @("data", "log", "tmp", "sm-plugins", "config-plugins", "log-plugins")) {
+foreach ($sub in @("data", "log", "tmp", "sm-plugins", "config-plugins", "log-plugins", "diag-plugins")) {
     New-Item -ItemType Directory -Path (Join-Path $ConfigDir $sub) -Force | Out-Null
 }
 
@@ -78,6 +78,7 @@ if (-not (Test-Path $TomlPath)) {
     $tmpDir           = (Join-Path $ConfigDir "tmp")            -replace '\\', '/'
     $configPluginsDir = (Join-Path $ConfigDir "config-plugins") -replace '\\', '/'
     $logPluginsDir    = (Join-Path $ConfigDir "log-plugins")    -replace '\\', '/'
+    $diagPluginsDir   = (Join-Path $ConfigDir "diag-plugins")   -replace '\\', '/'
     Set-Content -Path $TomlPath -Encoding UTF8 -Value @"
 [data]
 path = '$dataDir'
@@ -93,6 +94,9 @@ plugin_paths = '$configPluginsDir'
 
 [log]
 plugin_paths = '$logPluginsDir'
+
+[diag]
+plugin_paths = '$diagPluginsDir'
 
 [mqtt.bridge]
 built_in = true
@@ -110,6 +114,23 @@ if ((Test-Path $WingetSrc) -and -not (Test-Path $WingetDst)) {
     Write-Host "    Installed winget.ps1"
 } elseif (Test-Path $WingetDst) {
     Write-Host "    Preserved existing winget.ps1"
+}
+
+# The diagnostic and Event Log plugins are owned by thin-edge.io: always replace them.
+# They are next to this script in the installer ZIP, and under configuration\contrib in the repository.
+$ContribDir = Join-Path $ScriptDir "..\..\contrib"
+$BundledPlugins = @{
+    "diag-plugins" = @((Join-Path $ScriptDir "diag-plugins\*.ps1"), (Join-Path $ContribDir "diag-plugins\windows\*.ps1"))
+    "log-plugins"  = @((Join-Path $ScriptDir "log-plugins\*.ps1"), (Join-Path $ContribDir "log-plugins\eventlog.ps1"))
+}
+foreach ($sub in $BundledPlugins.Keys) {
+    $src = $BundledPlugins[$sub] | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($src) {
+        Copy-Item $src (Join-Path $ConfigDir $sub) -Force
+        Write-Host "    Installed $sub"
+    } else {
+        Write-Warning "No $sub found next to the installer"
+    }
 }
 
 # --- Register Windows Services ---
@@ -132,6 +153,14 @@ function Register-TedgeService {
     sc.exe description $Name "thin-edge.io — $DisplayName" | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to register service '$Name'"
+    }
+
+    # Restart after a crash or a non-zero exit code, like Restart=on-failure of the systemd units:
+    # after 5 s twice, then every 60 s. The failure count is reset after a day without failure.
+    sc.exe failure $Name reset= 86400 actions= restart/5000/restart/5000/restart/60000 | Out-Null
+    sc.exe failureflag $Name 1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to set the recovery actions of service '$Name'"
     }
 }
 
