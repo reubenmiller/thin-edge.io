@@ -1764,8 +1764,20 @@ fn cert_error_into_config_error(key: Cow<'static, str>, err: CertificateError) -
     }
 }
 
-fn default_root_cert_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
-    AbsolutePath::try_new(DEFAULT_ROOT_CERT_PATH).unwrap()
+/// The trusted root certificates used to connect to the cloud, in addition to the OS certificate store on Windows.
+///
+/// Windows has no PEM bundle on disk: its root certificates are in the certificate store,
+/// which is always trusted. The default is an empty directory where extra certificates can be added.
+fn default_root_cert_path(location: &TEdgeConfigLocation) -> AbsolutePath {
+    if cfg!(windows) {
+        location
+            .tedge_config_root_path()
+            .join(crate::platform::WINDOWS_CA_CERTS_DIR)
+            .try_into()
+            .unwrap()
+    } else {
+        AbsolutePath::try_new(DEFAULT_ROOT_CERT_PATH).unwrap()
+    }
 }
 
 fn default_logs_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
@@ -1990,6 +2002,21 @@ mod tests {
     use tedge_test_utils::fs::TempTedgeDir;
 
     use super::*;
+
+    #[test]
+    fn default_root_cert_path_is_a_tedge_directory_on_windows() {
+        let config_dir = TempTedgeDir::new();
+        let location = TEdgeConfigLocation::from_custom_root(config_dir.path());
+
+        let path = default_root_cert_path(&location);
+
+        if cfg!(windows) {
+            let expected = config_dir.path().join("ca-certificates");
+            assert_eq!(path.to_string(), expected.to_string());
+        } else {
+            assert_eq!(path.to_string(), "/etc/ssl/certs");
+        }
+    }
 
     #[test]
     fn mqtt_bridge_unacked_message_timeout_accepts_zero() {

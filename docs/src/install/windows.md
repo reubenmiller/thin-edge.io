@@ -91,6 +91,7 @@ Each service writes its log to `C:\ProgramData\tedge\log\<service-name>.log`.
 |---|---|
 | `C:\ProgramData\tedge\tedge.toml` | Configuration |
 | `C:\ProgramData\tedge\device-certs` | Device certificate and private key |
+| `C:\ProgramData\tedge\ca-certificates` | Extra trusted root certificates (empty by default) |
 | `C:\ProgramData\tedge\operations` | Workflows and Cumulocity supported operations |
 | `C:\ProgramData\tedge\sm-plugins` | Software management plugins |
 | `C:\ProgramData\tedge\config-plugins`, `log-plugins` | Configuration and log plugins |
@@ -143,3 +144,4 @@ The extension is not part of the plugin name:
 | `tedge init` symbolic links | Not needed: components run as `tedge.exe run <component>` |
 | Graceful termination on timeout | Console scripts cannot be asked to close: they are killed, with their child processes, when the timeout expires, without the extra time a Unix script gets after SIGTERM. |
 | File ownership and modes | Replaced by the ACL of `C:\ProgramData\tedge` |
+| Trusted root certificates | The Windows certificate store is always trusted. `c8y.root_cert_path`, `az.root_cert_path` and `aws.root_cert_path` default to `C:\ProgramData\tedge\ca-certificates` instead of `/etc/ssl/certs`; add PEM files there to trust extra authorities. |

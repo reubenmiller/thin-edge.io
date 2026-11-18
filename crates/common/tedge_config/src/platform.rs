@@ -59,25 +59,17 @@ pub fn log_root() -> PathBuf {
     }
 }
 
-/// Default CA certificate bundle directory.
+/// Directory, under the configuration root, of the extra trusted root certificates on Windows.
 ///
-/// Returns `None` on Windows because Windows uses the system certificate store
-/// rather than a PEM bundle on disk.
+/// Windows keeps its root certificates in the OS certificate store, which is always trusted,
+/// so `c8y.root_cert_path`, `az.root_cert_path` and `aws.root_cert_path` default to this
+/// directory (empty by default) rather than to `/etc/ssl/certs`.
 ///
-/// | Platform      | Default path                          |
-/// |---------------|---------------------------------------|
-/// | Linux / macOS | `/etc/ssl/certs`                      |
-/// | Windows       | `None` (system certificate store)     |
-pub fn ca_certs_dir() -> Option<PathBuf> {
-    #[cfg(windows)]
-    {
-        None
-    }
-    #[cfg(not(windows))]
-    {
-        Some(PathBuf::from("/etc/ssl/certs"))
-    }
-}
+/// | Platform      | Default `root_cert_path`                    |
+/// |---------------|---------------------------------------------|
+/// | Linux / macOS | `/etc/ssl/certs`                            |
+/// | Windows       | `C:\ProgramData\tedge\ca-certificates`     |
+pub const WINDOWS_CA_CERTS_DIR: &str = "ca-certificates";
 
 /// Temporary directory for downloads and in-progress operations.
 ///

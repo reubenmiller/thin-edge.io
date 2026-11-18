@@ -24,6 +24,13 @@ Create a self-signed device certificate
     File Should Exist    ${cert_path}
     [Teardown]    Run Keywords    Execute Command    tedge cert remove    ignore_exit_code=${True}    AND    Get Logs
 
+Trusted root certificates default to a thin-edge.io directory
+    FOR    ${cloud}    IN    c8y    az    aws
+        ${root_cert_path}=    Execute Command    tedge config get ${cloud}.root_cert_path    strip=${True}
+        Should Be Equal    ${root_cert_path}    ${TEDGE_DIR}\\ca-certificates
+    END
+    Directory Should Exist    ${TEDGE_DIR}\\ca-certificates
+
 Publish a message with tedge mqtt pub
     Execute Command    tedge mqtt pub te/device/main///m/robot_windows '{"temperature": 21.5}'
     Should Have MQTT Messages

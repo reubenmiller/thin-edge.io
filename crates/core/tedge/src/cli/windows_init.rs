@@ -26,6 +26,7 @@ pub fn ensure_windows_data_dirs(config_dir: &std::path::Path, refresh_plugin_wra
         "config-plugins",
         "log-plugins",
         "device-certs",
+        tedge_config::platform::WINDOWS_CA_CERTS_DIR,
         "operations",
     ] {
         let _ = fs::create_dir_all(config_dir.join(subdir));
