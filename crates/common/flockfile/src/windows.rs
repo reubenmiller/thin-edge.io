@@ -1,5 +1,7 @@
 use std::fs::File;
+use std::fs::TryLockError;
 use std::io;
+use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -7,49 +9,66 @@ const LOCK_CHILD_DIRECTORY: &str = "lock/";
 
 #[derive(thiserror::Error, Debug)]
 pub enum FlockfileError {
-    #[error(transparent)]
-    IoError(#[from] std::io::Error),
+    #[error("Couldn't create file lock.")]
+    FromIo {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+
+    #[error("Couldn't acquire file lock: {path:?} is locked by another process.")]
+    AlreadyLocked { path: PathBuf },
 }
 
-/// A Windows lock file implemented by holding an exclusive open handle.
+/// A lock file holding an exclusive lock (`LockFileEx`) for the lifetime of the value.
 ///
-/// On Windows, file locking is mandatory: a file opened with exclusive access
-/// cannot be opened again by another process. Dropping the `Flockfile` closes
-/// the handle and removes the lock file.
-///
-/// Note: this is an advisory-style emulation — it protects against well-behaved
-/// concurrent thin-edge processes but not against programs that ignore the lock.
+/// The lock is released by the OS when the process exits, even after a crash,
+/// so a stale lock file left on disk does not block the next start.
+/// The lock file contains the id of the process holding the lock.
 #[derive(Debug)]
 pub struct Flockfile {
-    pub path: PathBuf,
-    _handle: File,
+    path: PathBuf,
+    _file: File,
 }
 
 impl Flockfile {
-    pub fn new_lock(lock_name: impl AsRef<Path>) -> Result<Flockfile, FlockfileError> {
-        let path = lock_name.as_ref().to_path_buf();
+    /// Create an exclusive lock file with the given path, creating its directory if needed
+    pub fn new_lock(path: impl AsRef<Path>) -> Result<Flockfile, FlockfileError> {
+        let path = path.as_ref().to_path_buf();
+        let io_error = |source| FlockfileError::FromIo {
+            path: path.clone(),
+            source,
+        };
 
-        // Create or open the lock file with exclusive access so a second
-        // process gets an error on open rather than silently proceeding.
-        let handle = std::fs::OpenOptions::new()
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(io_error)?;
+        }
+
+        let mut file = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(false)
-            .open(&path)?;
+            .open(&path)
+            .map_err(io_error)?;
 
-        Ok(Flockfile {
-            path,
-            _handle: handle,
-        })
+        match file.try_lock() {
+            Ok(()) => {}
+            Err(TryLockError::WouldBlock) => {
+                return Err(FlockfileError::AlreadyLocked { path });
+            }
+            Err(TryLockError::Error(source)) => return Err(io_error(source)),
+        }
+
+        // Writing through the locked handle is allowed; other processes can no longer write.
+        file.set_len(0).map_err(io_error)?;
+        file.write_all(std::process::id().to_string().as_bytes())
+            .map_err(io_error)?;
+
+        Ok(Flockfile { path, _file: file })
     }
 
     pub fn unlock(self) -> Result<(), io::Error> {
-        // The lock file is removed when the handle is dropped. We also
-        // attempt to delete it here so it does not linger after a clean exit.
-        let path = self.path.clone();
         drop(self);
-        // Best-effort removal; ignore the error if another process beat us to it.
-        let _ = std::fs::remove_file(&path);
         Ok(())
     }
 }
@@ -62,18 +81,13 @@ impl AsRef<Path> for Flockfile {
 
 impl Drop for Flockfile {
     fn drop(&mut self) {
-        // _handle is dropped automatically, releasing the OS lock.
-        // Attempt to clean up the file; ignore errors (e.g. already deleted).
+        // Rust opens files with FILE_SHARE_DELETE, so the file can be removed while locked:
+        // it is deleted when the handle is closed, right after this.
         let _ = std::fs::remove_file(&self.path);
     }
 }
 
-/// Check whether another instance of `app_name` is already running by
-/// attempting to acquire its lock file under `run_dir/lock/`.
-///
-/// On Windows the lock is a mandatory exclusive file handle: if another
-/// process already holds it, `OpenOptions::open` fails with
-/// ERROR_SHARING_VIOLATION (OS error 32).
+/// Check `run_dir`/lock/ for a lock file of a given `app_name`
 pub fn check_another_instance_is_not_running(
     app_name: &str,
     run_dir: &Path,
@@ -82,13 +96,59 @@ pub fn check_another_instance_is_not_running(
 
     match Flockfile::new_lock(&lock_path) {
         Ok(flock) => Ok(Some(flock)),
-        Err(FlockfileError::IoError(e)) if e.raw_os_error() == Some(32) => {
-            // ERROR_SHARING_VIOLATION — another process holds the exclusive handle
-            Err(FlockfileError::IoError(e))
+        Err(err @ FlockfileError::AlreadyLocked { .. }) => {
+            tracing::error!("Another instance of {} is running.", app_name);
+            Err(err)
         }
-        Err(_) => {
-            // Lock directory not accessible — skip locking rather than hard-failing
+        Err(err) => {
+            tracing::warn!(
+                "Single-instance locking is NOT active for {app_name}: {err:?}. \
+                 Another instance running concurrently will not be detected."
+            );
             Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use assert_matches::assert_matches;
+
+    #[test]
+    fn a_second_lock_on_the_same_file_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lock").join("app.lock");
+
+        let _lock = Flockfile::new_lock(&path).unwrap();
+
+        assert_matches!(
+            Flockfile::new_lock(&path),
+            Err(FlockfileError::AlreadyLocked { .. })
+        );
+    }
+
+    #[test]
+    fn a_second_instance_is_detected() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let first = check_another_instance_is_not_running("tedge-agent", dir.path()).unwrap();
+
+        assert!(first.is_some());
+        assert_matches!(
+            check_another_instance_is_not_running("tedge-agent", dir.path()),
+            Err(FlockfileError::AlreadyLocked { .. })
+        );
+    }
+
+    #[test]
+    fn the_lock_is_released_when_dropped() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("app.lock");
+
+        drop(Flockfile::new_lock(&path).unwrap());
+
+        assert!(!path.exists());
+        assert!(Flockfile::new_lock(&path).is_ok());
     }
 }
