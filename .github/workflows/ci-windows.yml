@@ -220,9 +220,12 @@ jobs:
           )
         shell: pwsh
 
+      # x64 Python on both runners: some test dependencies (cryptography) have no Windows ARM64 wheel,
+      # and Windows on ARM runs x64 programs in emulation. thin-edge.io itself runs natively.
       - uses: actions/setup-python@v7
         with:
           python-version-file: 'tests/.python-version'
+          architecture: x64
           cache: 'pip'
           cache-dependency-path: |
             **/requirements/requirements*.txt

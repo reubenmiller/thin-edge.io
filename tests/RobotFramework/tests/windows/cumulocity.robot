@@ -74,7 +74,7 @@ Shell command
     ...    description=PowerShell command
     ...    fragments={"c8y_Command":{"text":"Write-Output helloworld"}}
     ${operation}=    Operation Should Be SUCCESSFUL    ${operation}    timeout=120
-    Should Contain    ${operation.to_json()["c8y_Command"]["result"]}    helloworld
+    Should Contain    ${operation["c8y_Command"]["result"]}    helloworld
 
 *** Keywords ***
 Custom Setup

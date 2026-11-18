@@ -76,7 +76,7 @@ Custom Setup
     Execute Command    Copy-Item '${INSTALL_DIR}\\tedge.exe' '${BACKUP_EXE}' -Force
     # Latin-1 maps each byte to one character, so the bytes other than the version are kept as is
     Execute Command
-    ...    $latin1 = [System.Text.Encoding]::GetEncoding(28591); $content = $latin1.GetString([System.IO.File]::ReadAllBytes('${BACKUP_EXE}')); [System.IO.File]::WriteAllBytes('${UPDATE_EXE}', $latin1.GetBytes($content.Replace('${current_version}', '${new_version}')))
+    ...    cmd=$latin1 = [System.Text.Encoding]::GetEncoding(28591); $content = $latin1.GetString([System.IO.File]::ReadAllBytes('${BACKUP_EXE}')); [System.IO.File]::WriteAllBytes('${UPDATE_EXE}', $latin1.GetBytes($content.Replace('${current_version}', '${new_version}')))
     ${patched}=    Execute Command    & '${UPDATE_EXE}' --version    strip=${True}
     Should Be Equal    ${patched}    tedge ${new_version}
 
@@ -84,7 +84,7 @@ Custom Teardown
     # Restore the original tedge.exe for the next suites
     # The running tedge.exe cannot be overwritten: the services running it are stopped, then started again
     Execute Command
-    ...    $running = @(Get-Service tedge* | Where-Object Status -eq Running); $running | Stop-Service -Force; Copy-Item '${BACKUP_EXE}' '${INSTALL_DIR}\\tedge.exe' -Force; $running | Start-Service
+    ...    cmd=$running = @(Get-Service tedge* | Where-Object Status -eq Running); $running | Stop-Service -Force; Copy-Item '${BACKUP_EXE}' '${INSTALL_DIR}\\tedge.exe' -Force; $running | Start-Service
     Execute Command
     ...    Remove-Item '${INSTALL_DIR}\\tedge.exe*.old', '${UPDATE_EXE}', '${BACKUP_EXE}' -Force -ErrorAction SilentlyContinue
     ...    ignore_exit_code=${True}

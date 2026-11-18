@@ -745,15 +745,13 @@ mod windows_tests {
 
     #[test]
     fn a_command_is_terminated_on_timeout() {
+        // Long enough for PowerShell to start on a slow runner (several seconds on ARM64)
+        let timeout = Duration::from_secs(15);
         let started = Instant::now();
-        let outcome = execute(
-            POWERSHELL,
-            "Write-Output started; Start-Sleep 60",
-            Duration::from_secs(5),
-        );
-        assert!(started.elapsed() < Duration::from_secs(30));
+        let outcome = execute(POWERSHELL, "Write-Output started; Start-Sleep 120", timeout);
+        assert!(started.elapsed() < Duration::from_secs(60));
         assert_eq!(outcome.exit_code, TIMEOUT_EXIT_CODE);
-        assert_eq!(outcome.timed_out, Some(Duration::from_secs(5)));
+        assert_eq!(outcome.timed_out, Some(timeout));
         assert!(outcome.result.contains("started"), "{}", outcome.result);
     }
 }

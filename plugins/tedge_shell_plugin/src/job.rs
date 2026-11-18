@@ -256,7 +256,12 @@ impl Job {
         // Persisted before returning, as the device might be rebooted right after,
         // along with the output printed so far
         self.flush_output()?;
-        match File::open(self.output_path()) {
+        // Windows syncs only a file opened for writing
+        match OpenOptions::new()
+            .read(true)
+            .write(cfg!(windows))
+            .open(self.output_path())
+        {
             Ok(output) => output.sync_all()?,
             Err(err) if err.kind() == ErrorKind::NotFound => (),
             Err(err) => return Err(err),
@@ -375,9 +380,6 @@ impl Job {
     }
 }
 
-/// Read a value stored with [`Job::write_json`], if any
-///
-/// A file left empty or truncated by an abrupt reboot is taken as a missing one.
 /// An exclusive lock on a file, released when dropped or when the process exits
 #[cfg(unix)]
 type FileLock = nix::fcntl::Flock<File>;
@@ -412,6 +414,9 @@ fn lock_exclusive(file: File) -> std::io::Result<FileLock> {
     Ok(file)
 }
 
+/// Read a value stored with [`Job::write_json`], if any
+///
+/// A file left empty or truncated by an abrupt reboot is taken as a missing one.
 fn read_json<T: serde::de::DeserializeOwned>(path: &Utf8Path) -> std::io::Result<Option<T>> {
     match std::fs::read(path) {
         Ok(content) => match serde_json::from_slice(&content) {
@@ -546,10 +551,8 @@ mod tests {
             reason.starts_with("The command could not be started, as writing to '"),
             "{reason}"
         );
-        assert!(
-            reason.contains("tedge-shell-plugin/c8y-mapper-1234"),
-            "{reason}"
-        );
+        let job_dir = Utf8Path::new("tedge-shell-plugin").join("c8y-mapper-1234");
+        assert!(reason.contains(job_dir.as_str()), "{reason}");
     }
 
     #[test]

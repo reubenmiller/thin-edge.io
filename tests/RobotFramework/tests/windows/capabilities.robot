@@ -48,8 +48,9 @@ shell_execute terminates a command and its child processes on timeout
     ...    minimum=1
     ...    timeout=60
     Should Contain    ${messages}[-1]    Command timed out after 5s: started
+    # cmd= as the command contains "=", which Robot would otherwise read as a named argument
     ${remaining}=    Execute Command
-    ...    @(Get-CimInstance Win32_Process -Filter "Name = 'ping.exe'" | Where-Object CommandLine -like '*1234*').Count
+    ...    cmd=@(Get-CimInstance Win32_Process -Filter "Name = 'ping.exe'" | Where-Object CommandLine -like '*1234*').Count
     ...    strip=${True}
     Should Be Equal    ${remaining}    0
     [Teardown]    Run Keywords

@@ -213,6 +213,25 @@ async fn default_plugin_config() {
         path = agent_logs_path
     };
 
+    // Windows adds the types of the files which are not managed by a package there
+    let mut plugin_config_toml = plugin_config_toml;
+    let files = plugin_config_toml["files"].as_array_mut().unwrap();
+    let windows_types = ["tedge-agent", "tedge-mapper", "tedge"];
+    let (windows_files, files): (Vec<_>, Vec<_>) = files
+        .drain(..)
+        .partition(|file| windows_types.contains(&file["type"].as_str().unwrap()));
+    plugin_config_toml["files"] = files.into();
+    let expected_windows_files = if cfg!(windows) {
+        windows_types.len()
+    } else {
+        0
+    };
+    assert_eq!(
+        windows_files.len(),
+        expected_windows_files,
+        "{windows_files:?}"
+    );
+
     assert_eq!(plugin_config_toml, expected_config);
 }
 
