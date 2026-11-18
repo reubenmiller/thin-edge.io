@@ -218,7 +218,6 @@ async fn main() -> anyhow::Result<()> {
                 .await
                 .context("failed to run tedge file config plugin")
         }
-        #[cfg(unix)]
         TEdgeOptMulticall::Component(Component::TedgeShellPlugin(opt)) => {
             let tedge_config = tedge_config::TEdgeConfig::load(&opt.common.config_dir).await?;
             let plugin_config = tedge_shell_plugin::bin::TEdgeConfigView::new(&tedge_config);

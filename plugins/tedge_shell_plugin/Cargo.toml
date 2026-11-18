@@ -22,7 +22,7 @@ tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 tracing = { workspace = true }
 
-# The shell_execute operation is not supported on Windows (see openspec change windows-port)
+# poll, file locks and process groups; Windows uses std and taskkill instead
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true, features = ["poll"] }
 

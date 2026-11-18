@@ -68,6 +68,14 @@ Log upload
     ...    encoding=utf-8
 
 
+Shell command
+    Cumulocity.Should Contain Supported Operations    c8y_Command
+    ${operation}=    Cumulocity.Create Operation
+    ...    description=PowerShell command
+    ...    fragments={"c8y_Command":{"text":"Write-Output helloworld"}}
+    ${operation}=    Operation Should Be SUCCESSFUL    ${operation}    timeout=120
+    Should Contain    ${operation.to_json()["c8y_Command"]["result"]}    helloworld
+
 *** Keywords ***
 Custom Setup
     ${base_url}=    Get Environment Variable    C8Y_BASEURL    default=${EMPTY}

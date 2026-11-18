@@ -7,17 +7,10 @@
 
 use crate::OutputFile;
 use camino::Utf8PathBuf;
-use nix::errno::Errno;
-use nix::poll::poll;
-use nix::poll::PollFd;
-use nix::poll::PollFlags;
-use nix::poll::PollTimeout;
 use std::fs::File;
 use std::io::ErrorKind;
 use std::io::PipeReader;
-use std::io::Read;
 use std::io::Write;
-use std::os::fd::AsFd;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -38,7 +31,7 @@ const FLUSH_CHECK_INTERVAL: Duration = Duration::from_millis(50);
 
 pub(crate) struct OutputRelay {
     /// The pipe the command writes to, `None` once closed by all the writers
-    pipe: Option<PipeReader>,
+    pipe: Option<Pipe>,
 
     head: Head,
 
@@ -47,14 +40,12 @@ pub(crate) struct OutputRelay {
 
     /// When the flush request is next checked
     next_flush_check: Instant,
-
-    buffer: Vec<u8>,
 }
 
 impl OutputRelay {
     pub fn new(pipe: PipeReader, output: OutputFile, max_output_size: u32) -> Self {
         OutputRelay {
-            pipe: Some(pipe),
+            pipe: Some(Pipe::new(pipe)),
             head: Head {
                 file: output.file,
                 // One byte more than what is reported, telling the output has been truncated,
@@ -63,7 +54,6 @@ impl OutputRelay {
             },
             flush_request: output.flush_request,
             next_flush_check: Instant::now(),
-            buffer: vec![0; CHUNK_SIZE],
         }
     }
 
@@ -130,25 +120,134 @@ impl OutputRelay {
             return Ok(0);
         };
 
+        match pipe.read_chunk(timeout)? {
+            Chunk::Closed => {
+                self.pipe = None;
+                Ok(0)
+            }
+            Chunk::None => Ok(0),
+            Chunk::Data(data) => {
+                self.head.store(data);
+                Ok(data.len())
+            }
+        }
+    }
+}
+
+/// What has been read from the pipe
+enum Chunk<'a> {
+    /// Nothing has been written in time
+    None,
+    /// The pipe has been closed by all the writers
+    Closed,
+    Data(&'a [u8]),
+}
+
+/// The read end of the pipe, waited on with `poll`
+#[cfg(unix)]
+struct Pipe {
+    reader: PipeReader,
+    buffer: Vec<u8>,
+}
+
+#[cfg(unix)]
+impl Pipe {
+    fn new(reader: PipeReader) -> Self {
+        Pipe {
+            reader,
+            buffer: vec![0; CHUNK_SIZE],
+        }
+    }
+
+    fn read_chunk(&mut self, timeout: Duration) -> std::io::Result<Chunk<'_>> {
+        use nix::errno::Errno;
+        use nix::poll::poll;
+        use nix::poll::PollFd;
+        use nix::poll::PollFlags;
+        use nix::poll::PollTimeout;
+        use std::io::Read;
+        use std::os::fd::AsFd;
+
         let timeout = PollTimeout::try_from(timeout).unwrap_or(PollTimeout::MAX);
-        match poll(&mut [PollFd::new(pipe.as_fd(), PollFlags::POLLIN)], timeout) {
-            Ok(0) | Err(Errno::EINTR) => return Ok(0),
+        match poll(
+            &mut [PollFd::new(self.reader.as_fd(), PollFlags::POLLIN)],
+            timeout,
+        ) {
+            Ok(0) | Err(Errno::EINTR) => return Ok(Chunk::None),
             Ok(_) => (),
             Err(err) => return Err(err.into()),
         }
 
         // The pipe being ready, this read does not block
-        match pipe.read(&mut self.buffer) {
-            Ok(0) => {
-                self.pipe = None;
-                Ok(0)
-            }
-            Ok(n) => {
-                self.head.store(&self.buffer[..n]);
-                Ok(n)
-            }
-            Err(err) if err.kind() == ErrorKind::Interrupted => Ok(0),
+        match self.reader.read(&mut self.buffer) {
+            Ok(0) => Ok(Chunk::Closed),
+            Ok(n) => Ok(Chunk::Data(&self.buffer[..n])),
+            Err(err) if err.kind() == ErrorKind::Interrupted => Ok(Chunk::None),
             Err(err) => Err(err),
+        }
+    }
+}
+
+/// The read end of the pipe, read by a thread
+///
+/// Windows has no `poll` for anonymous pipes, so a thread blocks reading the pipe
+/// and passes the chunks over a channel, which can be waited on with a timeout.
+/// The thread ends when the pipe is closed by all the writers. A background process
+/// started by the command can keep the pipe open: the thread then lives until this process exits.
+#[cfg(windows)]
+struct Pipe {
+    chunks: std::sync::mpsc::Receiver<std::io::Result<Vec<u8>>>,
+    current: Vec<u8>,
+}
+
+#[cfg(windows)]
+impl Pipe {
+    fn new(mut reader: PipeReader) -> Self {
+        use std::io::Read;
+
+        let (sender, chunks) = std::sync::mpsc::sync_channel(16);
+        std::thread::spawn(move || {
+            let mut buffer = vec![0; CHUNK_SIZE];
+            loop {
+                let chunk = match reader.read(&mut buffer) {
+                    Ok(0) => return,
+                    Ok(n) => Ok(buffer[..n].to_vec()),
+                    Err(err) if err.kind() == ErrorKind::Interrupted => continue,
+                    // A pipe closed by all the writers is reported as broken on Windows
+                    Err(err) if err.kind() == ErrorKind::BrokenPipe => return,
+                    Err(err) => Err(err),
+                };
+                if sender.send(chunk).is_err() {
+                    return;
+                }
+            }
+        });
+        Pipe {
+            chunks,
+            current: Vec::new(),
+        }
+    }
+
+    fn read_chunk(&mut self, timeout: Duration) -> std::io::Result<Chunk<'_>> {
+        use std::sync::mpsc::RecvTimeoutError;
+        use std::sync::mpsc::TryRecvError;
+
+        let received = if timeout.is_zero() {
+            self.chunks.try_recv().map_err(|err| match err {
+                TryRecvError::Empty => RecvTimeoutError::Timeout,
+                TryRecvError::Disconnected => RecvTimeoutError::Disconnected,
+            })
+        } else {
+            self.chunks.recv_timeout(timeout)
+        };
+        match received {
+            Ok(Ok(data)) => {
+                self.current = data;
+                Ok(Chunk::Data(&self.current))
+            }
+            Ok(Err(err)) => Err(err),
+            Err(RecvTimeoutError::Timeout) => Ok(Chunk::None),
+            Err(RecvTimeoutError::Disconnected) => Ok(Chunk::Closed),
         }
     }
 }

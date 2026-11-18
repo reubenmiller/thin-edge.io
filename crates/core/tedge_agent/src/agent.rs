@@ -194,8 +194,7 @@ impl AgentConfig {
             config_update: tedge_config.agent.enable.config_update,
             config_snapshot: tedge_config.agent.enable.config_snapshot,
             log_upload: tedge_config.agent.enable.log_upload,
-            // The shell_execute operation relies on POSIX process groups and is not supported on Windows
-            shell_execute: cfg!(unix) && tedge_config.agent.enable.shell_execute,
+            shell_execute: tedge_config.agent.enable.shell_execute,
         };
 
         let entity_auto_register = tedge_config.agent.entity_store.auto_register;

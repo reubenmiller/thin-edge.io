@@ -75,7 +75,7 @@ impl Server for ScriptActor {
     }
 
     async fn handle(&mut self, message: Self::Request) -> Self::Response {
-        let mut command = tokio::process::Command::new(message.command);
+        let mut command = new_command(&message.command);
         command
             .args(message.args)
             .stdin(Stdio::null())
@@ -104,6 +104,39 @@ impl Server for ScriptActor {
             }
         }
     }
+}
+
+/// The commands built into the `tedge` executable, run as `tedge run <command>` on Windows
+///
+/// On Linux, the packages install a symbolic link to `tedge` for each of them,
+/// so a workflow script such as `tedge-shell-plugin collect` finds them on the `PATH`.
+/// Windows has no such links, the components being run as `tedge.exe run <component>`.
+const TEDGE_BUILTIN_COMMANDS: [&str; 7] = [
+    "tedge-agent",
+    "tedge-mapper",
+    "tedge-write",
+    "tedge-shell-plugin",
+    "tedge-file-log-plugin",
+    "tedge-file-config-plugin",
+    "tedge-flows-plugin",
+];
+
+/// The process running `program`
+///
+/// On Windows, a command built into `tedge` is run by the current `tedge.exe`,
+/// when this process is `tedge.exe`, as is the agent.
+fn new_command(program: &str) -> tokio::process::Command {
+    if cfg!(windows) && TEDGE_BUILTIN_COMMANDS.contains(&program) {
+        if let Some(tedge) = std::env::current_exe().ok().filter(|exe| {
+            exe.file_stem()
+                .is_some_and(|stem| stem.eq_ignore_ascii_case("tedge"))
+        }) {
+            let mut command = tokio::process::Command::new(tedge);
+            command.arg("run").arg(program);
+            return command;
+        }
+    }
+    tokio::process::Command::new(program)
 }
 
 /// On Unix, a process killed by a signal is reported with this signal: nothing to change

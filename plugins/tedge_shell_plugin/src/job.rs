@@ -23,8 +23,6 @@ use crate::OutputFile;
 use crate::ShellOutcome;
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
-use nix::fcntl::Flock;
-use nix::fcntl::FlockArg;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fs::File;
@@ -182,7 +180,7 @@ impl Job {
         execute: impl FnOnce(OutputFile) -> Result<ShellOutcome, String>,
     ) -> std::io::Result<()> {
         let lock = self.open_lock_file()?;
-        let _lock = Flock::lock(lock, FlockArg::LockExclusiveNonblock).map_err(|(_, err)| {
+        let _lock = lock_exclusive_nonblock(lock).map_err(|err| {
             std::io::Error::other(format!("The command is already running: {err}"))
         })?;
 
@@ -226,8 +224,7 @@ impl Job {
             }
             Err(err) => return Err(err),
         };
-        let lock = Flock::lock(lock, FlockArg::LockExclusive)
-            .map_err(|(_, err)| std::io::Error::from(err))?;
+        let lock = lock_exclusive(lock)?;
 
         let outcome = match read_json(&self.outcome_path())? {
             Some(outcome) => outcome,
@@ -381,6 +378,40 @@ impl Job {
 /// Read a value stored with [`Job::write_json`], if any
 ///
 /// A file left empty or truncated by an abrupt reboot is taken as a missing one.
+/// An exclusive lock on a file, released when dropped or when the process exits
+#[cfg(unix)]
+type FileLock = nix::fcntl::Flock<File>;
+
+#[cfg(unix)]
+fn lock_exclusive_nonblock(file: File) -> std::io::Result<FileLock> {
+    use nix::fcntl::Flock;
+    use nix::fcntl::FlockArg;
+    Flock::lock(file, FlockArg::LockExclusiveNonblock).map_err(|(_, err)| err.into())
+}
+
+#[cfg(unix)]
+fn lock_exclusive(file: File) -> std::io::Result<FileLock> {
+    use nix::fcntl::Flock;
+    use nix::fcntl::FlockArg;
+    Flock::lock(file, FlockArg::LockExclusive).map_err(|(_, err)| err.into())
+}
+
+/// On Windows, the lock is held by the open file (`LockFileEx`)
+#[cfg(not(unix))]
+type FileLock = File;
+
+#[cfg(not(unix))]
+fn lock_exclusive_nonblock(file: File) -> std::io::Result<FileLock> {
+    file.try_lock().map_err(std::io::Error::from)?;
+    Ok(file)
+}
+
+#[cfg(not(unix))]
+fn lock_exclusive(file: File) -> std::io::Result<FileLock> {
+    file.lock()?;
+    Ok(file)
+}
+
 fn read_json<T: serde::de::DeserializeOwned>(path: &Utf8Path) -> std::io::Result<Option<T>> {
     match std::fs::read(path) {
         Ok(content) => match serde_json::from_slice(&content) {
