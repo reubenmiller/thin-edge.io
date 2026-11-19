@@ -1328,7 +1328,9 @@ async fn mapper_dynamically_updates_supported_operations_for_child_device() {
     fs.send(FsWatchEvent::FileCreated(
         ttd.dir("operations")
             .dir("c8y")
-            .dir("test-device:device:child1")
+            .dir(&crate::supported_operations::device_dir::dir_name_from_xid(
+                "test-device:device:child1",
+            ))
             .file("c8y_ChildTestOp3")
             .std_path()
             .to_path_buf(),
@@ -1463,6 +1465,10 @@ async fn mapper_dynamically_updates_supported_operations_for_nested_child_device
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "uses Unix shell scripts (#!/bin/sh) and sleep/seq commands"
+)]
 async fn custom_operation_without_timeout_successful() {
     // The test assures SM Mapper correctly receives custom operation on `c8y/s/ds`
     // and executes the custom operation successfully, no timeout given here.
@@ -1531,6 +1537,10 @@ EOF
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "uses Unix shell scripts (#!/bin/sh) and sleep/seq commands"
+)]
 async fn custom_operation_with_timeout_successful() {
     // The test assures SM Mapper correctly receives custom operation on `c8y/s/ds`
     // and executes the custom operation within the timeout period
@@ -1588,6 +1598,10 @@ EOF
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "uses Unix shell scripts and SIGTERM which is unavailable on Windows"
+)]
 async fn custom_operation_timeout_sigterm() {
     // The test assures SM Mapper correctly receives custom operation on `c8y/s/ds`
     // and executes the custom operation, it will timeout because it will not complete before given timeout
@@ -1657,6 +1671,10 @@ EOF
 }
 
 #[tokio::test]
+#[cfg_attr(
+    windows,
+    ignore = "uses Unix shell scripts and SIGKILL which is unavailable on Windows"
+)]
 async fn custom_operation_timeout_sigkill() {
     // The test assures SM Mapper correctly receives custom operation on `c8y/s/ds`
     // and executes the custom operation, it will timeout because it will not complete before given timeout
@@ -1815,6 +1833,7 @@ async fn json_custom_operation_receives_cloud_profile_env() {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "uses printf to produce escape sequences")]
 async fn custom_operation_csv_result_is_reported_without_escape_sequences() {
     let ttd = TempTedgeDir::new();
     ttd.dir("operations")
@@ -3291,7 +3310,12 @@ async fn mapper_converts_config_cmd_to_supported_op_and_types_for_child_device()
     // Validate if the supported operation file is created
     assert!(ttd
         .path()
-        .join("operations/c8y/test-device:device:child1/c8y_UploadConfigFile")
+        .join("operations/c8y")
+        .join(
+            crate::supported_operations::device_dir::dir_name_from_xid("test-device:device:child1")
+                .as_ref()
+        )
+        .join("c8y_UploadConfigFile")
         .exists());
 
     // Sending an updated list of config types
@@ -3339,7 +3363,12 @@ async fn mapper_converts_config_cmd_to_supported_op_and_types_for_child_device()
     // Validate if the supported operation file is created
     assert!(ttd
         .path()
-        .join("operations/c8y/test-device:device:child1/c8y_DownloadConfigFile")
+        .join("operations/c8y")
+        .join(
+            crate::supported_operations::device_dir::dir_name_from_xid("test-device:device:child1")
+                .as_ref()
+        )
+        .join("c8y_DownloadConfigFile")
         .exists());
 
     // Sending an updated list of config types
@@ -3362,23 +3391,30 @@ async fn mapper_converts_config_cmd_to_supported_op_and_types_for_child_device()
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "relies on Unix SIGUSR1 signal handling")]
 async fn mapper_publishes_all_supported_operations_on_signal() {
     let ttd = TempTedgeDir::new();
     ttd.dir("operations").dir("c8y").file("c8y_Restart");
+    ttd.dir("operations").dir("c8y").dir(
+        &crate::supported_operations::device_dir::dir_name_from_xid("test-device:device:child01"),
+    );
     ttd.dir("operations")
         .dir("c8y")
-        .dir("test-device:device:child01");
-    ttd.dir("operations")
-        .dir("c8y")
-        .dir("test-device:device:child02")
+        .dir(&crate::supported_operations::device_dir::dir_name_from_xid(
+            "test-device:device:child02",
+        ))
         .file("c8y_Restart");
     ttd.dir("operations")
         .dir("c8y")
-        .dir("test-device:device:child02")
+        .dir(&crate::supported_operations::device_dir::dir_name_from_xid(
+            "test-device:device:child02",
+        ))
         .file("c8y_UploadConfigFile");
     ttd.dir("operations")
         .dir("c8y")
-        .dir("test-device:device:main:service:collectd")
+        .dir(&crate::supported_operations::device_dir::dir_name_from_xid(
+            "test-device:device:main:service:collectd",
+        ))
         .file("c8y_ServiceCommand");
 
     let test_handle = spawn_c8y_mapper_actor(&ttd, true).await;
@@ -3492,7 +3528,9 @@ fn create_thin_edge_operations(ttd: &TempTedgeDir, ops: Vec<&str>) {
 fn create_thin_edge_child_operations(ttd: &TempTedgeDir, child_id: &str, ops: Vec<&str>) {
     let p1 = ttd.dir("operations");
     let tedge_ops_dir = p1.dir("c8y");
-    let child_ops_dir = tedge_ops_dir.dir(child_id);
+    let child_ops_dir = tedge_ops_dir.dir(
+        &crate::supported_operations::device_dir::dir_name_from_xid(child_id),
+    );
     for op in ops {
         child_ops_dir.file(op);
     }

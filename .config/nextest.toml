@@ -1,6 +1,7 @@
 [profile.default]
 retries = 0
 test-threads = "num-cpus"
+slow-timeout = { period = "15s", terminate-after = 2 }
 
 [test-groups]
 serial = { max-threads = 1 }
@@ -20,3 +21,10 @@ test-group = 'serial'
 # This is only a backstop so a stuck test fails instead of hanging.
 filter = 'package(tedge_mqtt_bridge)'
 slow-timeout = { period = "30s", terminate-after = 2 }
+
+[[profile.default.overrides]]
+# Property tests which take 5-30s on the Windows CI runners, whose file system is slower:
+# they are given more time there rather than fewer cases.
+platform = 'cfg(windows)'
+filter = '(package(tedge-agent) and test(/^entity_manager::tests::it_works_/)) or (package(c8y_mapper_ext) and test(/^shuffled_tests::/))'
+slow-timeout = { period = "30s", terminate-after = 4 }

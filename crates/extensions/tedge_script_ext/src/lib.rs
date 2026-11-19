@@ -1,6 +1,8 @@
 pub use shell_words::ParseError;
 use std::process::Output;
 use std::process::Stdio;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tedge_actors::Concurrent;
 use tedge_actors::Server;
@@ -50,7 +52,7 @@ impl Execute {
         }
     }
 
-    /// Give the process an extra forceful timeout to exit on SIGTERM, timeout after which a SIGTKILL is sent
+    /// Give the process an extra forceful timeout to exit on SIGTERM, timeout after which a SIGKILL is sent
     pub fn with_forceful_timeout_extension(self, forceful_timeout: Duration) -> Self {
         let timeouts = match self.timeouts {
             None => (Duration::from_secs(15), forceful_timeout),
@@ -73,34 +75,100 @@ impl Server for ScriptActor {
     }
 
     async fn handle(&mut self, message: Self::Request) -> Self::Response {
-        let child = tokio::process::Command::new(message.command)
+        let mut command = new_command(&message.command);
+        command
             .args(message.args)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .process_group(0)
-            .spawn()?;
+            .stderr(Stdio::piped());
+        // Start the script in its own process group,
+        // so all the processes it starts can be killed on timeout
+        #[cfg(unix)]
+        command.process_group(0);
+        let child = command.spawn()?;
 
         match (child.id(), message.timeouts) {
             (_, None) | (None, _) => child.wait_with_output().await,
             (Some(pid), Some((graceful_timeout, forceful_timeout))) => {
+                let killed = AtomicBool::new(false);
                 tokio::select! {
-                    response = child.wait_with_output() => response,
-                    not_killed = kill_on_timeout(pid, graceful_timeout, forceful_timeout) => Err(not_killed),
+                    response = child.wait_with_output() => response.map(|output| {
+                        if killed.load(Ordering::SeqCst) {
+                            mark_as_killed(output)
+                        } else {
+                            output
+                        }
+                    }),
+                    not_killed = kill_on_timeout(pid, graceful_timeout, forceful_timeout, &killed) => Err(not_killed),
                 }
             }
         }
     }
 }
 
+/// The commands built into the `tedge` executable, run as `tedge run <command>` on Windows
+///
+/// On Linux, the packages install a symbolic link to `tedge` for each of them,
+/// so a workflow script such as `tedge-shell-plugin collect` finds them on the `PATH`.
+/// Windows has no such links, the components being run as `tedge.exe run <component>`.
+const TEDGE_BUILTIN_COMMANDS: [&str; 7] = [
+    "tedge-agent",
+    "tedge-mapper",
+    "tedge-write",
+    "tedge-shell-plugin",
+    "tedge-file-log-plugin",
+    "tedge-file-config-plugin",
+    "tedge-flows-plugin",
+];
+
+/// The process running `program`
+///
+/// On Windows, a command built into `tedge` is run by the current `tedge.exe`,
+/// when this process is `tedge.exe`, as is the agent.
+fn new_command(program: &str) -> tokio::process::Command {
+    if cfg!(windows) && TEDGE_BUILTIN_COMMANDS.contains(&program) {
+        if let Some(tedge) = std::env::current_exe().ok().filter(|exe| {
+            exe.file_stem()
+                .is_some_and(|stem| stem.eq_ignore_ascii_case("tedge"))
+        }) {
+            let mut command = tokio::process::Command::new(tedge);
+            command.arg("run").arg(program);
+            return command;
+        }
+    }
+    tokio::process::Command::new(program)
+}
+
+/// On Unix, a process killed by a signal is reported with this signal: nothing to change
+#[cfg(unix)]
+fn mark_as_killed(output: Output) -> Output {
+    output
+}
+
+/// On Windows, a process killed with `taskkill /F` exits with code 1, as for a failure.
+/// It is reported with [`tedge_utils::signals::WINDOWS_TERMINATED_EXIT_CODE`] instead.
+#[cfg(windows)]
+fn mark_as_killed(output: Output) -> Output {
+    use std::os::windows::process::ExitStatusExt;
+    Output {
+        status: std::process::ExitStatus::from_raw(
+            tedge_utils::signals::WINDOWS_TERMINATED_EXIT_CODE,
+        ),
+        ..output
+    }
+}
+
+#[cfg(unix)]
 async fn kill_on_timeout(
     pid: u32,
     graceful_timeout: Duration,
     forceful_timeout: Duration,
+    killed: &AtomicBool,
 ) -> std::io::Error {
     let process_group = nix::unistd::Pid::from_raw(pid as nix::libc::pid_t);
 
     tokio::time::sleep(graceful_timeout).await;
+    killed.store(true, Ordering::SeqCst);
     let _ = nix::sys::signal::killpg(process_group, nix::sys::signal::SIGTERM);
 
     tokio::time::sleep(forceful_timeout).await;
@@ -108,6 +176,48 @@ async fn kill_on_timeout(
 
     tokio::time::sleep(Duration::from_secs(1)).await;
     std::io::Error::other("failed to kill the process after timeout")
+}
+
+/// Kill the process tree on timeout.
+///
+/// Windows has no SIGTERM: on the graceful timeout, `taskkill /T` asks the processes to close,
+/// which is only possible for GUI applications: console processes are then terminated forcefully.
+/// On the forceful timeout, `taskkill /T /F` terminates whatever is left of the process tree.
+#[cfg(windows)]
+async fn kill_on_timeout(
+    pid: u32,
+    graceful_timeout: Duration,
+    forceful_timeout: Duration,
+    killed: &AtomicBool,
+) -> std::io::Error {
+    tokio::time::sleep(graceful_timeout).await;
+    killed.store(true, Ordering::SeqCst);
+    if !taskkill(pid, false).await {
+        taskkill(pid, true).await;
+    }
+
+    tokio::time::sleep(forceful_timeout).await;
+    taskkill(pid, true).await;
+
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    std::io::Error::other("failed to kill the process after timeout")
+}
+
+/// Returns true if `taskkill` terminated the process tree
+#[cfg(windows)]
+async fn taskkill(pid: u32, force: bool) -> bool {
+    let mut command = tokio::process::Command::new("taskkill");
+    command.arg("/T");
+    if force {
+        command.arg("/F");
+    }
+    command
+        .arg("/PID")
+        .arg(pid.to_string())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    command.status().await.is_ok_and(|status| status.success())
 }
 
 impl ScriptActor {
@@ -118,7 +228,6 @@ impl ScriptActor {
 
 #[cfg(test)]
 mod tests {
-    use std::os::unix::process::ExitStatusExt;
     use std::time::Duration;
     use tedge_actors::ClientMessageBox;
 
@@ -137,9 +246,11 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "echo on Windows uses a different path")]
     async fn script() {
+        use std::process::Output;
         let mut handle = spawn_script_actor();
-        let output = handle
+        let output: Output = handle
             .await_response(Execute {
                 command: "echo".to_owned(),
                 args: vec!["A message".to_owned()],
@@ -155,6 +266,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "cat is not available on Windows")]
     async fn script_stdin_is_closed() {
         let mut actor = spawn_script_actor();
         let command = Execute::try_new("cat").unwrap();
@@ -170,6 +282,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "echo shell syntax differs on Windows")]
     async fn script_is_given_enough_time() {
         let mut actor = spawn_script_actor();
         let command = Execute::try_new("echo hello world")
@@ -183,48 +296,68 @@ mod tests {
 
         assert!(output.status.success());
         assert_eq!(output.status.code(), Some(0));
-        assert_eq!(output.status.signal(), None);
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            assert_eq!(output.status.signal(), None);
+        }
+
         assert_eq!(String::from_utf8(output.stdout).unwrap(), "hello world\n");
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "SIGTERM graceful kill is unix-only")]
     async fn script_is_gracefully_killed() {
-        let mut actor = spawn_script_actor();
-        let command = Execute::try_new("sleep 10")
-            .unwrap()
-            .with_graceful_timeout(Duration::from_secs(1));
-        let output = tokio::time::timeout(Duration::from_secs(5), actor.await_response(command))
-            .await
-            .expect("execution timeout")
-            .expect("result send error")
-            .expect("execution error");
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            let mut actor = spawn_script_actor();
+            let command = Execute::try_new("sleep 10")
+                .unwrap()
+                .with_graceful_timeout(Duration::from_secs(1));
+            let output =
+                tokio::time::timeout(Duration::from_secs(5), actor.await_response(command))
+                    .await
+                    .expect("execution timeout")
+                    .expect("result send error")
+                    .expect("execution error");
 
-        assert!(!output.status.success());
-        assert!(output.status.code().is_none());
-        assert_eq!(output.status.signal(), Some(15));
+            assert!(!output.status.success());
+            assert!(output.status.code().is_none());
+            assert_eq!(output.status.signal(), Some(15));
+        }
     }
 
     #[tokio::test]
+    #[cfg_attr(not(unix), ignore = "SIGKILL forceful kill is unix-only")]
     async fn script_is_forcefully_killed() {
-        let mut actor = spawn_script_actor();
-        let command_line = r#"/usr/bin/env bash -c "trap 'echo ignore SIGTERM' SIGTERM; while true; do sleep 1; done""#;
-        let command = Execute::try_new(command_line)
-            .unwrap()
-            .with_graceful_timeout(Duration::from_secs(1))
-            .with_forceful_timeout_extension(Duration::from_secs(1));
-        let output = tokio::time::timeout(Duration::from_secs(5), actor.await_response(command))
-            .await
-            .expect("execution timeout")
-            .expect("result send error")
-            .expect("execution error");
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            let mut actor = spawn_script_actor();
+            let command_line = r#"/usr/bin/env bash -c "trap 'echo ignore SIGTERM' SIGTERM; while true; do sleep 1; done""#;
+            let command = Execute::try_new(command_line)
+                .unwrap()
+                .with_graceful_timeout(Duration::from_secs(1))
+                .with_forceful_timeout_extension(Duration::from_secs(1));
+            let output =
+                tokio::time::timeout(Duration::from_secs(5), actor.await_response(command))
+                    .await
+                    .expect("execution timeout")
+                    .expect("result send error")
+                    .expect("execution error");
 
-        assert!(!output.status.success());
-        assert!(output.status.code().is_none());
-        assert_eq!(output.status.signal(), Some(9));
+            assert!(!output.status.success());
+            assert!(output.status.code().is_none());
+            assert_eq!(output.status.signal(), Some(9));
+        }
     }
 
     #[tokio::test]
+    #[cfg(unix)]
     async fn processes_started_by_the_script_are_killed_on_timeout() {
+        use std::os::unix::process::ExitStatusExt;
         let mut actor = spawn_script_actor();
         // The shell prints the pid of a background process, then blocks on a foreground one
         let command = Execute::try_new("sh -c 'sleep 60 & echo $!; sleep 60'")
@@ -241,6 +374,7 @@ mod tests {
         assert_killed(background_pid.trim()).await;
     }
 
+    #[cfg(unix)]
     async fn is_running(pid: &str) -> bool {
         let output = tokio::process::Command::new("ps")
             .args(["-o", "stat=", "-p", pid])
@@ -251,6 +385,7 @@ mod tests {
         !stat.is_empty() && !stat.starts_with('Z')
     }
 
+    #[cfg(unix)]
     async fn assert_killed(pid: &str) {
         for _ in 0..50 {
             if !is_running(pid).await {
@@ -259,6 +394,44 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
         panic!("process {pid} is still running");
+    }
+
+    #[tokio::test]
+    #[cfg(windows)]
+    async fn processes_started_by_the_script_are_killed_on_timeout() {
+        let mut actor = spawn_script_actor();
+        // A console process ignores the graceful close request, so it has to be forcefully killed
+        let command = Execute::try_new("cmd /c ping -n 60 127.0.0.1")
+            .unwrap()
+            .with_graceful_timeout(Duration::from_millis(500))
+            .with_forceful_timeout_extension(Duration::from_millis(500));
+        let output = tokio::time::timeout(Duration::from_secs(10), actor.await_response(command))
+            .await
+            .expect("execution timeout")
+            .expect("result send error")
+            .expect("execution error");
+
+        assert!(!output.status.success());
+        assert_eq!(
+            tedge_utils::signals::killed_by_signal(&output.status),
+            Some(9),
+            "a script killed on timeout is reported as killed"
+        );
+    }
+
+    #[tokio::test]
+    #[cfg(windows)]
+    async fn script_output_is_captured_on_windows() {
+        let mut actor = spawn_script_actor();
+        let command = Execute::try_new("cmd /c echo hello").unwrap();
+        let output = tokio::time::timeout(Duration::from_secs(5), actor.await_response(command))
+            .await
+            .expect("execution timeout")
+            .expect("result send error")
+            .expect("execution error");
+
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "hello");
     }
 
     fn spawn_script_actor() -> ClientMessageBox<Execute, std::io::Result<Output>> {

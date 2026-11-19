@@ -140,7 +140,6 @@ fn execute(mut command: Command) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
 
     use super::*;
@@ -148,6 +147,7 @@ mod tests {
     const SUDO: &str = "sudo";
 
     #[test]
+    #[cfg_attr(not(unix), ignore = "chmod +x (set_mode) is unix-only")]
     fn uses_sudo_only_if_installed() {
         let temp_dir = tempfile::tempdir().unwrap();
         let source_path = temp_dir.path().join("source.txt");
@@ -172,10 +172,17 @@ mod tests {
         // if sudo is in path, start tedge-write with sudo
         let dummy_sudo_path = temp_dir.path().join(SUDO);
         let dummy_sudo = std::fs::File::create(dummy_sudo_path).unwrap();
-        let mut dummy_sudo_permissions = dummy_sudo.metadata().unwrap().permissions();
-
-        // chmod +x
-        dummy_sudo_permissions.set_mode(dummy_sudo_permissions.mode() | 0o111);
+        let dummy_sudo_permissions = {
+            #[cfg_attr(not(unix), allow(unused_mut))]
+            let mut p = dummy_sudo.metadata().unwrap().permissions();
+            // chmod +x
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                p.set_mode(p.mode() | 0o111);
+            }
+            p
+        };
         dummy_sudo.set_permissions(dummy_sudo_permissions).unwrap();
 
         let sudo_command = options.command().unwrap();

@@ -2,7 +2,6 @@ use crate::CommandLog;
 use std::ffi::OsStr;
 use std::future::Future;
 use std::io::Cursor;
-use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::ExitStatus;
 use std::process::Output;
@@ -166,23 +165,29 @@ impl LoggedCommand {
         program: impl AsRef<OsStr>,
         working_dir: impl AsRef<Path>,
     ) -> Result<LoggedCommand, std::io::Error> {
-        let mut args = shell_words::split(&program.as_ref().to_string_lossy())
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+        let mut args =
+            tedge_utils::plugins::split_command_line(&program.as_ref().to_string_lossy())
+                .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+        if args.is_empty() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "command line is empty.",
+            ));
+        }
+        let program = args.remove(0);
 
-        let mut command = match args.len() {
-            0 => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "command line is empty.",
-                ))
-            }
-            1 => Command::new(&args[0]),
-            _ => {
-                let mut command = Command::new(args.remove(0));
-                command.args(&args);
+        // On Windows, scripts are started by their interpreter
+        let mut command = match tedge_utils::plugins::windows_interpreter(Path::new(&program))
+            .filter(|_| cfg!(windows))
+        {
+            Some((interpreter, interpreter_args)) => {
+                let mut command = Command::new(interpreter);
+                command.args(interpreter_args).arg(&program);
                 command
             }
+            None => Command::new(&program),
         };
+        command.args(&args);
 
         command
             .current_dir(working_dir)
@@ -262,7 +267,11 @@ impl LoggedCommand {
     }
 
     pub fn spawn(&mut self) -> Result<LoggingChild, std::io::Error> {
-        let child = self.command.process_group(0).spawn()?;
+        // Start the command in its own process group, so all its processes can be killed on timeout.
+        // On Windows, the processes started by the command are found from the process tree.
+        #[cfg(unix)]
+        self.command.process_group(0);
+        let child = self.command.spawn()?;
         Ok(LoggingChild {
             command_line: self.to_string(),
             inner_child: child,
@@ -290,10 +299,14 @@ impl LoggedCommand {
                         .write_all(format!("Exit status: {code} ({exit_code_msg})\n\n").as_bytes())
                         .await?
                 };
-                if let Some(signal) = &output.status.signal() {
-                    logger
-                        .write_all(format!("Killed by signal: {signal}\n\n").as_bytes())
-                        .await?
+                #[cfg(unix)]
+                {
+                    use std::os::unix::process::ExitStatusExt;
+                    if let Some(signal) = &output.status.signal() {
+                        logger
+                            .write_all(format!("Killed by signal: {signal}\n\n").as_bytes())
+                            .await?
+                    }
                 }
 
                 // Log stderr then stdout, so the flow reads chronologically
@@ -347,10 +360,12 @@ impl<'a> From<&'a std::process::Output> for CommandOutput<'a> {
     }
 }
 
-#[cfg(test)]
+// These tests check the termination of process groups with POSIX signals
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
+    use std::os::unix::process::ExitStatusExt;
     use tedge_test_utils::fs::TempTedgeDir;
 
     #[tokio::test]

@@ -8,7 +8,9 @@ use camino::Utf8PathBuf;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use std::collections::BTreeSet;
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::process::ExitStatus;
 use std::time::Duration;
@@ -18,6 +20,7 @@ use tedge_config::models::AbsolutePath;
 use tedge_config::TEdgeConfig;
 use tedge_utils::paths::TedgePaths;
 use tracing::debug;
+#[cfg(unix)]
 use uzers;
 
 #[derive(Debug)]
@@ -172,7 +175,9 @@ impl DiagCollectCommand {
             .await
             .with_context(|| format!("Failed to create output directory at {plugin_output_dir}"))?;
 
-        let mut command = LoggedCommand::new(plugin_path, self.working_dir.to_path_buf())?;
+        // The plugin path is not parsed as a command line, so it can contain spaces
+        let plugin = tedge_config::SudoCommandBuilder::enabled(false).command(plugin_path);
+        let mut command = LoggedCommand::from_command(plugin, self.working_dir.as_std_path());
         command
             .arg("collect")
             .arg("--output-dir")
@@ -225,25 +230,36 @@ async fn validate_plugin(path: &Utf8Path, logger: &mut DualLogger) -> bool {
 
     match tokio::fs::metadata(path).await {
         Ok(metadata) => {
-            if metadata.permissions().mode() & 0o111 == 0 {
+            #[cfg(unix)]
+            {
+                if metadata.permissions().mode() & 0o111 == 0 {
+                    logger.warning(&format!("Skipping file: {path} (not executable)"));
+                    return false;
+                }
+
+                // extra metadata check when the process is running by the root user for the security
+                if uzers::get_current_uid() == 0 {
+                    if metadata.uid() != 0 {
+                        logger.warning(&format!("Skipping file: {path} (not owned by root)"));
+                        return false;
+                    }
+                    if metadata.permissions().mode() & 0o022 != 0 {
+                        logger.warning(&format!(
+                            "Skipping file: {path} (writable by non-root users)",
+                        ));
+                        return false;
+                    }
+                }
+            }
+            // On Windows, executable detection is by file extension only;
+            // ownership checks are not applicable.
+            #[cfg(windows)]
+            if !tedge_utils::plugins::has_windows_plugin_extension(path.as_std_path()) {
                 logger.warning(&format!("Skipping file: {path} (not executable)"));
                 return false;
             }
 
-            // extra metadata check when the process is running by the root user for the security
-            if uzers::get_current_uid() == 0 {
-                if metadata.uid() != 0 {
-                    logger.warning(&format!("Skipping file: {path} (not owned by root)"));
-                    return false;
-                }
-                if metadata.permissions().mode() & 0o022 != 0 {
-                    logger.warning(&format!(
-                        "Skipping file: {path} (writable by non-root users)",
-                    ));
-                    return false;
-                }
-            }
-
+            let _ = metadata;
             true
         }
         Err(_) => false,
@@ -254,15 +270,17 @@ async fn validate_plugin(path: &Utf8Path, logger: &mut DualLogger) -> bool {
 mod tests {
     use super::*;
     use tedge_test_utils::fs::with_exec_permission;
+    use tedge_test_utils::fs::with_plugin_script;
     use tedge_test_utils::fs::TempTedgeDir;
 
     #[tokio::test]
     async fn test_read_diag_plugins() {
         let ttd = TempTedgeDir::new();
         let command = DiagCollectCommand::new(&ttd);
-        with_exec_permission(command.first_plugin_dir().join("plugin_a"), "pwd");
-        with_exec_permission(command.first_plugin_dir().join("plugin_b"), "pwd");
-        with_exec_permission(command.first_plugin_dir().join("plugin_c"), "pwd");
+        let first_plugin_dir = command.first_plugin_dir();
+        with_plugin_script(first_plugin_dir, "plugin_a", "pwd", "cd");
+        with_plugin_script(first_plugin_dir, "plugin_b", "pwd", "cd");
+        with_plugin_script(first_plugin_dir, "plugin_c", "pwd", "cd");
 
         let mut logger = DualLogger::new(command.diag_dir.join("summary.log")).unwrap();
         let plugins = command.read_diag_plugins(&mut logger).await.unwrap();
@@ -277,12 +295,13 @@ mod tests {
         let mut command = DiagCollectCommand::new(&ttd);
         command.add_plugin_dir(second_plugin_dir.path());
         command.add_plugin_dir(third_plugin_dir.path());
-        with_exec_permission(command.first_plugin_dir().join("plugin_1a"), "pwd");
-        with_exec_permission(command.first_plugin_dir().join("plugin_1b"), "pwd");
-        with_exec_permission(second_plugin_dir.path().join("plugin_2a"), "pwd");
-        with_exec_permission(second_plugin_dir.path().join("plugin_2b"), "pwd");
-        with_exec_permission(third_plugin_dir.path().join("plugin_3a"), "pwd");
-        with_exec_permission(third_plugin_dir.path().join("plugin_3b"), "pwd");
+        let first_plugin_dir = command.first_plugin_dir();
+        with_plugin_script(first_plugin_dir, "plugin_1a", "pwd", "cd");
+        with_plugin_script(first_plugin_dir, "plugin_1b", "pwd", "cd");
+        with_plugin_script(second_plugin_dir.path(), "plugin_2a", "pwd", "cd");
+        with_plugin_script(second_plugin_dir.path(), "plugin_2b", "pwd", "cd");
+        with_plugin_script(third_plugin_dir.path(), "plugin_3a", "pwd", "cd");
+        with_plugin_script(third_plugin_dir.path(), "plugin_3b", "pwd", "cd");
 
         let mut logger = DualLogger::new(command.diag_dir.join("summary.log")).unwrap();
         let plugins = command.read_diag_plugins(&mut logger).await.unwrap();
@@ -340,10 +359,11 @@ mod tests {
         let ttd = TempTedgeDir::new();
         let command = DiagCollectCommand::new(&ttd);
         let diag_root_dir = TedgePaths::from_root_with_defaults(&command.diag_dir, "", "");
-        let plugin_a_path = command.first_plugin_dir().join("plugin_a.sh");
-        with_exec_permission(
-            command.first_plugin_dir().join(&plugin_a_path),
+        let plugin_a_path = with_plugin_script(
+            command.first_plugin_dir(),
+            "plugin_a",
             "#!/bin/sh\nls",
+            "@echo off\r\ndir",
         );
 
         let status = command
@@ -364,8 +384,13 @@ mod tests {
             "--config-dir".to_string(),
             command.config_dir.to_string(),
         ];
+        // The arguments are logged with debug formatting, which escapes the Windows path separators
         for item in expected_command {
-            assert!(content.contains(item.as_str()));
+            let logged = format!("{item:?}");
+            assert!(
+                content.contains(item.as_str()) || content.contains(logged.as_str()),
+                "{item} not found in {content}"
+            );
         }
     }
 
@@ -374,10 +399,11 @@ mod tests {
         let ttd = TempTedgeDir::new();
         let command = DiagCollectCommand::new(&ttd);
         let diag_root_dir = TedgePaths::from_root_with_defaults(&command.diag_dir, "", "");
-        let plugin_path = command.first_plugin_dir().join("plugin_env.sh");
-        with_exec_permission(
-            &plugin_path,
+        let plugin_path = with_plugin_script(
+            command.first_plugin_dir(),
+            "plugin_env",
             "#!/bin/sh\necho \"TEDGE_CONFIG_DIR=$TEDGE_CONFIG_DIR\"",
+            "@echo off\r\necho TEDGE_CONFIG_DIR=%TEDGE_CONFIG_DIR%",
         );
 
         let status = command

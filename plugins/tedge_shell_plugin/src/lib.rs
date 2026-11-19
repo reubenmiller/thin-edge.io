@@ -3,6 +3,9 @@
 //! This plugin is the executable behind the built-in `shell_execute` operation workflow.
 //! It runs `<shell> -c <command>`, captures the combined standard output and standard error
 //! of the command, and reports it as the `result` field of the workflow output.
+//!
+//! On Windows, the shell is PowerShell by default, and the command is run with
+//! `powershell.exe -NoProfile -NonInteractive -Command <command>`.
 
 pub mod bin;
 pub mod job;
@@ -15,6 +18,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::process::Child;
 use std::process::Command;
@@ -118,16 +122,16 @@ pub fn execute_to_file(
 ) -> std::io::Result<ShellOutcome> {
     let (pipe, pipe_writer) = std::io::pipe()?;
     // The command is dropped once spawned, so this process does not hold the write end of the pipe
-    let mut child = Command::new(shell)
-        // "--" ends the shell options, so a command starting with a hyphen is run as a command
-        .args(["-c", "--", command])
+    let mut command = shell_command(shell, command);
+    command
         .envs(NO_COLOR_ENVS)
         .envs(envs.iter().copied())
         .stdin(Stdio::null())
         .stdout(pipe_writer.try_clone()?)
-        .stderr(pipe_writer)
-        .process_group(0)
-        .spawn()?;
+        .stderr(pipe_writer);
+    #[cfg(unix)]
+    command.process_group(0);
+    let mut child = command.spawn()?;
     let mut relay = OutputRelay::new(pipe, output, max_output_size);
 
     let deadline = Instant::now() + timeout;
@@ -149,6 +153,59 @@ pub fn execute_to_file(
         result_set: false,
         reason: None,
     })
+}
+
+/// The command running `command` with `shell`
+///
+/// On Unix, and for a POSIX shell on Windows (e.g. Git Bash): `<shell> -c -- <command>`,
+/// where "--" ends the shell options, so a command starting with a hyphen is run as a command.
+///
+/// On Windows, PowerShell and `cmd.exe` take the command differently:
+/// - `powershell.exe` or `pwsh.exe`: `-NoProfile -NonInteractive -Command <command>`,
+///   the output being UTF-8 encoded rather than in the OEM code page;
+/// - `cmd.exe`: `/d /s /c "<command>"`, passed verbatim, as `cmd.exe` does not follow
+///   the quoting rules of the other programs.
+fn shell_command(shell: &Utf8Path, command: &str) -> Command {
+    let mut cmd = Command::new(shell);
+    match windows_shell_kind(shell) {
+        Some(WindowsShell::PowerShell) => {
+            // Setting the encoding fails when there is no console, which is harmless
+            let command = format!(
+                "try {{ [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 }} catch {{}}\n{command}"
+            );
+            cmd.args(["-NoProfile", "-NonInteractive", "-Command", &command]);
+        }
+        Some(WindowsShell::Cmd) => {
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.raw_arg(format!("/d /s /c \"{command}\""));
+            }
+        }
+        None => {
+            cmd.args(["-c", "--", command]);
+        }
+    }
+    cmd
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum WindowsShell {
+    PowerShell,
+    Cmd,
+}
+
+/// The kind of a Windows shell not following the POSIX `-c` convention, by file name
+fn windows_shell_kind(shell: &Utf8Path) -> Option<WindowsShell> {
+    if !cfg!(windows) {
+        return None;
+    }
+    let name = shell.file_stem()?.to_ascii_lowercase();
+    match name.as_str() {
+        "powershell" | "pwsh" => Some(WindowsShell::PowerShell),
+        "cmd" => Some(WindowsShell::Cmd),
+        _ => None,
+    }
 }
 
 /// Read back at most `max_output_size` bytes of the output of a command,
@@ -211,6 +268,7 @@ fn wait_until(
 /// Terminate the process group led by the child, and reap the child
 ///
 /// The output is relayed during the grace period, e.g. what a `SIGTERM` handler prints.
+#[cfg(unix)]
 fn terminate(child: &mut Child, relay: &mut OutputRelay) -> std::io::Result<()> {
     use nix::sys::signal::killpg;
     use nix::sys::signal::Signal;
@@ -307,6 +365,28 @@ const END_MARKER: &str = ":::end-tedge:::";
 /// Prefix of the notice appended to an output which has been truncated
 const TRUNCATION_NOTICE_PREFIX: &str = "<the output has been";
 
+/// Terminate the process tree rooted at the child, and reap the child
+///
+/// `taskkill /T` asks the processes to close; console processes, which cannot be asked,
+/// are terminated forcefully at once. What is left after the grace period is terminated forcefully.
+#[cfg(windows)]
+fn terminate(child: &mut Child, relay: &mut OutputRelay) -> std::io::Result<()> {
+    use tedge_utils::signals::terminate_process_group;
+    use tedge_utils::signals::Signal;
+
+    terminate_process_group(child.id(), Signal::SIGTERM);
+    if wait_until(child, relay, Instant::now() + TERMINATION_GRACE_PERIOD)?.is_none() {
+        terminate_process_group(child.id(), Signal::SIGKILL);
+        child.wait()?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn exit_code(status: std::process::ExitStatus) -> i32 {
+    status.code().unwrap_or(1)
+}
+
 #[cfg(unix)]
 fn exit_code(status: std::process::ExitStatus) -> i32 {
     use std::os::unix::process::ExitStatusExt;
@@ -315,7 +395,8 @@ fn exit_code(status: std::process::ExitStatus) -> i32 {
         .unwrap_or_else(|| 128 + status.signal().unwrap_or(0))
 }
 
-#[cfg(test)]
+// The tests use a POSIX shell
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
@@ -613,5 +694,64 @@ mod tests {
 
     fn execute_with_defaults(command: &str) -> std::io::Result<ShellOutcome> {
         execute(sh(), command, NO_LIMIT, NO_TIMEOUT)
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+
+    const POWERSHELL: &str = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
+    const CMD: &str = r"C:\Windows\System32\cmd.exe";
+
+    fn execute(shell: &str, command: &str, timeout: Duration) -> ShellOutcome {
+        let file = tempfile::tempfile().unwrap();
+        let output = OutputFile {
+            file,
+            flush_request: None,
+        };
+        execute_to_file(Utf8Path::new(shell), command, output, 10_000, timeout, &[]).unwrap()
+    }
+
+    #[test]
+    fn powershell_captures_stdout_stderr_and_exit_code() {
+        let outcome = execute(
+            POWERSHELL,
+            "Write-Output one; [Console]::Error.WriteLine('two'); exit 3",
+            Duration::from_secs(60),
+        );
+        assert_eq!(outcome.exit_code, 3);
+        assert!(outcome.result.contains("one"), "{}", outcome.result);
+        assert!(outcome.result.contains("two"), "{}", outcome.result);
+    }
+
+    #[test]
+    fn powershell_output_is_utf8() {
+        let outcome = execute(
+            POWERSHELL,
+            "Write-Output 'temp: 21.5°C'",
+            Duration::from_secs(60),
+        );
+        assert_eq!(outcome.exit_code, 0);
+        assert!(outcome.result.contains("21.5°C"), "{}", outcome.result);
+    }
+
+    #[test]
+    fn cmd_runs_a_command_with_quotes() {
+        let outcome = execute(CMD, r#"echo "a b" & exit /b 2"#, Duration::from_secs(60));
+        assert_eq!(outcome.exit_code, 2);
+        assert!(outcome.result.contains(r#""a b""#), "{}", outcome.result);
+    }
+
+    #[test]
+    fn a_command_is_terminated_on_timeout() {
+        // Long enough for PowerShell to start on a slow runner (several seconds on ARM64)
+        let timeout = Duration::from_secs(15);
+        let started = Instant::now();
+        let outcome = execute(POWERSHELL, "Write-Output started; Start-Sleep 120", timeout);
+        assert!(started.elapsed() < Duration::from_secs(60));
+        assert_eq!(outcome.exit_code, TIMEOUT_EXIT_CODE);
+        assert_eq!(outcome.timed_out, Some(timeout));
+        assert!(outcome.result.contains("started"), "{}", outcome.result);
     }
 }

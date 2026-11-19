@@ -5,9 +5,11 @@ use std::sync::Arc;
 use axum::extract::FromRequestParts;
 use axum::extract::Path;
 use axum::http::request::Parts;
+use camino::Utf8Component;
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
 use tedge_api::path::DataDir;
+use tedge_utils::file_name::to_file_name;
 use tedge_utils::paths::ManagedDir;
 
 use super::error::HttpRequestError;
@@ -87,7 +89,16 @@ fn local_path_for_file(
     file_transfer_dir: Arc<ManagedDir>,
     data_dir: Arc<DataDir>,
 ) -> Result<FileTransferPath, HttpRequestError> {
-    let full_path = file_transfer_dir.path().join(&request_path);
+    // On Windows, the characters that are invalid in file names (e.g. `:` in `robot_log::robotlog`) are encoded.
+    // Only the file and directory names are encoded: the root and `..` components are checked below.
+    let relative_path: Utf8PathBuf = request_path
+        .components()
+        .map(|component| match component {
+            Utf8Component::Normal(name) => to_file_name(name).into_owned(),
+            other => other.as_str().to_owned(),
+        })
+        .collect();
+    let full_path = file_transfer_dir.path().join(relative_path);
 
     let clean_path = clean_utf8_path(&full_path);
 

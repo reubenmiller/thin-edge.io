@@ -9,6 +9,7 @@ use crate::bridge::BridgeLocation;
 use crate::bridge::CommonMosquittoConfig;
 use crate::bridge::TEDGE_BRIDGE_CONF_DIR_PATH;
 use crate::cli::common::is_run_all_active;
+use crate::cli::common::mosquitto_applies_tedge_config;
 use crate::cli::common::Cloud;
 use crate::cli::common::MaybeBorrowedCloud;
 use crate::cli::common::RUN_ALL_SERVICE;
@@ -764,7 +765,22 @@ fn check_cert_cn(bridge_config: &BridgeConfig) -> anyhow::Result<()> {
     })
 }
 
+/// Fails if the configured bridge is not supported on the platform
+///
+/// The Mosquitto bridge configuration is written for a Mosquitto broker managed by the init system,
+/// which is not available on Windows, where only the built-in bridge is supported.
+fn ensure_bridge_is_supported(built_in_bridge: bool, is_windows: bool) -> anyhow::Result<()> {
+    if is_windows && !built_in_bridge {
+        anyhow::bail!(
+            "The Mosquitto bridge is not supported on Windows. \
+             Enable the built-in bridge with: tedge config set mqtt.bridge.built_in true"
+        );
+    }
+    Ok(())
+}
+
 fn validate_config(config: &TEdgeConfig, cloud: &MaybeBorrowedCloud<'_>) -> anyhow::Result<()> {
+    ensure_bridge_is_supported(config.mqtt.bridge.built_in, cfg!(windows))?;
     if !config.mqtt.bridge.built_in && config.proxy.address.or_none().is_some() {
         warn!("`proxy.address` is configured without the built-in bridge enabled. The bridge MQTT connection to the cloud will {} communicate via the configured proxy.", "not".bold())
     }
@@ -1149,7 +1165,9 @@ impl ConnectCommand {
             return Err(err.into());
         }
 
-        restart_mosquitto(bridge_config, service_manager.as_ref(), tedge_config).await?;
+        if mosquitto_applies_tedge_config() {
+            restart_mosquitto(bridge_config, service_manager.as_ref(), tedge_config).await?;
+        }
 
         let spinner = Spinner::start("Waiting for mosquitto to be listening for connections");
         spinner.finish(wait_for_mosquitto_listening(&tedge_config.mqtt).await)?;
@@ -1417,6 +1435,15 @@ async fn is_configured_tenant_on_another_domain(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn the_mosquitto_bridge_is_rejected_on_windows_only() {
+        assert!(ensure_bridge_is_supported(true, true).is_ok());
+        assert!(ensure_bridge_is_supported(true, false).is_ok());
+        assert!(ensure_bridge_is_supported(false, false).is_ok());
+        let err = ensure_bridge_is_supported(false, true).unwrap_err();
+        assert!(err.to_string().contains("mqtt.bridge.built_in true"));
+    }
     use super::*;
     use mqtt_channel::QoS::AtLeastOnce;
 
@@ -1476,13 +1503,7 @@ mod tests {
 
             assert_eq!(
                 manager.actions(),
-                [
-                    "stop mosquitto",
-                    "restart mosquitto",
-                    "enable mosquitto",
-                    "restart tedge",
-                    "enable tedge"
-                ]
+                after_mosquitto_restart(&["enable mosquitto", "restart tedge", "enable tedge"])
             );
         }
 
@@ -1502,16 +1523,24 @@ mod tests {
 
             assert_eq!(
                 manager.actions(),
-                [
-                    "stop mosquitto",
-                    "restart mosquitto",
+                after_mosquitto_restart(&[
                     "enable mosquitto",
                     "start tedge-mapper-c8y",
                     "enable tedge-mapper-c8y",
                     "start tedge-agent",
                     "enable tedge-agent"
-                ]
+                ])
             );
+        }
+
+        /// The service actions of `tedge connect`, after the mosquitto restart on Linux
+        fn after_mosquitto_restart(actions: &[&'static str]) -> Vec<&'static str> {
+            let restart: &[&'static str] = if mosquitto_applies_tedge_config() {
+                &["stop mosquitto", "restart mosquitto"]
+            } else {
+                &[]
+            };
+            [restart, actions].concat()
         }
 
         async fn c8y_config(ttd: &TempTedgeDir) -> TEdgeConfig {
@@ -1529,8 +1558,8 @@ mod tests {
                 .with_raw_content("user = ''\ngroup = ''\n");
             ttd.file("tedge.toml").with_raw_content(&format!(
                 "c8y.url = \"example.com\"
-                c8y.device.cert_path = \"{cert_path}\"
-                c8y.device.key_path = \"{key_path}\""
+                c8y.device.cert_path = '{cert_path}'
+                c8y.device.key_path = '{key_path}'"
             ));
             TEdgeConfig::load(ttd.path()).await.unwrap()
         }

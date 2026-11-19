@@ -1358,7 +1358,7 @@ define_tedge_config! {
 
     run: {
         /// The directory used to store runtime information, such as file locks
-        #[tedge_config(example = "/run", default(from_str = "/run"))]
+        #[tedge_config(example = "/run", default(function = "default_run_path"))]
         path: AbsolutePath,
 
         /// Whether to create a lock file or not
@@ -1372,7 +1372,7 @@ define_tedge_config! {
 
     logs: {
         /// The directory used to store logs
-        #[tedge_config(example = "/var/log/tedge", default(from_str = "/var/log/tedge"))]
+        #[tedge_config(example = "/var/log/tedge", default(function = "default_logs_path"))]
         path: AbsolutePath,
 
         /// The maximum count of log files per operation
@@ -1384,13 +1384,13 @@ define_tedge_config! {
 
     tmp: {
         /// The temporary directory used to download files to the device
-        #[tedge_config(example = "/tmp", default(from_str = "/tmp"))]
+        #[tedge_config(example = "/tmp", default(function = "default_tmp_path"))]
         path: AbsolutePath,
     },
 
     data: {
         /// The directory used to store data like cached files, runtime metadata, etc.
-        #[tedge_config(example = "/var/tedge", default(from_str = "/var/tedge"))]
+        #[tedge_config(example = "/var/tedge", default(function = "default_data_path"))]
         path: AbsolutePath,
     },
 
@@ -1486,7 +1486,7 @@ define_tedge_config! {
 
     shell: {
         /// The shell used by the `shell_execute` operation to run the commands
-        #[tedge_config(example = "/bin/sh", example = "/bin/bash", default(from_str = "/bin/sh"))]
+        #[tedge_config(example = "/bin/sh", example = "/bin/bash", default(function = "default_shell_path"))]
         #[tedge_config(exposable)]
         path: AbsolutePath,
 
@@ -1764,8 +1764,52 @@ fn cert_error_into_config_error(key: Cow<'static, str>, err: CertificateError) -
     }
 }
 
-fn default_root_cert_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
-    AbsolutePath::try_new(DEFAULT_ROOT_CERT_PATH).unwrap()
+/// The trusted root certificates used to connect to the cloud, in addition to the OS certificate store on Windows.
+///
+/// Windows has no PEM bundle on disk: its root certificates are in the certificate store,
+/// which is always trusted. The default is an empty directory where extra certificates can be added.
+fn default_root_cert_path(location: &TEdgeConfigLocation) -> AbsolutePath {
+    crate::platform::default_root_cert_path(location.tedge_config_root_path())
+        .try_into()
+        .unwrap()
+}
+
+/// `/run` on Unix, `<config dir>\run` on Windows, which has no system run directory.
+fn default_run_path(location: &TEdgeConfigLocation) -> AbsolutePath {
+    if cfg!(windows) {
+        location
+            .tedge_config_root_path()
+            .join("run")
+            .try_into()
+            .unwrap()
+    } else {
+        AbsolutePath::try_new("/run").unwrap()
+    }
+}
+
+/// `/bin/sh` on Unix, Windows PowerShell on Windows
+fn default_shell_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
+    if cfg!(windows) {
+        let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_owned());
+        AbsolutePath::try_new(&format!(
+            r"{system_root}\System32\WindowsPowerShell\v1.0\powershell.exe"
+        ))
+        .unwrap()
+    } else {
+        AbsolutePath::try_new("/bin/sh").unwrap()
+    }
+}
+
+fn default_logs_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
+    AbsolutePath::try_new(crate::platform::log_root().to_str().unwrap()).unwrap()
+}
+
+fn default_tmp_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
+    AbsolutePath::try_new(crate::platform::tmp_root().to_str().unwrap()).unwrap()
+}
+
+fn default_data_path(_location: &TEdgeConfigLocation) -> AbsolutePath {
+    AbsolutePath::try_new(crate::platform::data_root().to_str().unwrap()).unwrap()
 }
 
 fn default_device_key(location: &TEdgeConfigLocation) -> AbsolutePath {
@@ -1978,6 +2022,21 @@ mod tests {
     use tedge_test_utils::fs::TempTedgeDir;
 
     use super::*;
+
+    #[test]
+    fn default_root_cert_path_is_a_tedge_directory_on_windows() {
+        let config_dir = TempTedgeDir::new();
+        let location = TEdgeConfigLocation::from_custom_root(config_dir.path());
+
+        let path = default_root_cert_path(&location);
+
+        if cfg!(windows) {
+            let expected = config_dir.path().join("ca-certificates");
+            assert_eq!(path.to_string(), expected.to_string());
+        } else {
+            assert_eq!(path.to_string(), "/etc/ssl/certs");
+        }
+    }
 
     #[test]
     fn mqtt_bridge_unacked_message_timeout_accepts_zero() {
@@ -2234,6 +2293,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "set_mode(0o000) is a no-op on Windows so the directory stays accessible"
+    )]
     async fn mapper_config_fails_if_mapper_config_directory_exists_but_is_inaccessible() {
         let ttd = TempTedgeDir::new();
         ttd.dir("mappers").set_mode(0o000);

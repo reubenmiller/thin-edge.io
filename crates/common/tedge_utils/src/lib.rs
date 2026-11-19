@@ -1,7 +1,9 @@
 pub mod atomic;
 pub mod file;
+pub mod file_name;
 pub mod fs;
 pub mod paths;
+pub mod plugins;
 pub mod signals;
 pub mod timers;
 

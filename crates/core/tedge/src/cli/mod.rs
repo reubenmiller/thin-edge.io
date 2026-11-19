@@ -22,6 +22,7 @@ use self::init::TEdgeInitCmd;
 mod bridge;
 mod certificate;
 mod common;
+pub use common::RUN_ALL_SERVICE;
 mod completions;
 pub mod config;
 mod connect;
@@ -38,6 +39,9 @@ mod reconnect;
 mod refresh_bridges;
 mod service;
 mod upload;
+pub mod windows_init;
+#[cfg(windows)]
+pub mod windows_service_control;
 
 #[derive(clap::Parser, Debug)]
 #[clap(

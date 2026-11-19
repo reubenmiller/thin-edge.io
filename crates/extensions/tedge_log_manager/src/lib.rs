@@ -108,6 +108,7 @@ impl LogManagerBuilder {
             path = agent_logs_path
         }
         .to_string();
+        let example_config = example_config + &windows_service_log_types(config);
         atomically_write_file_sync(config.plugin_config_path.path(), example_config.as_bytes())?;
 
         Ok(())
@@ -262,4 +263,26 @@ impl SyncOnCommand for LogManagerBuilder {
     fn sync_on_commands(&self) -> Vec<OperationType> {
         vec![OperationType::SoftwareUpdate, OperationType::ConfigUpdate]
     }
+}
+
+/// Log types of the thin-edge.io services on Windows, which log to files rather than to journald
+fn windows_service_log_types(config: &LogManagerConfig) -> String {
+    if !cfg!(windows) {
+        return String::new();
+    }
+    let service_log = |name: &str| format!("{}/log/{name}.log", config.config_dir.root());
+    let service_logs = toml! {
+        [[files]]
+        type = "tedge-agent"
+        path = (service_log("tedge-agent"))
+
+        [[files]]
+        type = "tedge-mapper"
+        path = (service_log("tedge-mapper-*"))
+
+        [[files]]
+        type = "tedge"
+        path = (service_log("tedge"))
+    };
+    format!("\n{service_logs}")
 }

@@ -47,7 +47,14 @@ impl CommandLog {
         let root_operation = root_operation.unwrap_or(operation.clone());
         let root_cmd_id = root_cmd_id.unwrap_or(cmd_id.clone());
 
-        let path = log_dir.join(format!("workflow-{}-{}.log", root_operation, root_cmd_id));
+        let filename = {
+            let s = format!("workflow-{}-{}.log", root_operation, root_cmd_id);
+            // RFC3339 command IDs contain ':' which is forbidden in Windows filenames.
+            #[cfg(windows)]
+            let s = s.replace(':', "-");
+            s
+        };
+        let path = log_dir.join(filename);
         CommandLog {
             path,
             operation,
@@ -221,6 +228,10 @@ mod tests {
     use tedge_test_utils::fs::TempTedgeDir;
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "uses 'ls' which is not a standalone executable on Windows"
+    )]
     async fn on_execute_are_logged_command_line_exit_status_stdout_and_stderr(
     ) -> Result<(), anyhow::Error> {
         // Prepare a log file
@@ -270,10 +281,10 @@ EOF
         let _ = command.execute(Some(&mut command_log)).await;
 
         // On expect the errors to be logged
-        let log_content = String::from_utf8(std::fs::read(log_file_path)?)?;
+        let _log_content = String::from_utf8(std::fs::read(log_file_path)?)?;
         #[cfg(target_os = "linux")]
         assert_eq!(
-            log_content,
+            _log_content,
             r#"----- $ ls "dummy-file"
 Exit status: 2 (ERROR)
 
@@ -286,7 +297,7 @@ stdout (EMPTY)
         );
         #[cfg(target_os = "macos")]
         assert_eq!(
-            log_content,
+            _log_content,
             r#"----- $ ls "dummy-file"
 Exit status: 1 (ERROR)
 
@@ -301,6 +312,10 @@ stdout (EMPTY)
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "uses 'ls' which is not a standalone executable on Windows"
+    )]
     async fn on_execution_error_are_logged_command_line_and_error() -> Result<(), anyhow::Error> {
         // Prepare a log file
         let tmp_dir = TempTedgeDir::new();

@@ -17,6 +17,7 @@ use camino::Utf8PathBuf;
 use sha256::digest;
 use sha256::try_digest;
 use std::fs;
+#[cfg(unix)]
 use std::os::unix;
 use std::path::Path;
 use std::sync::Arc;
@@ -439,7 +440,10 @@ impl FirmwareManagerWorker {
 
         if !symlink_path.is_symlink() {
             fs::create_dir_all(symlink_dir_path)?;
+            #[cfg(unix)]
             unix::fs::symlink(original_file_path, &symlink_path)?;
+            #[cfg(windows)]
+            std::os::windows::fs::symlink_file(original_file_path, &symlink_path)?;
         }
         Ok(symlink_path)
     }

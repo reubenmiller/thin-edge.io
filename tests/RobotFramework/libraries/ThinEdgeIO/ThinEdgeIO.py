@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import re
 import base64
+import glob
 import os
 import shutil
 import subprocess
@@ -27,8 +28,39 @@ from DeviceLibrary import DeviceLibrary, DeviceAdapter
 from DeviceLibrary.DeviceLibrary import timestamp
 from Cumulocity import Cumulocity, retry
 
+from .mqtt_recorder import MQTTRecorder, filter_messages, to_mqtt_log_entry
+
+# On Windows, the tests run on the host itself using the local adapter,
+# see tests/windows/README.md
+IS_WINDOWS = os.name == "nt"
+WINDOWS_TEDGE_CONFIG_DIR = r"C:\ProgramData\tedge"
+WINDOWS_TEDGE_LOG_DIR = WINDOWS_TEDGE_CONFIG_DIR + r"\log"
+
+if IS_WINDOWS:
+    from .windows_adapter import register_windows_local_adapter
+
+    register_windows_local_adapter()
+
 devices_lib = DeviceLibrary()
-c8y_lib = Cumulocity()
+
+
+def _c8y_is_configured() -> bool:
+    """Whether Cumulocity credentials are set (C8Y_BASEURL)
+
+    The Windows suite runs its local tests without Cumulocity credentials
+    (e.g. on forks), and skips the tests which need Cumulocity.
+    """
+    return bool(os.environ.get("C8Y_BASEURL", "").strip())
+
+
+c8y_lib: Optional[Cumulocity] = None
+if not IS_WINDOWS or _c8y_is_configured():
+    c8y_lib = Cumulocity()
+else:
+    logging.getLogger(__name__).warning(
+        "Cumulocity is not configured (C8Y_BASEURL is not set), "
+        "so the Cumulocity keywords are not available"
+    )
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s %(module)s -%(levelname)s- %(message)s"
@@ -113,6 +145,9 @@ class ThinEdgeIO(DeviceLibrary):
         # Cumulocity configuration cache
         self._c8y_config = {}
 
+        # Records the MQTT messages on Windows (in place of mqtt-log)
+        self._mqtt_recorder: Optional[MQTTRecorder] = None
+
     @property
     def c8y_config(self) -> Dict[str, Any]:
         """Get the Cumulocity configuration"""
@@ -139,6 +174,11 @@ class ThinEdgeIO(DeviceLibrary):
             result (Any): Test details
         """
         log.info("Suite %s (%s) ending", result.name, result.message)
+
+        if c8y_lib is None:
+            self._stop_mqtt_recorder()
+            super().end_suite(_data, result)
+            return
 
         log.info(
             "Removing the following self-signed certificates (thumbprints): %s",
@@ -168,7 +208,13 @@ class ThinEdgeIO(DeviceLibrary):
             except Exception as ex:
                 log.warning("Could not cleanup device. %s", ex)
 
+        self._stop_mqtt_recorder()
         super().end_suite(_data, result)
+
+    def _stop_mqtt_recorder(self):
+        if self._mqtt_recorder is not None:
+            self._mqtt_recorder.stop()
+            self._mqtt_recorder = None
 
     def end_test(self, _data: Any, result: Any):
         """End test hook which is called by Robot Framework
@@ -295,6 +341,12 @@ class ThinEdgeIO(DeviceLibrary):
             _append_command(f"tedge config set c8y.mqtt '{mqtt}'")
             _append_command(f"tedge config set c8y.http '{http}'")
 
+        if IS_WINDOWS:
+            # Windows PowerShell 5.1 does not support '&&'
+            for command in commands:
+                self.execute_command(command, device_name=device_name)
+            return
+
         cmd = " && ".join(commands)
         self.execute_command(
             cmd,
@@ -354,12 +406,16 @@ class ThinEdgeIO(DeviceLibrary):
         On devices whose ``date`` does not support nanoseconds (e.g. busybox) the
         parent implementation transparently falls back to whole seconds.
 
+        On Windows, the device is the host running the tests, so the host time is used.
+
         Args:
             milliseconds (bool, optional): Include sub-second precision. Defaults to True.
 
         Returns:
             Union[int,float]: Number of seconds since unix epoch
         """
+        if IS_WINDOWS:
+            return self.get_unix_timestamp_from_host(milliseconds=milliseconds)
         return super().get_unix_timestamp(milliseconds=milliseconds)
 
     @keyword("Get Suite Logs")
@@ -414,6 +470,29 @@ class ThinEdgeIO(DeviceLibrary):
             return []
 
         device_sn = name or device.get_id()
+        if c8y_lib is None:
+            log.info("Skip getting the managed object as Cumulocity is not configured")
+        else:
+            self._log_managed_object(device_sn)
+
+        # Log mqtt messages separately so it is easier to read/debug
+        try:
+            self.log_mqtt_messages("#", date_from)
+        except Exception as ex:
+            log.warning("Failed to retrieve mqtt logs. %s", ex, exc_info=True)
+
+        self._log_device_files(device)
+
+        log_output = super().get_logs(device.get_id(), date_from=date_from, show=False)
+        if show:
+            hide_sensitive = self._hide_sensitive_factory()
+            for line in log_output:
+                print(hide_sensitive(line))
+
+        return log_output
+
+    def _log_managed_object(self, device_sn: str):
+        """Log the device managed object and its operations"""
         try:
             managed_object = c8y_lib.c8y.identity.get_object(device_sn, "c8y_Serial")
             log.info(
@@ -428,11 +507,11 @@ class ThinEdgeIO(DeviceLibrary):
             # Only log info as not all tests require creating an object in Cumulocity
             log.warning("Failed to get device managed object. %s", ex)
 
-        # Log mqtt messages separately so it is easier to read/debug
-        try:
-            self.log_mqtt_messages("#", date_from)
-        except Exception as ex:
-            log.warning("Failed to retrieve mqtt logs. %s", ex, exc_info=True)
+    def _log_device_files(self, device: DeviceAdapter):
+        """Log the agent operation logs, the entity stores and the mqtt-log messages"""
+        if IS_WINDOWS:
+            self._log_windows_files()
+            return
 
         try:
             # Get agent log files (if they exist)
@@ -463,13 +542,29 @@ class ThinEdgeIO(DeviceLibrary):
         except Exception as ex:
             log.warning("Failed to retrieve logs. %s", ex, exc_info=True)
 
-        log_output = super().get_logs(device.get_id(), date_from=date_from, show=False)
-        if show:
-            hide_sensitive = self._hide_sensitive_factory()
-            for line in log_output:
-                print(hide_sensitive(line))
+    def _log_windows_files(self):
+        """Log the agent operation logs and the entity stores on Windows
 
-        return log_output
+        The service logs are returned by the Windows local adapter.
+        """
+        patterns = [
+            (
+                "tedge agent logs",
+                os.path.join(WINDOWS_TEDGE_LOG_DIR, "agent", "*"),
+            ),
+            (
+                "entity_store.jsonl log",
+                os.path.join(WINDOWS_TEDGE_CONFIG_DIR, ".*", "entity_store.jsonl"),
+            ),
+        ]
+        for title, pattern in patterns:
+            log.info("%s: %s", title, pattern)
+            for path in sorted(glob.glob(pattern)):
+                try:
+                    contents = Path(path).read_text(encoding="utf8", errors="replace")
+                    log.info("==> %s <==\n%s", path, contents)
+                except OSError as ex:
+                    log.warning("Failed to read %s. %s", path, ex)
 
     def _hide_sensitive_factory(self):
         # This is fragile and should be improved upon once a more suitable/robust method of logging and querying
@@ -553,6 +648,10 @@ class ThinEdgeIO(DeviceLibrary):
             command = "tedge cert show c8y 2>/dev/null || tedge cert show"
             if cloud_profile:
                 command = f"tedge cert show c8y --profile {cloud_profile} 2>/dev/null || tedge cert show --profile {cloud_profile}"
+            if IS_WINDOWS:
+                command = "tedge cert show c8y"
+                if cloud_profile:
+                    command += f" --profile {cloud_profile}"
             lines = self.execute_command(command, ignore_exit_code=True).splitlines()
 
         except Exception as ex:
@@ -735,6 +834,16 @@ class ThinEdgeIO(DeviceLibrary):
             topic (str): Filter by topic
 
         """
+        if IS_WINDOWS:
+            return self._mqtt_match_recorded_messages(
+                topic,
+                message_pattern=message_pattern,
+                date_from=date_from,
+                date_to=date_to,
+                minimum=minimum,
+                maximum=maximum,
+                message_type=message_type,
+            )
 
         cmd = "mqtt-log -n 10000 --output ndjson"
 
@@ -774,6 +883,58 @@ class ThinEdgeIO(DeviceLibrary):
                 log.debug("ignoring non-json entry. %s", ex)
 
         return messages
+
+    def _mqtt_match_recorded_messages(
+        self,
+        topic: str,
+        message_pattern: Optional[str] = None,
+        date_from: Optional[timestamp.Timestamp] = None,
+        date_to: Optional[timestamp.Timestamp] = None,
+        minimum: Optional[int] = None,
+        maximum: Optional[int] = None,
+        message_type: Optional[str] = "publish_in",
+    ) -> List[Dict[str, Any]]:
+        """Match the messages recorded by the MQTT recorder (used on Windows)
+
+        It takes the same arguments as mqtt_match_messages, and returns the
+        messages in the mqtt-log ndjson format.
+        """
+        if self._mqtt_recorder is None:
+            raise RuntimeError(
+                "The MQTT recorder is not running. It is started by the 'Setup' keyword"
+            )
+
+        if message_type and message_type != "all":
+            types = message_type.split(",")
+            if "publish_in" not in types:
+                raise NotImplementedError(
+                    f"Only the 'publish_in' message type is recorded on Windows. got={message_type}"
+                )
+
+        if not date_from:
+            date_from = self.test_start_time
+
+        messages = filter_messages(
+            self._mqtt_recorder.records(),
+            topic=topic,
+            message_pattern=message_pattern,
+            date_from=(
+                timestamp.parse_timestamp(date_from).timestamp() if date_from else None
+            ),
+            date_to=timestamp.parse_timestamp(date_to).timestamp() if date_to else None,
+        )
+
+        count = len(messages)
+        if minimum is not None and count < int(minimum):
+            raise AssertionError(
+                f"Expected at least {minimum} MQTT messages on '{topic}', but found {count}"
+            )
+        if maximum is not None and count > int(maximum):
+            raise AssertionError(
+                f"Expected at most {maximum} MQTT messages on '{topic}', but found {count}"
+            )
+
+        return [to_mqtt_log_entry(message) for message in messages]
 
     #
     # Service Health Status
@@ -822,6 +983,9 @@ class ThinEdgeIO(DeviceLibrary):
     def _assert_health_status(
         self, service: str, status: str, device: str = "main", **kwargs
     ) -> Dict[str, Any]:
+        if IS_WINDOWS:
+            return self._check_recorded_health_status(service, status, device=device)
+
         # if mqtt.client.auth.ca_file or mqtt.client.auth.ca_dir is set, we pass setting
         # value to mosquitto_sub
         mqtt_config_options = self.execute_command(
@@ -857,6 +1021,46 @@ class ThinEdgeIO(DeviceLibrary):
             current_status = status_mappings.get(message.strip(), "unknown")
         assert current_status == status
         return health
+
+    def _check_recorded_health_status(
+        self, service: str, status: str, device: str = "main"
+    ) -> Dict[str, Any]:
+        """Check the last health status recorded by the MQTT recorder (used on Windows)"""
+        topic = f"te/device/{device}/service/{service}/status/health"
+        message = ""
+        if self._mqtt_recorder is not None:
+            records = filter_messages(self._mqtt_recorder.records(), topic=topic)
+            if records:
+                message = records[-1]["payload"]
+
+        if not message:
+            # Fall back to the retained message
+            message = self.execute_command(
+                f"tedge mqtt sub '{topic}' --retained-only --no-topic --duration 1s",
+                stdout=True,
+                stderr=False,
+                ignore_exit_code=True,
+            ).strip()
+
+        health = {}
+        try:
+            health = json.loads(message)
+            current_status = health.get("status", "")
+        except Exception:
+            status_mappings = {"1": "up", "0": "down"}
+            current_status = status_mappings.get(message.strip(), "unknown")
+        assert (
+            current_status == status
+        ), f"Expected health status '{status}' on '{topic}', but got: {message!r}"
+        return health
+
+    def _start_mqtt_recorder(self):
+        """Start recording the MQTT messages (Windows only), as the mosquitto
+        logging plugin (mqtt-log) is not available on Windows"""
+        if not IS_WINDOWS or self._mqtt_recorder is not None:
+            return
+        self._mqtt_recorder = MQTTRecorder()
+        self._mqtt_recorder.start()
 
     @keyword("Setup")
     def setup(
@@ -923,6 +1127,7 @@ class ThinEdgeIO(DeviceLibrary):
             env_file=env_file,
             **adaptor_config,
         )
+        self._start_mqtt_recorder()
 
         if tedge_config:
             tedge_config = json.loads(tedge_config)
@@ -1198,6 +1403,152 @@ class ThinEdgeIO(DeviceLibrary):
                 return ""
             time.sleep(1)
         raise AssertionError(f"Expected no messages, but received: {output}")
+
+    #
+    # Windows overrides of DeviceLibrary keywords
+    #
+    def _control_service(
+        self,
+        action: str,
+        name: str,
+        exp_exit_code: Union[int, str] = 0,
+        init_system: str = "systemd",
+        device_name: Optional[str] = None,
+        **kwargs,
+    ):
+        """Control a service. On Windows, the Service Control Manager is used
+        (the init_system argument is ignored)"""
+        if not IS_WINDOWS:
+            super()._control_service(
+                action,
+                name,
+                exp_exit_code=exp_exit_code,
+                init_system=init_system,
+                device_name=device_name,
+                **kwargs,
+            )
+            return
+
+        service = f"Get-Service -Name '{name}' -ErrorAction Stop"
+        commands = {
+            "start": f"Start-Service -Name '{name}' -ErrorAction Stop",
+            "stop": f"Stop-Service -Name '{name}' -Force -ErrorAction Stop",
+            "restart": f"Restart-Service -Name '{name}' -Force -ErrorAction Stop",
+            "is-active": f"if (({service}).Status -ne 'Running') {{ exit 1 }}",
+            "is-enabled": f"if (({service}).StartType -ne 'Automatic') {{ exit 1 }}",
+            "enable": f"Set-Service -Name '{name}' -StartupType Automatic -ErrorAction Stop",
+            "disable": f"Set-Service -Name '{name}' -StartupType Disabled -ErrorAction Stop",
+        }
+        command = commands.get(action.lower())
+        if command is None:
+            raise NotImplementedError(
+                f"Service action '{action}' is not supported on Windows"
+            )
+        self.get_device(device_name).assert_command(
+            command, exp_exit_code=exp_exit_code, **kwargs
+        )
+
+    def _get_service_pid(
+        self,
+        name: str,
+        init_system: str = "systemd",
+        device_name: Optional[str] = None,
+        **kwargs,
+    ):
+        """Get the PID of a service (0 if it is not running).
+        On Windows, the Service Control Manager is used"""
+        if not IS_WINDOWS:
+            return super()._get_service_pid(
+                name, init_system=init_system, device_name=device_name, **kwargs
+            )
+
+        result = self.get_device(device_name).assert_command(
+            f"(Get-CimInstance -ClassName Win32_Service -Filter \"Name='{name}'\").ProcessId",
+            **kwargs,
+        )
+        pid_str = result.stdout.strip()
+        if not pid_str.isdigit():
+            raise AssertionError(
+                f"Expected the PID to be a number, but got '{pid_str}'"
+            )
+        return int(pid_str)
+
+    def _check_path_type(
+        self,
+        path: str,
+        path_type: str,
+        exists: bool,
+        device_name: Optional[str] = None,
+        **kwargs,
+    ):
+        """Check if a path exists on Windows (path_type: Leaf or Container)"""
+        condition = f"Test-Path -LiteralPath '{path}' -PathType {path_type}"
+        if not exists:
+            condition = f"-not ({condition})"
+        self.get_device(device_name).assert_command(
+            f"if ({condition}) {{ exit 0 }} else {{ exit 1 }}", **kwargs
+        )
+
+    @keyword("Directory Should Exist")
+    def assert_directory(self, path: str, device_name: Optional[str] = None, **kwargs):
+        """Check if a directory exists
+
+        Args:
+            path (str): Directory path
+        """
+        if IS_WINDOWS:
+            return self._check_path_type(
+                path, "Container", True, device_name=device_name, **kwargs
+            )
+        return super().assert_directory(path, device_name=device_name, **kwargs)
+
+    @keyword("Directory Should Not Exist")
+    def assert_not_directory(
+        self, path: str, device_name: Optional[str] = None, **kwargs
+    ):
+        """Check if a directory does not exists
+
+        Args:
+            path (str): Directory path
+            device_name (optional, str): Device
+        """
+        if IS_WINDOWS:
+            return self._check_path_type(
+                path, "Container", False, device_name=device_name, **kwargs
+            )
+        return super().assert_not_directory(path, device_name=device_name, **kwargs)
+
+    @keyword("File Should Exist")
+    def assert_file_exists(
+        self, path: str, device_name: Optional[str] = None, **kwargs
+    ):
+        """Check if a file exists
+
+        Args:
+            path (str): File path
+            device_name (optional, str): Device
+        """
+        if IS_WINDOWS:
+            return self._check_path_type(
+                path, "Leaf", True, device_name=device_name, **kwargs
+            )
+        return super().assert_file_exists(path, device_name=device_name, **kwargs)
+
+    @keyword("File Should Not Exist")
+    def assert_not_file_exists(
+        self, path: str, device_name: Optional[str] = None, **kwargs
+    ):
+        """Check if a file does not exists
+
+        Args:
+            path (str): File path
+            device_name (optional, str): Device
+        """
+        if IS_WINDOWS:
+            return self._check_path_type(
+                path, "Leaf", False, device_name=device_name, **kwargs
+            )
+        return super().assert_not_file_exists(path, device_name=device_name, **kwargs)
 
     @keyword("Register Child Device")
     def register_child(

@@ -155,10 +155,11 @@ fn replace_with_service_name<'a>(
         });
     }
 
-    let mut args = input_args.to_owned();
-    for item in args.iter_mut() {
-        *item = item.replace("{}", &service.to_string());
-    }
+    let service_name = service.to_string();
+    let args = input_args
+        .iter()
+        .map(|s| s.replace("{}", &service_name))
+        .collect();
 
     Ok(args)
 }
@@ -247,6 +248,10 @@ mod tests {
     vec!["bin".to_string(), "{}".to_string(), "{}".to_string()],
     vec!["bin".to_string(), "mosquitto".to_string(), "mosquitto".to_string()]
     ;"several placeholders")]
+    #[test_case(
+    vec!["powershell".to_string(), "-Command".to_string(), "Restart-Service '{}'".to_string()],
+    vec!["powershell".to_string(), "-Command".to_string(), "Restart-Service 'mosquitto'".to_string()]
+    ;"embedded placeholder")]
     fn replace_placeholder_with_service(input: Vec<String>, expected_output: Vec<String>) {
         let replaced_config = replace_with_service_name(
             &input,

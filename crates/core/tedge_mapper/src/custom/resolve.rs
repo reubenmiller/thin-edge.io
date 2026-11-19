@@ -158,7 +158,7 @@ pub struct EffectiveMapperConfig {
     pub cert_path: Option<Sourced<Utf8PathBuf>>,
     /// TLS client private key path (`mapper.toml` → `tedge.toml` fallback).
     pub key_path: Option<Sourced<Utf8PathBuf>>,
-    /// CA certificate path for verifying the cloud broker (`mapper.toml` → `/etc/ssl/certs`).
+    /// CA certificate path for verifying the cloud broker (`mapper.toml` → `/etc/ssl/certs`, or `ca-certificates` in the configuration directory on Windows).
     pub root_cert_path: Sourced<Utf8PathBuf>,
     /// Credentials file path for password authentication (`mapper.toml` only).
     pub credentials_path: Option<Sourced<Utf8PathBuf>>,
@@ -561,7 +561,7 @@ pub fn reader_to_toml_table(reader: &impl serde::Serialize) -> anyhow::Result<to
 ///
 /// Resolution order per field:
 /// - `cert_path` / `key_path`: `mapper.toml` → root `tedge.toml`
-/// - `root_cert_path`: `mapper.toml` → `/etc/ssl/certs` (default)
+/// - `root_cert_path`: `mapper.toml` → `/etc/ssl/certs` (default; `ca-certificates` in the configuration directory on Windows)
 /// - `device_id` (cert auth): explicit `device.id` → cert CN → root `tedge.toml`
 /// - `device_id` (cert auth, unreadable cert, no explicit `device.id`): `None`
 ///   (no fallback — avoids misleading output)
@@ -639,7 +639,7 @@ pub async fn resolve_effective_config(
         || None,
     )
     .unwrap_or_else(|| Sourced {
-        value: Utf8PathBuf::from("/etc/ssl/certs"),
+        value: tedge_config::platform::default_root_cert_path(tedge_config.root_dir()),
         source: ConfigSource::Default,
     });
 
@@ -1102,6 +1102,10 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "test uses Linux-style absolute paths that resolve differently on Windows"
+    )]
     async fn cert_path_from_mapper_toml_is_sourced_correctly() {
         let ttd = TempTedgeDir::new();
         let mapper_dir = ttd.path().join("mappers/tb");
@@ -1178,7 +1182,7 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
     }
 
     #[tokio::test]
-    async fn root_cert_path_defaults_to_etc_ssl_certs() {
+    async fn root_cert_path_defaults_to_the_platform_trust_store() {
         let ttd = TempTedgeDir::new();
         let mapper_dir = ttd.path().join("mappers/tb");
         tokio::fs::create_dir_all(&mapper_dir).await.unwrap();
@@ -1189,10 +1193,12 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
             .await
             .unwrap();
 
-        assert_eq!(
-            effective.root_cert_path.value,
+        let expected = if cfg!(windows) {
+            tedge_config.root_dir().join("ca-certificates")
+        } else {
             Utf8PathBuf::from("/etc/ssl/certs")
-        );
+        };
+        assert_eq!(effective.root_cert_path.value, expected);
         assert!(matches!(
             effective.root_cert_path.source,
             ConfigSource::Default
@@ -1258,6 +1264,10 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
         }
 
         #[tokio::test]
+        #[cfg_attr(
+            windows,
+            ignore = "test uses Linux-style absolute paths that resolve differently on Windows"
+        )]
         async fn schema_key_cert_path_from_tedge_toml_fallback() {
             let ttd = TempTedgeDir::new();
             let (cert, key) = write_cert(ttd.path()).await;
@@ -1359,6 +1369,10 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
         }
 
         #[tokio::test]
+        #[cfg_attr(
+            windows,
+            ignore = "test uses Linux-style absolute paths that resolve differently on Windows"
+        )]
         async fn schema_key_shadows_raw_table_value() {
             let ttd = TempTedgeDir::new();
             let mapper_dir = ttd.path().join("mappers/tb");
@@ -1446,6 +1460,10 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
         use super::*;
 
         #[tokio::test]
+        #[cfg_attr(
+            windows,
+            ignore = "test uses Linux-style absolute paths that resolve differently on Windows"
+        )]
         async fn absolute_cert_path_in_mapper_toml() {
             let ttd = TempTedgeDir::new();
             let mapper_dir = ttd.path().join("mappers/tb");
@@ -1515,6 +1533,10 @@ AwEHoUQDQgAEdklRDw9+AAMRbpNMWJutKe4QO/tUlvrBR2swUYN9onxXdKNjJ/k3\n\
         }
 
         #[tokio::test]
+        #[cfg_attr(
+            windows,
+            ignore = "test uses Linux-style absolute paths that resolve differently on Windows"
+        )]
         async fn device_id_inferred_from_cert_cn() {
             let ttd = TempTedgeDir::new();
             let (cert, key) = write_cert(ttd.path()).await;

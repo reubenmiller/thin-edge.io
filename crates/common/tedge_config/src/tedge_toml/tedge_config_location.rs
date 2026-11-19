@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::io::ErrorKind;
-use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 use crate::models::CloudType;
@@ -33,19 +32,17 @@ use super::tedge_config;
 use super::ParseKeyError;
 use super::WritableKey;
 
-const DEFAULT_TEDGE_CONFIG_PATH: &str = "/etc/tedge";
 const ENV_TEDGE_CONFIG_DIR: &str = "TEDGE_CONFIG_DIR";
 const TEDGE_CONFIG_FILE: &str = "tedge.toml";
 
-/// Get the location of the configuration directory
+/// Get the location of the configuration directory.
 ///
-/// Check if the TEDGE_CONFIG_DIR env variable is set and only
-/// use the value if it is not empty, otherwise use the default
-/// location, /etc/tedge
+/// Checks `TEDGE_CONFIG_DIR` first; falls back to the platform default
+/// (`/etc/tedge` on Linux/macOS, `C:\ProgramData\tedge` on Windows).
 pub fn get_config_dir() -> PathBuf {
     match std::env::var(ENV_TEDGE_CONFIG_DIR) {
         Ok(s) if !s.is_empty() => PathBuf::from(s),
-        _ => PathBuf::from(DEFAULT_TEDGE_CONFIG_PATH),
+        _ => crate::platform::config_root(),
     }
 }
 
@@ -66,9 +63,8 @@ pub(crate) struct TEdgeConfigLocation {
 }
 
 impl Default for TEdgeConfigLocation {
-    /// `tedge.toml` is located in `/etc/tedge`.
     fn default() -> Self {
-        Self::from_custom_root(DEFAULT_TEDGE_CONFIG_PATH)
+        Self::from_custom_root(crate::platform::config_root())
     }
 }
 
@@ -338,6 +334,15 @@ impl TEdgeConfigLocation {
         toml: &str,
         location: TEdgeConfigLocation,
     ) -> (TEdgeConfig, UnusedValueWarnings) {
+        // On Windows, paths embedded in TOML double-quoted strings contain
+        // backslashes (e.g. "C:\Users\...") which the TOML parser treats as
+        // escape sequences, causing parse errors. Forward slashes are valid
+        // path separators on Windows, so we normalise them before parsing.
+        #[cfg(windows)]
+        let toml_normalised = toml.replace('\\', "/");
+        #[cfg(windows)]
+        let toml = toml_normalised.as_str();
+
         let toml_path = Utf8Path::new("/not/read/from/file/system");
         let toml_value: toml::Value = toml::from_str(toml).unwrap();
         let (mut dto, mut warnings) = deserialize_toml(toml_value.clone(), toml_path).unwrap();
@@ -364,8 +369,7 @@ impl TEdgeConfigLocation {
         T: ExpectedCloudType,
     {
         fn profile_name_from_filename(tedge_toml_path: &Path) -> Option<ProfileName> {
-            let config_dir =
-                std::str::from_utf8(tedge_toml_path.parent()?.file_name()?.as_bytes()).ok()?;
+            let config_dir = tedge_toml_path.parent()?.file_name()?.to_str()?;
             config_dir.split_once(".")?.1.parse().ok()
         }
 
@@ -709,17 +713,20 @@ mod tests {
     #[test]
     fn test_from_default_system_location() {
         let config_location = TEdgeConfigLocation::default();
-        assert_eq!(
-            config_location.tedge_config_root_path,
-            Utf8Path::new("/etc/tedge")
-        );
+        let expected_root = crate::platform::config_root();
+        let expected_root = Utf8Path::from_path(&expected_root).unwrap();
+        assert_eq!(config_location.tedge_config_root_path, expected_root);
         assert_eq!(
             config_location.tedge_config_file_path,
-            Utf8Path::new("/etc/tedge/tedge.toml")
+            expected_root.join("tedge.toml")
         );
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "path assertions use Linux-style paths that compare differently on Windows"
+    )]
     async fn old_toml_can_be_read_in_its_entirety() {
         let toml = r#"[device]
 key_path = "/tedge/device-key.pem"
@@ -852,6 +859,10 @@ type = "a-service-type""#;
     }
 
     #[tokio::test]
+    #[cfg_attr(
+        windows,
+        ignore = "path assertions use Linux-style paths that compare differently on Windows"
+    )]
     async fn environment_variables_are_read_with_migrated_mapper_config() {
         let (ttd, t) = create_temp_tedge_config("").unwrap();
         ttd.dir("mappers")

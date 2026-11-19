@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AppxManifest.xml for the thin-edge.io Windows MSIX/APPX package.
+
+  Placeholders substituted at build time by package.ps1:
+    ${VERSION}    four-part dotted version  (e.g. 1.5.0.0)
+    ${PUBLISHER}  signing certificate subject (e.g. CN=thin-edge.io)
+    ${ARCH}       processor architecture: x64 | arm64
+
+  Service declarations (desktop6:Extension) require Windows 10 v2004+ on
+  Desktop/IoT Enterprise. The package is also installable on Windows IoT Core
+  (Windows.IoT family) for arm64 devices, though service auto-registration via
+  desktop6 is a Desktop/IoT Enterprise capability.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  IgnorableNamespaces="uap uap3 desktop rescap desktop6">
+
+  <Identity
+    Name="ThinEdge.ThinEdge"
+    Publisher="${PUBLISHER}"
+    Version="${VERSION}"
+    ProcessorArchitecture="${ARCH}" />
+
+  <Properties>
+    <DisplayName>thin-edge.io</DisplayName>
+    <PublisherDisplayName>thin-edge.io</PublisherDisplayName>
+    <Logo>assets\logo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <!-- Desktop and IoT Enterprise: full service support via desktop6 -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+    <!-- IoT Core: package installable; service auto-registration requires IoT Enterprise -->
+    <TargetDeviceFamily Name="Windows.IoT"     MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Capabilities>
+    <!-- Required to declare services in an MSIX/APPX package -->
+    <rescap:Capability Name="packagedServices" />
+    <!-- Required additionally when StartAccount="localSystem" is used -->
+    <rescap:Capability Name="localSystemServices" />
+    <!-- Required for unrestricted filesystem access (C:\ProgramData\) -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+  <Applications>
+    <!--
+      A package-level Application entry is required; service Extensions must be
+      declared here, not at the top-level Package/Extensions.
+    -->
+    <Application
+      Id="TedgeServices"
+      Executable="bin\tedge.exe"
+      EntryPoint="Windows.FullTrustApplication">
+
+      <uap:VisualElements
+        DisplayName="thin-edge.io"
+        Description="thin-edge.io device management services"
+        BackgroundColor="transparent"
+        Square150x150Logo="assets\logo.png"
+        Square44x44Logo="assets\logo.png" />
+
+      <Extensions>
+        <!--
+          App execution alias: makes `tedge` available on the PATH after install
+          without requiring a manual PATH edit. Windows creates a forwarding
+          stub in %LOCALAPPDATA%\Microsoft\WindowsApps\ which is in the default
+          user PATH on Windows 10+.
+        -->
+        <uap3:Extension Category="windows.appExecutionAlias" EntryPoint="Windows.FullTrustApplication" Executable="bin\tedge.exe">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="tedge.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
+
+        <!--
+          tedge-agent: device management agent.
+          Invokes: tedge.exe run tedge-agent
+        -->
+        <desktop6:Extension
+          Category="windows.service"
+          Executable="bin\tedge.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <desktop6:Service
+            Name="tedge-agent"
+            StartAccount="localSystem"
+            StartupType="auto"
+            Arguments="run tedge-agent" />
+        </desktop6:Extension>
+
+        <!--
+          tedge-mapper-c8y: Cumulocity IoT cloud mapper.
+          Invokes: tedge.exe run tedge-mapper c8y
+        -->
+        <desktop6:Extension
+          Category="windows.service"
+          Executable="bin\tedge.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <desktop6:Service
+            Name="tedge-mapper-c8y"
+            StartAccount="localSystem"
+            StartupType="auto"
+            Arguments="run tedge-mapper c8y" />
+        </desktop6:Extension>
+      </Extensions>
+
+    </Application>
+  </Applications>
+
+</Package>

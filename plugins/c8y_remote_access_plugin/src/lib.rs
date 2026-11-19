@@ -6,6 +6,7 @@ use input::parse_arguments;
 use miette::miette;
 use miette::Context;
 use miette::IntoDiagnostic;
+#[cfg(unix)]
 use std::io;
 use std::process::Stdio;
 use tedge_config::log_init;
@@ -15,8 +16,10 @@ use tedge_utils::paths::ManagedFile;
 use tedge_utils::paths::Owner;
 use tedge_utils::paths::PathsError;
 use tokio::io::AsyncBufReadExt;
+#[cfg(unix)]
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
+#[cfg(unix)]
 use tokio::net::UnixStream;
 use url::Url;
 
@@ -74,18 +77,24 @@ pub async fn run(opt: C8yRemoteAccessPluginOpt) -> miette::Result<()> {
         Command::SpawnChild(command) => {
             spawn_child(command, tedge_config.root_dir(), c8y_profile).await
         }
-        Command::TryConnectUnixSocket(command) => match UnixStream::connect(UNIX_SOCKFILE).await {
-            Ok(mut unix_stream) => {
-                eprintln!("sock: Connected to Unix socket at {UNIX_SOCKFILE}");
-                write_request_and_shutdown(&mut unix_stream, c8y_profile, command).await?;
-                read_from_stream(&mut unix_stream).await?;
-                Ok(())
+        Command::TryConnectUnixSocket(command) => {
+            #[cfg(unix)]
+            match UnixStream::connect(UNIX_SOCKFILE).await {
+                Ok(mut unix_stream) => {
+                    eprintln!("sock: Connected to Unix socket at {UNIX_SOCKFILE}");
+                    write_request_and_shutdown(&mut unix_stream, c8y_profile, command).await?;
+                    read_from_stream(&mut unix_stream).await?;
+                    Ok(())
+                }
+                Err(_e) => {
+                    eprintln!("sock: Could not connect to Unix socket at {UNIX_SOCKFILE}. Falling back to spawning a child process");
+                    spawn_child(command, tedge_config.root_dir(), c8y_profile).await
+                }
             }
-            Err(_e) => {
-                eprintln!("sock: Could not connect to Unix socket at {UNIX_SOCKFILE}. Falling back to spawning a child process");
-                spawn_child(command, tedge_config.root_dir(), c8y_profile).await
-            }
-        },
+            // Unix sockets are not available on Windows; fall back directly to spawn_child.
+            #[cfg(not(unix))]
+            spawn_child(command, tedge_config.root_dir(), c8y_profile).await
+        }
     }
 }
 
@@ -211,11 +220,13 @@ async fn spawn_child(
     }
 }
 
+#[cfg(unix)]
 #[derive(miette::Diagnostic, Debug, thiserror::Error)]
 #[error("Failed while {1}")]
 #[diagnostic(help("Check if Unix Socket is readable and writable."))]
 struct UnixSocketError<E: std::error::Error + 'static>(#[source] E, &'static str);
 
+#[cfg(unix)]
 async fn write_request_and_shutdown(
     unix_stream: &mut UnixStream,
     profile: Option<&str>,
@@ -260,6 +271,7 @@ async fn write_request_and_shutdown(
     Ok(())
 }
 
+#[cfg(unix)]
 async fn read_from_stream(unix_stream: &mut UnixStream) -> miette::Result<()> {
     unix_stream
         .readable()
@@ -348,6 +360,7 @@ fn build_proxy_url(cumulocity_host: &str, key: &str) -> miette::Result<Url> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
     use tedge_test_utils::fs::TempTedgeDir;
 
@@ -394,6 +407,7 @@ mod tests {
 
         let path = ttd.path().join("operations/c8y/c8y_RemoteAccessConnect");
         assert!(path.exists());
+        #[cfg(unix)]
         assert_eq!(
             std::fs::metadata(path).unwrap().permissions().mode() & 0o777,
             0o644
@@ -423,6 +437,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(unix)]
     async fn init_does_not_modify_existing_shared_directory_permissions() {
         let ttd = TempTedgeDir::new();
         ttd.file("tedge.toml").with_raw_content("");
@@ -446,6 +461,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(unix)]
     async fn init_does_not_modify_existing_operations_directory_permissions() {
         let ttd = TempTedgeDir::new();
         ttd.file("tedge.toml").with_raw_content("");

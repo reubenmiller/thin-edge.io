@@ -158,6 +158,7 @@ impl ConfigManagerBuilder {
             mode = 0o644
         }
         .to_string();
+        let example_config = example_config + &windows_mosquitto_config_type();
         atomically_write_file_sync(config.plugin_config_path.path(), example_config.as_bytes())?;
 
         Ok(())
@@ -336,4 +337,20 @@ impl MessageSink<RequestEnvelope<OperationStepRequest, OperationStepResponse>>
     ) -> DynSender<RequestEnvelope<OperationStepRequest, OperationStepResponse>> {
         self.box_builder.get_sender().sender_clone()
     }
+}
+
+/// The Mosquitto configuration file on Windows, where thin-edge.io does not manage the broker configuration
+fn windows_mosquitto_config_type() -> String {
+    if !cfg!(windows) {
+        return String::new();
+    }
+    let program_files =
+        std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".to_owned());
+    let mosquitto_conf = format!(r"{program_files}\mosquitto\mosquitto.conf");
+    let mosquitto_config_type = toml! {
+        [[files]]
+        path = mosquitto_conf
+        type = "mosquitto"
+    };
+    format!("\n{mosquitto_config_type}")
 }

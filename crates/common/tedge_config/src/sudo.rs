@@ -13,6 +13,19 @@ const SUDO: &str = "sudo";
 /// The sudo option to fail instead of prompting for a password
 const NON_INTERACTIVE: &str = "-n";
 
+/// Builds a command that launches a script through its interpreter on Windows.
+///
+/// `CreateProcessW` cannot start non-PE executables directly,
+/// see [`tedge_utils::plugins::windows_interpreter`].
+#[cfg(windows)]
+fn windows_script_command(program: &OsStr) -> Option<Command> {
+    let (interpreter, args) =
+        tedge_utils::plugins::windows_interpreter(std::path::Path::new(program))?;
+    let mut cmd = Command::new(interpreter);
+    cmd.args(args).arg(program);
+    Some(cmd)
+}
+
 /// A object used to spawn processes according to the user's sudo preference.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SudoCommandBuilder {
@@ -65,8 +78,20 @@ impl SudoCommandBuilder {
     /// Checks if sudo is present in $PATH. If it's present and sudo is enabled,
     /// prepare a [`Command`](std::process::Command) using sudo. Otherwise,
     /// prepares a Command that starts `program` directly.
+    ///
+    /// On Windows, `.bat`/`.cmd` scripts are launched via `cmd.exe /c` and
+    /// `.ps1` scripts via `powershell.exe -File`, because `CreateProcessW`
+    /// cannot start non-PE executables directly.
     pub fn command<S: AsRef<OsStr>>(&self, program: S) -> Command {
         let program = program.as_ref();
+
+        // On Windows, shell scripts must be run through their interpreter.
+        // This takes precedence over sudo (which doesn't exist on Windows).
+        #[cfg(windows)]
+        if let Some(cmd) = windows_script_command(program) {
+            return cmd;
+        }
+
         let resolution = self.resolve();
         match &resolution {
             SudoResolution::Sudo(sudo) => {
@@ -249,6 +274,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(windows, ignore = "sudo is not used on Windows")]
     fn an_installed_sudo_prefixes_the_script() {
         let sudo = SudoCommandBuilder::with_program("echo");
         let echo = Utf8PathBuf::from_path_buf(which::which("echo").unwrap()).unwrap();

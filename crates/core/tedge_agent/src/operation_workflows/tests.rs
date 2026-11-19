@@ -76,7 +76,12 @@ use tedge_utils::paths::TedgePaths;
 use test_case::test_case;
 use tokio::task::JoinHandle;
 
-const TEST_TIMEOUT_MS: Duration = Duration::from_millis(3000);
+// The Windows CI runners are slower to start processes and access files
+const TEST_TIMEOUT_MS: Duration = if cfg!(windows) {
+    Duration::from_millis(10000)
+} else {
+    Duration::from_millis(3000)
+};
 
 #[tokio::test]
 async fn convert_incoming_software_list_request() -> Result<(), DynError> {
@@ -1108,6 +1113,7 @@ fn builtin_workflows_are_valid_operation_workflows() {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "sudo is not used on Windows")]
 async fn an_elevated_script_is_launched_through_sudo() {
     let tmp_dir = Arc::new(TempTedgeDir::new());
     let TestHandler {
@@ -1443,6 +1449,7 @@ async fn a_missing_sudo_is_reported_in_the_operation_log() {
 }
 
 #[tokio::test]
+#[cfg_attr(windows, ignore = "sudo is not used on Windows")]
 async fn an_elevated_background_script_moves_on_before_being_launched() {
     let tmp_dir = Arc::new(TempTedgeDir::new());
     let TestHandler {
@@ -2627,9 +2634,19 @@ async fn assert_no_message_or_actor_exit<T>(
 }
 
 fn script_output(code: i32, stdout: &str) -> Output {
-    use std::os::unix::process::ExitStatusExt;
+    // On Unix, the raw wait status holds the exit code in its second byte
+    #[cfg(unix)]
+    let status = {
+        use std::os::unix::process::ExitStatusExt;
+        std::process::ExitStatus::from_raw(code << 8)
+    };
+    #[cfg(windows)]
+    let status = {
+        use std::os::windows::process::ExitStatusExt;
+        std::process::ExitStatus::from_raw(code as u32)
+    };
     Output {
-        status: std::process::ExitStatus::from_raw(code << 8),
+        status,
         stdout: stdout.as_bytes().to_vec(),
         stderr: vec![],
     }

@@ -84,6 +84,11 @@ ADAPTER_DOCKER = "docker"
 ADAPTER_LOCAL = "local"
 ADAPTER_SSH = "ssh"
 
+# Tests excluded by default. Tests tagged "platform:windows" only run on a
+# Windows host (see tests/windows/README.md), so they are never part of the
+# Linux runs.
+DEFAULT_EXCLUDE_TAGS = "test:on_demand OR theme:benchmarks OR platform:windows"
+
 
 def detect_container_cli():
     """Detect the container cli (e.g. docker, podman, nerdctl)"""
@@ -381,7 +386,7 @@ def flake_finder(
     outputdir="output_flake_finder",
     processes=None,
     include="",
-    exclude="test:on_demand OR theme:benchmarks",
+    exclude=DEFAULT_EXCLUDE_TAGS,
     clean=False,
     slow=False,
 ):
@@ -470,7 +475,7 @@ def test(
     outputdir=None,
     processes=None,
     include="",
-    exclude="test:on_demand OR theme:benchmarks",
+    exclude=DEFAULT_EXCLUDE_TAGS,
     slow=False,
 ):
     """Run tests

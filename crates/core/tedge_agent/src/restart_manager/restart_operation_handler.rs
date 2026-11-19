@@ -7,7 +7,13 @@ pub mod restart_operation {
     use time::OffsetDateTime;
 
     const TEDGE_AGENT_RESTART: &str = "tedge_agent_restart";
+    #[cfg(not(windows))]
     const SLASH_PROC_UPTIME: &str = "/proc/uptime";
+
+    /// Prints the number of seconds since the last boot of Windows
+    #[cfg(windows)]
+    const WINDOWS_UPTIME_COMMAND: &str =
+        "[int64]((Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime).TotalSeconds";
 
     /// Creates a witness file that contains the time just before a reboot.
     ///
@@ -57,16 +63,13 @@ pub mod restart_operation {
     /// where "time of last reboot" is defined as:
     ///     current datetime - number of seconds the system has been up.
     ///
-    /// number of seconds the system has been up are obtained from /proc/uptime
+    /// number of seconds the system has been up are obtained from /proc/uptime,
+    /// or on Windows from the last boot time reported by `Win32_OperatingSystem`.
     fn get_system_uptime() -> Result<time::OffsetDateTime, RestartManagerError> {
-        // reading uptime
-        let uptime_file = std::fs::File::open(std::path::Path::new(SLASH_PROC_UPTIME))?;
-        let mut buf_reader = std::io::BufReader::new(uptime_file);
-        let mut buffer = String::new();
-        buf_reader.read_to_string(&mut buffer)?;
+        let buffer = read_uptime()?;
 
         // system uptime is the first value of the /proc/uptime file content
-        let maybe_uptime = buffer.split(' ').next();
+        let maybe_uptime = buffer.trim().split(' ').next();
 
         if let Some(uptime) = maybe_uptime {
             match uptime.parse::<f64>() {
@@ -82,6 +85,32 @@ pub mod restart_operation {
         } else {
             Err(RestartManagerError::UptimeParserError)
         }
+    }
+
+    #[cfg(not(windows))]
+    fn read_uptime() -> Result<String, RestartManagerError> {
+        let uptime_file = std::fs::File::open(std::path::Path::new(SLASH_PROC_UPTIME))?;
+        let mut buf_reader = std::io::BufReader::new(uptime_file);
+        let mut buffer = String::new();
+        buf_reader.read_to_string(&mut buffer)?;
+        Ok(buffer)
+    }
+
+    #[cfg(windows)]
+    fn read_uptime() -> Result<String, RestartManagerError> {
+        let output = std::process::Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                WINDOWS_UPTIME_COMMAND,
+            ])
+            .stdin(std::process::Stdio::null())
+            .output()?;
+        if !output.status.success() {
+            return Err(RestartManagerError::UptimeParserError);
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     }
 
     /// checks if system rebooted by comparing dt of tedge_agent_restart with dt of system restart.

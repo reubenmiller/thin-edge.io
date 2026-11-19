@@ -1,0 +1,362 @@
+name: Windows CI
+
+# Lint, unit tests and system tests of the Windows build.
+# The workflow runs with `pull_request` (not `pull_request_target`), so pull requests from forks
+# get no secrets: the Cumulocity system tests are then skipped and the local ones still run.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+    inputs:
+      include:
+        description: Only run the Windows system tests matching this Robot Framework tag
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+permissions:
+  contents: read
+
+jobs:
+  lint-windows:
+    name: Lint (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Retrieve MSRV
+        id: rust_version
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: Cargo.toml
+          field: "workspace.package.rust-version"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust_version.outputs.value }}
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: clippy
+
+      # Catches Unix-only APIs used outside `cfg(unix)`
+      - name: cargo clippy
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+        shell: pwsh
+
+  test-windows:
+    name: Unit tests (windows, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Retrieve MSRV
+        id: rust_version
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: Cargo.toml
+          field: "workspace.package.rust-version"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust_version.outputs.value }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: test-${{ matrix.arch }}
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      # Some tests create symbolic links, which needs Developer Mode on Windows
+      - name: Enable Developer Mode
+        run: reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
+        shell: pwsh
+
+      # Tests use rumqttd as an embedded broker, no external Mosquitto needed.
+      # Tests that cannot run on Windows are marked `cfg_attr(windows, ignore = "<reason>")` or `cfg(unix)`.
+      - name: cargo nextest run
+        run: >
+          cargo nextest run
+          --no-fail-fast
+          --locked
+          --workspace
+          --all-features
+          --all-targets
+        shell: pwsh
+
+      - name: Doc tests
+        run: cargo test --locked --workspace --all-features --doc
+        shell: pwsh
+
+  build-windows:
+    name: Build tedge.exe (windows, ${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            cargo_target: x86_64-pc-windows-msvc
+          - arch: arm64
+            cargo_target: aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Retrieve MSRV
+        id: rust_version
+        uses: SebRollen/toml-action@v1.2.0
+        with:
+          file: Cargo.toml
+          field: "workspace.package.rust-version"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust_version.outputs.value }}
+          targets: ${{ matrix.cargo_target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.cargo_target }}
+
+      - name: Build tedge (release)
+        run: cargo build --package tedge --locked --release --target ${{ matrix.cargo_target }}
+        shell: pwsh
+
+      # The runners have the Visual C++ Redistributable installed, but most devices don't:
+      # tedge.exe must not import the C runtime DLLs (see .cargo/config.toml)
+      - name: Check that tedge.exe does not need the Visual C++ Redistributable
+        run: |
+          $exe = "target/${{ matrix.cargo_target }}/release/tedge.exe"
+          $content = [System.Text.Encoding]::GetEncoding(28591).GetString([System.IO.File]::ReadAllBytes($exe))
+          $found = [regex]::Matches($content, '(?i)(vcruntime\d+|msvcp\d+|api-ms-win-crt-[a-z0-9-]+)\.dll') |
+            ForEach-Object Value | Sort-Object -Unique
+          if ($found) {
+            Write-Error "tedge.exe imports C runtime DLLs: $($found -join ', ')"
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Upload tedge.exe
+        uses: actions/upload-artifact@v7
+        with:
+          name: tedge-windows-${{ matrix.arch }}-exe
+          path: target/${{ matrix.cargo_target }}/release/tedge.exe
+          retention-days: 14
+
+  system-test-windows:
+    name: System tests (windows, ${{ matrix.arch }})
+    needs: build-windows
+    # The Cumulocity credentials are secrets of this environment, as for the Linux system tests
+    environment:
+      name: Test Auto
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          # Windows on ARM: the native arm64 build, with the x64 Mosquitto in emulation
+          - arch: arm64
+            runner: windows-11-arm
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download tedge.exe
+        uses: actions/download-artifact@v8
+        with:
+          name: tedge-windows-${{ matrix.arch }}-exe
+          path: target/windows-${{ matrix.arch }}
+
+      # Mosquitto for Windows is the documented MQTT broker; it runs as the `mosquitto` service
+      # Install with winget (package EclipseFoundation.Mosquitto) when the runner image has it,
+      # otherwise run the same installer as the winget manifest, silently.
+      - name: Install Mosquitto
+        run: |
+          if (Get-Command winget -ErrorAction SilentlyContinue) {
+            winget install --id EclipseFoundation.Mosquitto --exact --scope machine --silent `
+              --accept-source-agreements --accept-package-agreements --disable-interactivity
+          } else {
+            $installer = Join-Path $env:RUNNER_TEMP "mosquitto-install.exe"
+            Invoke-WebRequest -Uri "https://mosquitto.org/files/binary/win64/mosquitto-$env:MOSQUITTO_VERSION-install-windows-x64.exe" -OutFile $installer
+            Start-Process -FilePath $installer -ArgumentList "/S" -Wait
+          }
+          Start-Service mosquitto
+          Get-Service mosquitto
+        env:
+          MOSQUITTO_VERSION: "2.1.2"
+        shell: pwsh
+
+      - name: Install thin-edge.io
+        run: >
+          pwsh configuration/package_scripts/windows/install.ps1
+          -SourceExe target/windows-${{ matrix.arch }}/tedge.exe
+          -StartServices:$false
+        shell: pwsh
+
+      - name: Add tedge to PATH
+        run: Add-Content -Path $env:GITHUB_PATH -Value "C:\Program Files\tedge\bin"
+        shell: pwsh
+
+      - name: Create .env file
+        working-directory: tests/RobotFramework
+        run: |
+          Set-Content -Path .env -Value @(
+            'C8Y_BASEURL="${{ secrets.C8Y_BASEURL }}"',
+            'C8Y_USER="${{ secrets.C8Y_USER }}"',
+            'C8Y_TENANT="${{ secrets.C8Y_TENANT }}"',
+            'C8Y_PASSWORD="${{ secrets.C8Y_PASSWORD }}"',
+            'CA_KEY="${{ secrets.CA_KEY || '' }}"',
+            'CA_PUB="${{ secrets.CA_PUB || '' }}"',
+            'DEVICE_ADAPTER=local'
+          )
+        shell: pwsh
+
+      # x64 Python on both runners: some test dependencies (cryptography) have no Windows ARM64 wheel,
+      # and Windows on ARM runs x64 programs in emulation. thin-edge.io itself runs natively.
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: 'tests/.python-version'
+          architecture: x64
+          cache: 'pip'
+          cache-dependency-path: |
+            **/requirements/requirements*.txt
+
+      - name: Install Robot Framework dependencies
+        working-directory: tests/RobotFramework
+        run: |
+          python -m pip install -r requirements/requirements.txt -r requirements/requirements.adapter-local.txt
+        shell: pwsh
+
+      - name: Run Windows system tests
+        working-directory: tests/RobotFramework
+        env:
+          DEVICE_ADAPTER: local
+          # The Cumulocity tests must run (not be skipped) where the secrets are available:
+          # on the upstream repository, except for pull requests from forks
+          C8Y_REQUIRED: ${{ github.repository == 'thin-edge/thin-edge.io' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        run: |
+          $include = "${{ inputs.include }}"
+          # `$args` is a PowerShell automatic variable, so use another name
+          # Several --include options select the union, so combine the tags with AND
+          $tags = if ($include) { "platform:windowsAND$include" } else { "platform:windows" }
+          $robotArgs = @("--pythonpath", "libraries", "--include", $tags, "--outputdir", "output", "--loglevel", "TRACE")
+          python -m robot @robotArgs tests/windows
+        shell: pwsh
+
+      - name: Collect thin-edge.io logs
+        if: always()
+        run: |
+          $out = "tests/RobotFramework/output/tedge-logs"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item -Recurse -Force C:\ProgramData\tedge\log\* $out -ErrorAction SilentlyContinue
+          Copy-Item -Force C:\Windows\Temp\*-scm.log $out -ErrorAction SilentlyContinue
+          # Service registrations and the errors reported by the Service Control Manager
+          foreach ($service in "tedge-agent", "tedge-mapper-c8y", "tedge-mapper-local", "tedge", "mosquitto") {
+            sc.exe qc $service | Out-File -Append "$out/services.txt"
+          }
+          Get-WinEvent -FilterHashtable @{ LogName = "System"; ProviderName = "Service Control Manager" } -MaxEvents 100 -ErrorAction SilentlyContinue |
+            Format-List TimeCreated, Id, LevelDisplayName, Message | Out-File "$out/scm-events.txt"
+          Get-Content "$out/services.txt", "$out/scm-events.txt" -ErrorAction SilentlyContinue
+        shell: pwsh
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: report-windows-${{ matrix.arch }}
+          path: tests/RobotFramework/output
+
+  package-windows:
+    name: Package MSIX+APPX (${{ matrix.arch }})
+    needs: build-windows
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            cargo_target: x86_64-pc-windows-msvc
+          - arch: arm64
+            cargo_target: aarch64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Validate the manifest early — before spending time on the cargo build.
+      # Uses makeappx.exe with stub files so no compiled binary is needed.
+      # Run this locally too: pwsh configuration/package_scripts/windows/validate-manifest.ps1
+      - name: Validate AppxManifest.xml
+        run: pwsh configuration/package_scripts/windows/validate-manifest.ps1 -Arch ${{ matrix.arch }}
+        shell: pwsh
+
+      # Reuse the binary of the build job instead of compiling it again
+      - name: Download tedge.exe
+        uses: actions/download-artifact@v8
+        with:
+          name: tedge-windows-${{ matrix.arch }}-exe
+          path: target/${{ matrix.cargo_target }}/release
+
+      - name: Determine version
+        id: version
+        run: |
+          $tag = git describe --tags --always --match 'v[0-9]*' 2>$null
+          if ($tag -match '^v(\d+\.\d+\.\d+)') {
+            $semver = $Matches[1]
+          } else {
+            $semver = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' |
+              Select-Object -First 1).Matches.Groups[1].Value
+          }
+          echo "GIT_SEMVER=$semver" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      # package.ps1 auto-creates a dev cert when no MSIX_SIGNING_CERT_THUMBPRINT
+      # is set, signs all packages with it, and writes tedge-dev.cer to
+      # target\packages\ alongside the MSIX/APPX/ZIP artifacts.
+      - name: Build MSIX and APPX packages
+        run: >
+          pwsh configuration/package_scripts/windows/package.ps1
+          -Version "$env:GIT_SEMVER"
+          -Arch "${{ matrix.arch }}"
+          -OutputDir "target\packages"
+        shell: pwsh
+
+      - name: Stage trust script with packages
+        run: >
+          Copy-Item
+          configuration/package_scripts/windows/trust-dev-cert.ps1
+          target/packages/trust-dev-cert.ps1
+        shell: pwsh
+
+      - name: Upload packages artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: tedge-windows-${{ matrix.arch }}
+          path: |
+            target/packages/*.msix
+            target/packages/*.appx
+            target/packages/*.zip
+            target/packages/*.cer
+            target/packages/trust-dev-cert.ps1
+          retention-days: 30

@@ -384,7 +384,7 @@ type = "app.conf"
 path = "{}"
 type = "missing.conf"
 "#,
-            non_existent_path.as_str()
+            non_existent_path.as_str().replace('\\', "/")
         );
         let config_file = ttd
             .file("plugin_config.toml")
@@ -438,7 +438,7 @@ type = "app.conf"
 path = "{}"
 type = "test.conf"
 "#,
-            dest_file_path.as_str()
+            dest_file_path.as_str().replace('\\', "/")
         );
         let config_file = ttd
             .file("plugin_config.toml")

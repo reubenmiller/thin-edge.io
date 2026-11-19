@@ -1,5 +1,4 @@
 use assert_matches::assert_matches;
-use camino::Utf8Path;
 use serde_json::json;
 use serde_json::Value;
 use std::fs::read_to_string;
@@ -28,6 +27,7 @@ use tedge_file_system_ext::FsWatchEvent;
 use tedge_mqtt_ext::MqttMessage;
 use tedge_mqtt_ext::Topic;
 use tedge_mqtt_ext::TopicFilter;
+use tedge_test_utils::fs::with_plugin_script;
 use tedge_test_utils::fs::TempTedgeDir;
 use tedge_uploader_ext::UploadResponse;
 use tedge_utils::paths::TedgePaths;
@@ -57,9 +57,18 @@ struct TestHandle {
     pub steps: StepMessageBox,
 }
 
+/// The end of line written by the mocked `file` plugin, JSON-escaped: `.cmd` plugins on Windows write CRLF
+fn plugin_eol(expected_payload: &str) -> String {
+    if cfg!(windows) {
+        expected_payload.replace("\\n\"", "\\r\\n\"")
+    } else {
+        expected_payload.to_string()
+    }
+}
+
 fn prepare() -> Result<TempTedgeDir, anyhow::Error> {
     let tempdir = TempTedgeDir::new();
-    let tempdir_path = tempdir.path().as_str();
+    let tempdir_path = tempdir.path().as_str().replace('\\', "/");
 
     // Test files
     tempdir.file("file_a");
@@ -83,16 +92,12 @@ fn prepare() -> Result<TempTedgeDir, anyhow::Error> {
     // Create a mock `file` plugin script
     let plugin_script = include_str!("../tests/data/file");
 
-    let plugin_path = plugin_dir.file("file").with_raw_content(plugin_script);
-
-    // Make the plugin executable
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(plugin_path.path())?.permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(plugin_path.path(), perms)?;
-    }
+    with_plugin_script(
+        plugin_dir.path(),
+        "file",
+        plugin_script,
+        include_str!("../tests/data/file.cmd"),
+    );
 
     Ok(tempdir)
 }
@@ -108,11 +113,11 @@ async fn new_config_manager_builder(
     UploaderMessageBox,
 ) {
     let config_root = TedgePaths::from_root_with_defaults(temp_dir.path(), "", "");
-    let tmp_root = TedgePaths::from_root_with_defaults(
-        Utf8Path::from_path(&std::env::temp_dir()).unwrap(),
-        "",
-        "",
-    );
+    // A temporary directory per test: the tests use the same command ids and config types,
+    // hence the same snapshot file names
+    let tmp_dir = temp_dir.path().join("tmp");
+    std::fs::create_dir_all(&tmp_dir).unwrap();
+    let tmp_root = TedgePaths::from_root_with_defaults(&tmp_dir, "", "");
     let config = ConfigManagerConfig {
         config_dir: config_root.clone(),
         plugin_dirs: vec![temp_dir.path().join("config-plugins")],
@@ -197,6 +202,25 @@ async fn default_plugin_config() {
         group = "tedge"
         mode = 0o644
     };
+
+    // Windows adds the types of the files which are not managed by a package there
+    let mut plugin_config_toml = plugin_config_toml;
+    let files = plugin_config_toml["files"].as_array_mut().unwrap();
+    let windows_types = ["mosquitto"];
+    let (windows_files, files): (Vec<_>, Vec<_>) = files
+        .drain(..)
+        .partition(|file| windows_types.contains(&file["type"].as_str().unwrap()));
+    plugin_config_toml["files"] = files.into();
+    let expected_windows_files = if cfg!(windows) {
+        windows_types.len()
+    } else {
+        0
+    };
+    assert_eq!(
+        windows_files.len(),
+        expected_windows_files,
+        "{windows_files:?}"
+    );
 
     assert_eq!(plugin_config_toml, expected_config);
 }
@@ -480,7 +504,7 @@ async fn request_config_snapshot_that_does_not_exist() -> Result<(), anyhow::Err
         mqtt.recv().await,
         Some(MqttMessage::new(
             &config_topic,
-            r#"{"status":"failed","reason":"Config plugin 'file' error: Command execution failed: Unknown config type: type_five\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/config-snapshot/type_five-1234","type":"type_five"}"#
+            plugin_eol(r#"{"status":"failed","reason":"Config plugin 'file' error: Command execution failed: Unknown config type: type_five\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/config-snapshot/type_five-1234","type":"type_five"}"#)
         ).with_retain())
     );
 
@@ -920,11 +944,11 @@ async fn execute_config_set_operation_step_file_not_found() -> Result<(), anyhow
 
 fn test_config(tempdir: &TempTedgeDir) -> ConfigManagerConfig {
     let config_root = TedgePaths::from_root_with_defaults(tempdir.path(), "", "");
-    let tmp_root = TedgePaths::from_root_with_defaults(
-        Utf8Path::from_path(&std::env::temp_dir()).unwrap(),
-        "",
-        "",
-    );
+    // A temporary directory per test: the tests use the same command ids and config types,
+    // hence the same snapshot file names
+    let tmp_dir = tempdir.path().join("tmp");
+    std::fs::create_dir_all(&tmp_dir).unwrap();
+    let tmp_root = TedgePaths::from_root_with_defaults(&tmp_dir, "", "");
     tempdir.dir("operations");
     ConfigManagerConfig {
         config_dir: config_root.clone(),

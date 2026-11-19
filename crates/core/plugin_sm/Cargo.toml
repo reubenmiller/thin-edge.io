@@ -20,6 +20,7 @@ reqwest = { workspace = true }
 serde = { workspace = true }
 tedge_api = { workspace = true }
 tedge_config = { workspace = true }
+tedge_utils = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true, features = ["formatting"] }
 tokio = { workspace = true, features = ["process", "rt"] }

@@ -21,7 +21,9 @@ which = { workspace = true }
 
 [dev-dependencies]
 assert_matches = { workspace = true }
+tedge_test_utils = { workspace = true }
 test-case = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true

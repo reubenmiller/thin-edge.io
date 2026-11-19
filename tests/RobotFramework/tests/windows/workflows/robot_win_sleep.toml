@@ -1,0 +1,16 @@
+# Workflow used by the Windows system tests:
+# the script (and its child process) runs longer than the timeout and must be killed.
+# The marker in the command lines identifies the processes left behind.
+operation = "robot_win_sleep"
+
+[init]
+script = '''powershell.exe -NoProfile -NonInteractive -Command "& powershell.exe -NoProfile -NonInteractive -Command 'Start-Sleep -Seconds 601 # tedge-robot-wf-timeout'; Start-Sleep -Seconds 600 # tedge-robot-wf-timeout"'''
+timeout_second = 3
+on_success = "successful"
+on_kill = { status = "failed", reason = "timeout" }
+
+[successful]
+action = "cleanup"
+
+[failed]
+action = "cleanup"

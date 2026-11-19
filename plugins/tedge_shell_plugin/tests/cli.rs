@@ -1,3 +1,4 @@
+#![cfg(unix)]
 use assert_cmd::Command;
 use predicates::str::contains;
 use tedge_test_utils::fs::TempTedgeDir;

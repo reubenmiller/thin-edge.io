@@ -14,7 +14,6 @@ anyhow = { workspace = true }
 camino = { workspace = true }
 clap = { workspace = true }
 humantime = { workspace = true }
-nix = { workspace = true, features = ["poll"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tedge_config = { workspace = true }
@@ -22,6 +21,10 @@ tedge_utils = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 tracing = { workspace = true }
+
+# poll, file locks and process groups; Windows uses std and taskkill instead
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, features = ["poll"] }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

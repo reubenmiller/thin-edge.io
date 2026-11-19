@@ -1,15 +1,21 @@
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
 use futures::TryFutureExt;
-use nix::unistd::*;
 use std::io::Error;
-use std::os::unix::fs::MetadataExt;
-use std::os::unix::fs::PermissionsExt;
 use tokio::fs;
 use tokio::io;
 use tokio::io::AsyncWriteExt as _;
 use tracing::debug;
+
+#[cfg(unix)]
+use nix::unistd::*;
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
 use uzers::get_group_by_name;
+#[cfg(unix)]
 use uzers::get_user_by_name;
 
 #[derive(thiserror::Error, Debug)]
@@ -108,6 +114,7 @@ pub async fn move_file(
         }
     }
 
+    #[cfg(unix)]
     let original_permission_mode = match dest_path.is_file() {
         true => {
             let metadata = get_metadata(src_path)
@@ -118,6 +125,9 @@ pub async fn move_file(
         }
         false => None,
     };
+    // Unix mode bits are not applicable on Windows
+    #[cfg(not(unix))]
+    let original_permission_mode: Option<u32> = None;
 
     // Copy source to destination using rename. If that one fails due to cross-filesystem, use copy and delete.
     // As a ErrorKind::CrossesDevices is nightly feature we call copy and delete no matter what kind of error we get.
@@ -354,6 +364,7 @@ pub async fn change_user_and_group(
         .unwrap()
 }
 
+#[cfg(unix)]
 fn change_user_and_group_sync(path: &Utf8Path, user: &str, group: &str) -> Result<(), FileError> {
     match (user, group) {
         ("", "") => return Ok(()),
@@ -400,6 +411,7 @@ async fn change_user(file: Utf8PathBuf, user: String) -> Result<(), FileError> {
         .unwrap()
 }
 
+#[cfg(unix)]
 fn change_user_sync(file: &Utf8Path, user: &str) -> Result<(), FileError> {
     let metadata = get_metadata_sync(file)?;
     let ud = get_user_by_name(user)
@@ -426,6 +438,7 @@ async fn change_group(file: Utf8PathBuf, group: String) -> Result<(), FileError>
         .unwrap()
 }
 
+#[cfg(unix)]
 fn change_group_sync(file: &Utf8Path, group: &str) -> Result<(), FileError> {
     let metadata = get_metadata_sync(file)?;
     let gd = get_group_by_name(group)
@@ -454,6 +467,7 @@ async fn change_mode(file: Utf8PathBuf, mode: u32) -> Result<(), FileError> {
         .unwrap()
 }
 
+#[cfg(unix)]
 fn change_mode_sync(file: &Utf8Path, mode: u32) -> Result<(), FileError> {
     let mut permissions = get_metadata_sync(file)?.permissions();
 
@@ -470,6 +484,7 @@ fn change_mode_sync(file: &Utf8Path, mode: u32) -> Result<(), FileError> {
     }
 }
 
+#[cfg(unix)]
 async fn get_metadata(path: &Utf8Path) -> Result<std::fs::Metadata, FileError> {
     fs::metadata(path)
         .await
@@ -478,10 +493,37 @@ async fn get_metadata(path: &Utf8Path) -> Result<std::fs::Metadata, FileError> {
         })
 }
 
+#[cfg(unix)]
 fn get_metadata_sync(path: &Utf8Path) -> Result<std::fs::Metadata, FileError> {
     std::fs::metadata(path).map_err(|_| FileError::PathNotAccessible {
         path: path.to_owned(),
     })
+}
+
+// Ownership and unix mode bits are not managed on Windows:
+// the files are owned by the user running thin-edge and their access is controlled by ACLs.
+#[cfg(not(unix))]
+fn change_user_and_group_sync(
+    _path: &Utf8Path,
+    _user: &str,
+    _group: &str,
+) -> Result<(), FileError> {
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn change_user_sync(_file: &Utf8Path, _user: &str) -> Result<(), FileError> {
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn change_group_sync(_file: &Utf8Path, _group: &str) -> Result<(), FileError> {
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn change_mode_sync(_file: &Utf8Path, _mode: u32) -> Result<(), FileError> {
+    Ok(())
 }
 
 pub async fn create_symlink(
@@ -490,7 +532,13 @@ pub async fn create_symlink(
 ) -> Result<(), FileError> {
     let original = original.as_ref();
     let link = link.as_ref();
-    match fs::symlink(original, link).await {
+    // On Windows, symlink creation requires Developer Mode or elevated privileges.
+    #[cfg(unix)]
+    let result = fs::symlink(original, link).await;
+    #[cfg(windows)]
+    let result = fs::symlink_file(original, link).await;
+
+    match result {
         Ok(_) => Ok(()),
         Err(e) if e.kind() == io::ErrorKind::AlreadyExists => match fs::read_link(link).await {
             Ok(path) if path.as_path() == original => Ok(()),
@@ -514,10 +562,12 @@ pub async fn create_symlink(
 mod tests {
     use super::*;
     use crate::paths::TedgePaths;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
     use tedge_test_utils::fs::TempTedgeDir;
 
     #[tokio::test]
+    #[cfg(unix)]
     async fn change_file_permissions() {
         let ttd = TempTedgeDir::new();
         let file_path = ttd.path().join("file");
@@ -554,6 +604,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "Symlinks on Windows require elevated privileges")]
     async fn create_new_symlink() {
         let ttd = TempTedgeDir::new();
         let source_path = ttd.path().join("source_file");

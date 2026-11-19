@@ -1,21 +1,31 @@
 use super::log::MaybeFancy;
 use crate::command::Command;
+#[cfg(unix)]
 use crate::Component;
+#[cfg(unix)]
 use anyhow::bail;
 use anyhow::Context;
+#[cfg(unix)]
 use clap::Subcommand;
+#[cfg(unix)]
 use std::io::ErrorKind;
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+#[cfg(unix)]
 use std::path::Path;
+#[cfg(unix)]
 use std::path::PathBuf;
 use tedge_config::TEdgeConfig;
 use tedge_utils::paths::TedgePaths;
+#[cfg(unix)]
 use tracing::debug;
 use tracing::info;
 
 pub struct TEdgeInitCmd {
     user: Option<String>,
     group: Option<String>,
+    // Symlinks to the multicall binary are only created on Unix
+    #[cfg_attr(windows, allow(dead_code))]
     relative_links: bool,
 }
 
@@ -36,47 +46,52 @@ impl TEdgeInitCmd {
         let user = Self::resolve_config_value("User", self.user.clone(), system_config.user);
         let group = Self::resolve_config_value("Group", self.group.clone(), system_config.group);
 
-        let executable_name =
-            std::env::current_exe().context("retrieving the current executable name")?;
-        let stat = tokio::fs::metadata(&executable_name)
-            .await
-            .with_context(|| {
-                format!(
-                    "reading metadata for the current executable ({})",
+        // Symlinks are a Unix concept; on Windows components are invoked as
+        // separate .exe binaries or via `tedge run <component>`.
+        #[cfg(unix)]
+        {
+            let executable_name =
+                std::env::current_exe().context("retrieving the current executable name")?;
+            let stat = tokio::fs::metadata(&executable_name)
+                .await
+                .with_context(|| {
+                    format!(
+                        "reading metadata for the current executable ({})",
+                        executable_name.display()
+                    )
+                })?;
+            let Some(executable_dir) = executable_name.parent() else {
+                bail!(
+                    "current executable ({}) does not have a parent directory",
                     executable_name.display()
                 )
-            })?;
-        let Some(executable_dir) = executable_name.parent() else {
-            bail!(
-                "current executable ({}) does not have a parent directory",
-                executable_name.display()
-            )
-        };
-        let Some(executable_file_name) = executable_name.file_name() else {
-            bail!(
-                "current executable ({}) does not have a file name",
-                executable_name.display()
-            )
-        };
+            };
+            let Some(executable_file_name) = executable_name.file_name() else {
+                bail!(
+                    "current executable ({}) does not have a file name",
+                    executable_name.display()
+                )
+            };
 
-        let component_subcommands: Vec<String> =
-            Component::augment_subcommands(clap::Command::new("tedge"))
-                .get_subcommands()
-                .map(|c| c.get_name().to_owned())
-                .chain(["tedge-apt-plugin".to_owned()])
-                .collect();
+            let component_subcommands: Vec<String> =
+                Component::augment_subcommands(clap::Command::new("tedge"))
+                    .get_subcommands()
+                    .map(|c| c.get_name().to_owned())
+                    .chain(["tedge-apt-plugin".to_owned()])
+                    .collect();
 
-        let target = Target {
-            path: match self.relative_links {
-                true => Path::new(executable_file_name),
-                false => &executable_name,
-            },
-            uid: stat.uid(),
-            gid: stat.gid(),
-        };
+            let target = Target {
+                path: match self.relative_links {
+                    true => Path::new(executable_file_name),
+                    false => &executable_name,
+                },
+                uid: stat.uid(),
+                gid: stat.gid(),
+            };
 
-        for component in &component_subcommands {
-            create_symlinks_for(component, target, executable_dir, &RealEnv).await?;
+            for component in &component_subcommands {
+                create_symlinks_for(component, target, executable_dir, &RealEnv).await?;
+            }
         }
 
         let config_dir = &config.root_dir();
@@ -174,6 +189,7 @@ impl Command for TEdgeInitCmd {
     }
 }
 
+#[cfg(unix)]
 #[cfg_attr(test, mockall::automock)]
 #[async_trait::async_trait]
 trait FileSystem {
@@ -185,11 +201,9 @@ trait FileSystem {
         }
     }
 
-    async fn unlink(&self, link: &Path) -> nix::Result<()> {
+    async fn unlink(&self, link: &Path) -> std::io::Result<()> {
         let link = link.to_path_buf();
-        tokio::task::spawn_blocking(move || nix::unistd::unlink(&link))
-            .await
-            .expect("unlinking failed")
+        tokio::fs::remove_file(&link).await
     }
 
     async fn symlink(&self, original: &Path, link: &Path) -> std::io::Result<()> {
@@ -222,12 +236,14 @@ trait FileSystem {
 }
 
 #[derive(Copy, Clone)]
+#[cfg(unix)]
 struct Target<'a> {
     path: &'a Path,
     uid: u32,
     gid: u32,
 }
 
+#[cfg(unix)]
 async fn create_symlinks_for(
     component: &str,
     tedge: Target<'_>,
@@ -266,10 +282,13 @@ async fn create_symlinks_for(
     }
 }
 
+#[cfg(unix)]
 pub struct RealEnv;
+#[cfg(unix)]
 impl FileSystem for RealEnv {}
 
-#[cfg(test)]
+// The tests check the creation of the symlinks to the multicall binary, which is Unix only
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use mockall::predicate::*;
@@ -385,6 +404,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     mod init {
         use super::*;
         use std::os::unix::fs::PermissionsExt;

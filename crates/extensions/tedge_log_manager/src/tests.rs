@@ -23,7 +23,8 @@ use tedge_file_system_ext::FsWatchEvent;
 use tedge_mqtt_ext::MqttMessage;
 use tedge_mqtt_ext::Topic;
 use tedge_mqtt_ext::TopicFilter;
-use tedge_test_utils::fs::with_exec_permission;
+use tedge_test_utils::fs::plugin_file_name;
+use tedge_test_utils::fs::with_plugin_script;
 use tedge_test_utils::fs::TempTedgeDir;
 use tedge_uploader_ext::UploadResponse;
 use tedge_utils::paths::TedgePaths;
@@ -35,6 +36,42 @@ type MqttMessageBox = TimedMessageBox<SimpleMessageBox<MqttMessage, MqttMessage>
 type UploaderMessageBox = TimedMessageBox<FakeServerBox<LogUploadRequest, LogUploadResult>>;
 
 const TEST_TIMEOUT_MS: Duration = Duration::from_millis(5000);
+
+/// Windows version of the mocked `file` plugin
+const WINDOWS_FILE_PLUGIN: &str = r#"@echo off
+if "%~1"=="list" (
+    echo type_one
+    echo type_two
+    exit /b 0
+)
+if not "%~1"=="get" exit /b 1
+if "%~2"=="type_one" (
+    echo DEBUG: Starting application
+    echo INFO: Application initialized
+    echo ERROR: Database connection failed
+    echo DEBUG: Retrying database connection
+    echo INFO: Database connected successfully
+    echo WARN: Low memory detected
+    echo DEBUG: Garbage collection started
+    echo INFO: Processing complete
+    exit /b 0
+)
+if "%~2"=="type_two" (
+    echo Some content
+    exit /b 0
+)
+>&2 echo No logs found for log type "%~2"
+exit /b 1
+"#;
+
+/// The end of line written by the mocked `file` plugin, JSON-escaped: `.cmd` plugins on Windows write CRLF
+fn plugin_eol(expected_payload: &str) -> String {
+    if cfg!(windows) {
+        expected_payload.replace("\\n\"", "\\r\\n\"")
+    } else {
+        expected_payload.to_string()
+    }
+}
 
 /// Preparing a temp directory with a mocked `file` plugin.
 fn prepare() -> Result<TempTedgeDir, anyhow::Error> {
@@ -76,16 +113,12 @@ case "$1" in
 esac
 "#;
 
-    let plugin_path = plugin_dir.file("file").with_raw_content(plugin_script);
-
-    // Make the plugin executable
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(plugin_path.path())?.permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(plugin_path.path(), perms)?;
-    }
+    with_plugin_script(
+        plugin_dir.path(),
+        "file",
+        plugin_script,
+        WINDOWS_FILE_PLUGIN,
+    );
 
     Ok(tempdir)
 }
@@ -180,6 +213,25 @@ async fn default_plugin_config() {
         path = agent_logs_path
     };
 
+    // Windows adds the types of the files which are not managed by a package there
+    let mut plugin_config_toml = plugin_config_toml;
+    let files = plugin_config_toml["files"].as_array_mut().unwrap();
+    let windows_types = ["tedge-agent", "tedge-mapper", "tedge"];
+    let (windows_files, files): (Vec<_>, Vec<_>) = files
+        .drain(..)
+        .partition(|file| windows_types.contains(&file["type"].as_str().unwrap()));
+    plugin_config_toml["files"] = files.into();
+    let expected_windows_files = if cfg!(windows) {
+        windows_types.len()
+    } else {
+        0
+    };
+    assert_eq!(
+        windows_files.len(),
+        expected_windows_files,
+        "{windows_files:?}"
+    );
+
     assert_eq!(plugin_config_toml, expected_config);
 }
 
@@ -253,10 +305,11 @@ async fn log_manager_reloads_log_types_on_new_plugin_file() -> Result<(), anyhow
     mqtt.skip(1).await;
 
     // A new executable plugin dropped directly into the plugin dir must be picked up.
-    let plugin_path = tempdir.path().join("log-plugins").join("custom");
-    with_exec_permission(
-        &plugin_path,
+    let plugin_path = with_plugin_script(
+        tempdir.dir("log-plugins").path(),
+        "custom",
         "#!/bin/bash\ncase \"$1\" in\n    \"list\") echo \"app_log\" ;;\n    *) exit 1 ;;\nesac\n",
+        "@echo off\r\nif \"%~1\"==\"list\" (echo app_log& exit /b 0)\r\nexit /b 1\r\n",
     );
     fs.send(FsWatchEvent::Modified(plugin_path.into())).await?;
 
@@ -286,7 +339,10 @@ async fn log_manager_reloads_log_types_on_plugin_file_deletion() -> Result<(), a
     mqtt.skip(1).await;
 
     // Deleting the only plugin file (a direct child of the plugin dir) drops its types.
-    let plugin_path = tempdir.path().join("log-plugins").join("file");
+    let plugin_path = tempdir
+        .path()
+        .join("log-plugins")
+        .join(plugin_file_name("file"));
     std::fs::remove_file(&plugin_path)?;
     fs.send(FsWatchEvent::FileDeleted(plugin_path.into()))
         .await?;
@@ -637,7 +693,7 @@ async fn request_logtype_that_does_not_exist() -> Result<(), anyhow::Error> {
         mqtt.recv().await,
         Some(MqttMessage::new(
             &logfile_topic,
-            r#"{"status":"failed","reason":"Failed to initiate log file upload: Log plugin 'file' error: Get command error: No logs found for log type \"type_four\"\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/log_upload/type_four-1234","type":"type_four","dateFrom":"1970-01-01T00:00:00Z","dateTo":"1970-01-01T00:00:30Z","lines":1000}"#
+            plugin_eol(r#"{"status":"failed","reason":"Failed to initiate log file upload: Log plugin 'file' error: Get command error: No logs found for log type \"type_four\"\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/log_upload/type_four-1234","type":"type_four","dateFrom":"1970-01-01T00:00:00Z","dateTo":"1970-01-01T00:00:30Z","lines":1000}"#)
         ).with_retain())
     );
 
@@ -743,7 +799,7 @@ async fn read_log_from_file_that_does_not_exist() -> Result<(), anyhow::Error> {
         mqtt.recv().await,
         Some(MqttMessage::new(
             &logfile_topic,
-            r#"{"status":"failed","reason":"Failed to initiate log file upload: Log plugin 'file' error: Get command error: No logs found for log type \"type_three\"\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/log_upload/type_three-1234","type":"type_three","dateFrom":"1970-01-01T00:00:00Z","dateTo":"1970-01-01T00:00:30Z","lines":1000}"#
+            plugin_eol(r#"{"status":"failed","reason":"Failed to initiate log file upload: Log plugin 'file' error: Get command error: No logs found for log type \"type_three\"\n","tedgeUrl":"http://127.0.0.1:3000/te/v1/files/main/log_upload/type_three-1234","type":"type_three","dateFrom":"1970-01-01T00:00:00Z","dateTo":"1970-01-01T00:00:30Z","lines":1000}"#)
         ).with_retain())
     );
 

@@ -42,6 +42,7 @@ use tedge_actors::Runtime;
 use tedge_actors::RuntimeError;
 use tedge_actors::RuntimeHandle;
 use tedge_config::LogLevelReloadHandle;
+#[cfg(unix)]
 use tokio::signal::unix;
 use tokio::sync::mpsc;
 use tracing::error;
@@ -153,9 +154,13 @@ enum Command {
     /// already draining forces an immediate exit.
     ShutdownAll,
     /// Restart all mapper units, leaving the agent running (SIGUSR1).
+    // Windows has no SIGUSR1
+    #[cfg_attr(not(unix), allow(dead_code))]
     RestartMappers,
     /// Re-read `system.toml` and apply the log levels live, without restarting
     /// any component (SIGHUP).
+    // Windows has no SIGHUP
+    #[cfg_attr(not(unix), allow(dead_code))]
     ReloadLogLevels,
 }
 
@@ -527,7 +532,21 @@ impl Supervisor {
     }
 }
 
+/// Raised by [`request_shutdown`], e.g. when a Windows Service is asked to stop.
+static EXTERNAL_SHUTDOWN: tokio::sync::Notify = tokio::sync::Notify::const_new();
+
+/// Asks the supervisor of this process to drain all its units and exit,
+/// as on a termination signal.
+///
+/// This is how a stop request is delivered when it does not come as a signal,
+/// e.g. by the Windows Service Control Manager.
+/// The request is kept if the supervisor is not yet listening.
+pub fn request_shutdown() {
+    EXTERNAL_SHUTDOWN.notify_one();
+}
+
 /// Translates process signals into supervisor [`Command`]s.
+#[cfg(unix)]
 fn spawn_signal_listener(commands: mpsc::Sender<Command>) -> anyhow::Result<()> {
     let mut sigint =
         unix::signal(unix::SignalKind::interrupt()).context("registering SIGINT handler")?;
@@ -546,8 +565,42 @@ fn spawn_signal_listener(commands: mpsc::Sender<Command>) -> anyhow::Result<()> 
                 _ = sigint.recv() => Command::ShutdownAll,
                 _ = sigterm.recv() => Command::ShutdownAll,
                 _ = sigquit.recv() => Command::ShutdownAll,
+                _ = EXTERNAL_SHUTDOWN.notified() => Command::ShutdownAll,
                 _ = sigusr1.recv() => Command::RestartMappers,
                 _ = sighup.recv() => Command::ReloadLogLevels,
+            };
+            if commands.send(command).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    Ok(())
+}
+
+/// Translates console control events and service stop requests into supervisor [`Command`]s.
+///
+/// Windows has no equivalent of SIGUSR1 and SIGHUP:
+/// the mappers are restarted by restarting their service,
+/// and the log levels are reloaded on restart.
+#[cfg(windows)]
+fn spawn_signal_listener(commands: mpsc::Sender<Command>) -> anyhow::Result<()> {
+    use tokio::signal::windows;
+
+    let mut ctrl_c = windows::ctrl_c().context("registering CTRL_C handler")?;
+    let mut ctrl_break = windows::ctrl_break().context("registering CTRL_BREAK handler")?;
+    let mut ctrl_close = windows::ctrl_close().context("registering CTRL_CLOSE handler")?;
+    let mut ctrl_shutdown =
+        windows::ctrl_shutdown().context("registering CTRL_SHUTDOWN handler")?;
+
+    tokio::spawn(async move {
+        loop {
+            let command = tokio::select! {
+                _ = ctrl_c.recv() => Command::ShutdownAll,
+                _ = ctrl_break.recv() => Command::ShutdownAll,
+                _ = ctrl_close.recv() => Command::ShutdownAll,
+                _ = ctrl_shutdown.recv() => Command::ShutdownAll,
+                _ = EXTERNAL_SHUTDOWN.notified() => Command::ShutdownAll,
             };
             if commands.send(command).await.is_err() {
                 break;
@@ -1020,6 +1073,35 @@ mod tests {
             .await
             .expect("a second termination signal should force an immediate exit")
             .unwrap()
+            .unwrap();
+    }
+
+    // The only test using the process-wide shutdown request, so no other test can consume it
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_shutdown_request_drains_all_units_even_if_sent_before_the_supervisor_runs() {
+        let builds = Arc::new(AtomicUsize::new(0));
+        let units = vec![
+            make_unit(
+                "agent",
+                UnitKind::Agent,
+                healthy_factory(builds.clone()),
+                test_policy(1000),
+            ),
+            make_unit(
+                "mapper",
+                UnitKind::Mapper,
+                healthy_factory(builds.clone()),
+                test_policy(1000),
+            ),
+        ];
+
+        // e.g. a Windows Service stop request received while the service is still starting
+        request_shutdown();
+
+        let supervisor = Supervisor::new(units);
+        timeout(Duration::from_secs(5), supervisor.run())
+            .await
+            .expect("a shutdown request should drain all the units")
             .unwrap();
     }
 

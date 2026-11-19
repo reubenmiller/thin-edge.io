@@ -66,7 +66,7 @@ fn test_get_command_existing_file() {
 path = "{}"
 type = "test.conf"
 "#,
-        test_config_file.path()
+        test_config_file.path().as_str().replace('\\', "/")
     );
     ttd.dir("plugins")
         .file("tedge-configuration-plugin.toml")
@@ -102,7 +102,7 @@ fn test_set_command() {
 path = "{}"
 type = "dest.conf"
 "#,
-        dest_file.path()
+        dest_file.path().as_str().replace('\\', "/")
     );
     ttd.dir("plugins")
         .file("tedge-configuration-plugin.toml")
@@ -125,6 +125,10 @@ type = "dest.conf"
 }
 
 #[test]
+#[cfg_attr(
+    windows,
+    ignore = "restart command uses 'sh -c' which is not available on Windows"
+)]
 fn test_set_command_executes_service_restart_command() {
     let ttd = TempTedgeDir::new();
 
@@ -203,7 +207,7 @@ path = "{}"
 type = "tedge.conf"
 service = "tedge-agent"
 "###,
-        dest_file.path()
+        dest_file.path().as_str().replace('\\', "/")
     );
     ttd.dir("plugins")
         .file("tedge-configuration-plugin.toml")
@@ -257,7 +261,7 @@ fn test_verify_command_does_not_probe_the_tedge_agent_service() {
     let config_content = format!(
         r###"
 [[files]]
-path = "{}"
+path = '{}'
 type = "tedge.conf"
 service = "tedge-agent"
 "###,

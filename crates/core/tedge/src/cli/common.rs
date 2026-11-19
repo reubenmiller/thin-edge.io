@@ -172,6 +172,16 @@ impl Cloud {
 }
 
 /// Resolve a cloud name string to a known `Cloud`, or `None` for custom mappers.
+/// Whether mosquitto has to be restarted to apply the configuration written by `tedge connect` and `tedge disconnect`
+///
+/// On Linux, `mosquitto.conf` includes the configuration written by thin-edge.io (`mosquitto-conf/`).
+/// Mosquitto for Windows is configured by the user and does not include it:
+/// restarting it would only drop the retained messages (e.g. the capabilities of the agent),
+/// as it does not persist them by default.
+pub fn mosquitto_applies_tedge_config() -> bool {
+    !cfg!(windows)
+}
+
 pub fn resolve_cloud(name: &str, profile: Option<ProfileName>) -> Option<Cloud> {
     // If no explicit profile is given and the name looks like `<cloud>.<profile>`,
     // split and treat the second segment as the profile name.
@@ -442,7 +452,6 @@ pub async fn is_run_all_active(service_manager: &dyn SystemServiceManager) -> bo
 /// A [SystemServiceManager] recording the actions it is asked to run, for unit tests
 #[cfg(test)]
 pub(crate) mod test_service_manager {
-    use std::os::unix::process::ExitStatusExt;
     use std::process::ExitStatus;
     use std::sync::Mutex;
     use tedge_system_services::ExecCommand;
@@ -515,7 +524,7 @@ pub(crate) mod test_service_manager {
             self.actions.lock().unwrap().push(service_command.clone());
             Ok(ServiceCommandOutcome {
                 service_command,
-                status: ExitStatus::from_raw(0),
+                status: ExitStatus::default(),
                 stdout: String::new(),
                 stderr: String::new(),
             })

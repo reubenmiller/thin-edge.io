@@ -198,7 +198,14 @@ mod tests {
         // Validate if the supported operation file is created
         assert!(ttd
             .path()
-            .join("operations/c8y/test-device:device:child1/c8y_DeviceProfile")
+            .join("operations/c8y")
+            .join(
+                crate::supported_operations::device_dir::dir_name_from_xid(
+                    "test-device:device:child1"
+                )
+                .as_ref()
+            )
+            .join("c8y_DeviceProfile")
             .exists());
 
         // Duplicate device_profile cmd metadata message
