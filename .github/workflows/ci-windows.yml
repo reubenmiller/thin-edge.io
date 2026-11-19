@@ -144,6 +144,20 @@ jobs:
         run: cargo build --package tedge --locked --release --target ${{ matrix.cargo_target }}
         shell: pwsh
 
+      # The runners have the Visual C++ Redistributable installed, but most devices don't:
+      # tedge.exe must not import the C runtime DLLs (see .cargo/config.toml)
+      - name: Check that tedge.exe does not need the Visual C++ Redistributable
+        run: |
+          $exe = "target/${{ matrix.cargo_target }}/release/tedge.exe"
+          $content = [System.Text.Encoding]::GetEncoding(28591).GetString([System.IO.File]::ReadAllBytes($exe))
+          $found = [regex]::Matches($content, '(?i)(vcruntime\d+|msvcp\d+|api-ms-win-crt-[a-z0-9-]+)\.dll') |
+            ForEach-Object Value | Sort-Object -Unique
+          if ($found) {
+            Write-Error "tedge.exe imports C runtime DLLs: $($found -join ', ')"
+            exit 1
+          }
+        shell: pwsh
+
       - name: Upload tedge.exe
         uses: actions/upload-artifact@v7
         with:
